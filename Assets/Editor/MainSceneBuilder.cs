@@ -27,7 +27,7 @@ namespace SkinnyToBeast.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "Main";
 
-            Camera mainCamera = CreateMainCamera();
+            CreateMainCamera();
             CreateLight();
 
             Canvas canvas = CreateCanvas();
@@ -39,28 +39,48 @@ namespace SkinnyToBeast.EditorTools
             MainHudController hudController = gameManagerObject.GetComponent<MainHudController>();
             GameManager gameManager = gameManagerObject.GetComponent<GameManager>();
 
-            GameObject topHud = CreatePanel("TopHud", canvas.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -140), new Vector2(900, 220));
-            TMP_Text coinsText = CreateText("CoinsText", topHud.transform, "Coins: 0", 42, new Vector2(0, 70));
-            TMP_Text strengthText = CreateText("StrengthText", topHud.transform, "Strength: 0", 42, new Vector2(0, 10));
-            TMP_Text repsText = CreateText("RepsText", topHud.transform, "Reps: 0", 34, new Vector2(0, -45));
-            TMP_Text bodyStageText = CreateText("BodyStageText", topHud.transform, "Body: Skinny", 38, new Vector2(0, -95));
+            Image background = CreateStretchImage("Background", canvas.transform, new Color(0.055f, 0.07f, 0.095f));
+            background.raycastTarget = false;
 
-            GameObject characterArea = CreatePanel("CharacterArea", canvas.transform, new Vector2(0.5f, 0.54f), new Vector2(0.5f, 0.54f), Vector2.zero, new Vector2(820, 760));
-            Image characterImage = CreateImage("CharacterImage", characterArea.transform, new Color(0.95f, 0.86f, 0.65f), new Vector2(0, 100), new Vector2(360, 420));
-            CreateText("CharacterLabel", characterImage.transform, "SKINNY", 42, Vector2.zero);
-            Button tapButton = CreateButton("TapButton", characterArea.transform, "TAP TO TRAIN", new Vector2(0, -245), new Vector2(560, 130));
+            GameObject topHud = CreatePanel("TopHud", canvas.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -190), new Vector2(980, 330));
+            Image topHudBg = topHud.AddComponent<Image>();
+            topHudBg.color = new Color(0.09f, 0.11f, 0.15f, 0.92f);
+
+            TMP_Text titleText = CreateText("TitleText", topHud.transform, "SKINNY TO BEAST", 58, new Vector2(0, 115), new Vector2(920, 70), Color.white);
+            titleText.fontStyle = FontStyles.Bold;
+
+            TMP_Text coinsText = CreateText("CoinsText", topHud.transform, "Coins: 0", 38, new Vector2(-255, 35), new Vector2(430, 55), Color.white);
+            TMP_Text strengthText = CreateText("StrengthText", topHud.transform, "Strength: 0", 38, new Vector2(255, 35), new Vector2(430, 55), Color.white);
+            TMP_Text repsText = CreateText("RepsText", topHud.transform, "Reps: 0", 34, new Vector2(-255, -35), new Vector2(430, 50), Color.white);
+            TMP_Text bodyStageText = CreateText("BodyStageText", topHud.transform, "Body: Skinny", 34, new Vector2(255, -35), new Vector2(430, 50), Color.white);
+            CreateText("TipText", topHud.transform, "Tap fast. Buy upgrades. Become huge.", 28, new Vector2(0, -105), new Vector2(900, 45), new Color(0.72f, 0.82f, 1f));
+
+            GameObject characterArea = CreatePanel("CharacterArea", canvas.transform, new Vector2(0.5f, 0.54f), new Vector2(0.5f, 0.54f), Vector2.zero, new Vector2(900, 760));
+            Image characterPanel = characterArea.AddComponent<Image>();
+            characterPanel.color = new Color(0.08f, 0.09f, 0.12f, 0.55f);
+
+            Image characterImage = CreateImage("CharacterImage", characterArea.transform, new Color(0.96f, 0.82f, 0.55f), new Vector2(0, 115), new Vector2(310, 410));
+            TMP_Text characterLabel = CreateText("CharacterLabel", characterImage.transform, "SKINNY", 46, Vector2.zero, new Vector2(280, 95), new Color(0.08f, 0.07f, 0.05f));
+            characterLabel.fontStyle = FontStyles.Bold;
+            characterLabel.transform.SetAsLastSibling();
+
+            Button tapButton = CreateButton("TapButton", characterArea.transform, "TAP TO TRAIN", new Vector2(0, -205), new Vector2(650, 130), new Color(0.12f, 0.58f, 0.24f), 44);
             UnityEventTools.AddPersistentListener(tapButton.onClick, tapTrainingController.TrainTap);
 
-            GameObject upgradePanel = CreatePanel("UpgradePanel", canvas.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0, 225), new Vector2(900, 430));
+            GameObject upgradePanel = CreatePanel("UpgradePanel", canvas.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0, 255), new Vector2(980, 500));
+            Image upgradePanelBg = upgradePanel.AddComponent<Image>();
+            upgradePanelBg.color = new Color(0.09f, 0.11f, 0.15f, 0.92f);
+
             TMP_Text dumbbellsText;
             TMP_Text proteinText;
             TMP_Text coachText;
             TMP_Text betterGymText;
 
-            Button dumbbellsButton = CreateUpgradeButton("DumbbellsButton", upgradePanel.transform, "Dumbbells", new Vector2(-230, 110), out dumbbellsText);
-            Button proteinButton = CreateUpgradeButton("ProteinButton", upgradePanel.transform, "Protein", new Vector2(230, 110), out proteinText);
-            Button coachButton = CreateUpgradeButton("CoachButton", upgradePanel.transform, "Coach", new Vector2(-230, -80), out coachText);
-            Button betterGymButton = CreateUpgradeButton("BetterGymButton", upgradePanel.transform, "Better Gym", new Vector2(230, -80), out betterGymText);
+            CreateText("UpgradeTitle", upgradePanel.transform, "UPGRADES", 42, new Vector2(0, 195), new Vector2(900, 55), Color.white).fontStyle = FontStyles.Bold;
+            Button dumbbellsButton = CreateUpgradeButton("DumbbellsButton", upgradePanel.transform, "Dumbbells\nLv.0 — 10 coins", new Vector2(-240, 70), out dumbbellsText);
+            Button proteinButton = CreateUpgradeButton("ProteinButton", upgradePanel.transform, "Protein\nLv.0 — 25 coins", new Vector2(240, 70), out proteinText);
+            Button coachButton = CreateUpgradeButton("CoachButton", upgradePanel.transform, "Coach\nLv.0 — 100 coins", new Vector2(-240, -115), out coachText);
+            Button betterGymButton = CreateUpgradeButton("BetterGymButton", upgradePanel.transform, "Better Gym\nLv.0 — 500 coins", new Vector2(240, -115), out betterGymText);
 
             UnityEventTools.AddPersistentListener(dumbbellsButton.onClick, hudController.PurchaseDumbbells);
             UnityEventTools.AddPersistentListener(proteinButton.onClick, hudController.PurchaseProtein);
@@ -101,7 +121,7 @@ namespace SkinnyToBeast.EditorTools
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.tag = "MainCamera";
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.08f, 0.1f, 0.13f);
+            camera.backgroundColor = new Color(0.055f, 0.07f, 0.095f);
             camera.orthographic = true;
             camera.orthographicSize = 5;
             return camera;
@@ -152,6 +172,20 @@ namespace SkinnyToBeast.EditorTools
             return panel;
         }
 
+        private static Image CreateStretchImage(string name, Transform parent, Color color)
+        {
+            GameObject imageObject = new GameObject(name);
+            imageObject.transform.SetParent(parent, false);
+            RectTransform rect = imageObject.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            Image image = imageObject.AddComponent<Image>();
+            image.color = color;
+            return image;
+        }
+
         private static Image CreateImage(string name, Transform parent, Color color, Vector2 anchoredPosition, Vector2 size)
         {
             GameObject imageObject = new GameObject(name);
@@ -168,7 +202,7 @@ namespace SkinnyToBeast.EditorTools
             return image;
         }
 
-        private static TMP_Text CreateText(string name, Transform parent, string value, int fontSize, Vector2 anchoredPosition)
+        private static TMP_Text CreateText(string name, Transform parent, string value, int fontSize, Vector2 anchoredPosition, Vector2 size, Color color)
         {
             GameObject textObject = new GameObject(name);
             textObject.transform.SetParent(parent, false);
@@ -177,17 +211,24 @@ namespace SkinnyToBeast.EditorTools
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(860, 70);
+            rect.sizeDelta = size;
 
             TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
             text.text = value;
             text.fontSize = fontSize;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 16;
+            text.fontSizeMax = fontSize;
             text.alignment = TextAlignmentOptions.Center;
-            text.color = Color.white;
+            text.color = color;
+            text.raycastTarget = false;
+            text.overflowMode = TextOverflowModes.Overflow;
+            text.enableWordWrapping = false;
+            text.transform.SetAsLastSibling();
             return text;
         }
 
-        private static Button CreateButton(string name, Transform parent, string label, Vector2 anchoredPosition, Vector2 size)
+        private static Button CreateButton(string name, Transform parent, string label, Vector2 anchoredPosition, Vector2 size, Color color, int fontSize)
         {
             GameObject buttonObject = new GameObject(name);
             buttonObject.transform.SetParent(parent, false);
@@ -199,19 +240,21 @@ namespace SkinnyToBeast.EditorTools
             rect.sizeDelta = size;
 
             Image image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.16f, 0.52f, 0.24f);
+            image.color = color;
 
             Button button = buttonObject.AddComponent<Button>();
-            TMP_Text text = CreateText("Text", buttonObject.transform, label, 42, Vector2.zero);
-            text.rectTransform.sizeDelta = size;
+            TMP_Text text = CreateText("Text", buttonObject.transform, label, fontSize, Vector2.zero, new Vector2(size.x - 30, size.y - 20), Color.white);
+            text.fontStyle = FontStyles.Bold;
+            text.transform.SetAsLastSibling();
             return button;
         }
 
         private static Button CreateUpgradeButton(string name, Transform parent, string label, Vector2 anchoredPosition, out TMP_Text labelText)
         {
-            Button button = CreateButton(name, parent, label, anchoredPosition, new Vector2(400, 145));
+            Button button = CreateButton(name, parent, label, anchoredPosition, new Vector2(420, 140), new Color(0.13f, 0.46f, 0.23f), 31);
             labelText = button.GetComponentInChildren<TMP_Text>();
-            labelText.fontSize = 30;
+            labelText.enableWordWrapping = true;
+            labelText.overflowMode = TextOverflowModes.Ellipsis;
             return button;
         }
 
