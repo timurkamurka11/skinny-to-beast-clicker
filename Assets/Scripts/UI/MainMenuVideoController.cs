@@ -17,6 +17,9 @@ namespace SkinnyToBeast.UI
         [SerializeField] private bool loop = true;
         [SerializeField] private bool mute = true;
 
+        [Header("Screen Fit")]
+        [SerializeField] private bool stretchToPortraitScreen = true;
+
         private VideoPlayer videoPlayer;
 
         private void Awake()
@@ -67,6 +70,7 @@ namespace SkinnyToBeast.UI
             videoPlayer.isLooping = loop;
             videoPlayer.skipOnDrop = true;
             videoPlayer.audioOutputMode = mute ? VideoAudioOutputMode.None : VideoAudioOutputMode.Direct;
+            videoPlayer.aspectRatio = stretchToPortraitScreen ? VideoAspectRatio.Stretch : VideoAspectRatio.FitInside;
 
             if (targetTexture != null)
             {
@@ -77,6 +81,7 @@ namespace SkinnyToBeast.UI
                 {
                     targetImage.texture = targetTexture;
                     targetImage.color = Color.white;
+                    targetImage.uvRect = new Rect(0f, 0f, 1f, 1f);
                 }
             }
             else
@@ -91,6 +96,7 @@ namespace SkinnyToBeast.UI
             {
                 targetImage.texture = preparedPlayer.texture;
                 targetImage.color = Color.white;
+                targetImage.uvRect = new Rect(0f, 0f, 1f, 1f);
             }
 
             preparedPlayer.Play();
