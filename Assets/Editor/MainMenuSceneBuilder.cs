@@ -288,7 +288,7 @@ namespace SkinnyToBeast.EditorTools
             outline.effectColor = new Color(1f, 0.7f, 0.08f, 0.9f);
             outline.effectDistance = new Vector2(4, -4);
 
-            return card;
+            return root;
         }
 
         private static GameObject CreatePanel(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, Color color, bool raycastTarget)
