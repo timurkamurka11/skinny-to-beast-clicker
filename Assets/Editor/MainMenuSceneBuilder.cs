@@ -16,6 +16,7 @@ namespace SkinnyToBeast.EditorTools
     {
         private const string ScenePath = "Assets/Scenes/MainMenu.unity";
         private const string VideoPath = "Assets/Videos/MainMenuLoop.mp4";
+        private const string RenderTexturePath = "Assets/Videos/MainMenuRenderTexture.renderTexture";
 
         [MenuItem("Tools/Skinny To Beast/Create Video Main Menu Scene")]
         public static void CreateVideoMainMenuScene()
@@ -29,23 +30,13 @@ namespace SkinnyToBeast.EditorTools
             CreateMainCamera();
             Canvas canvas = CreateCanvas();
 
-            RawImage videoImage = CreateVideoBackground(canvas.transform);
-            GameObject controllerObject = CreateController(videoImage);
+            RenderTexture renderTexture = CreateOrLoadRenderTexture();
+            RawImage videoImage = CreateVideoBackground(canvas.transform, renderTexture);
+            GameObject controllerObject = CreateController(videoImage, renderTexture);
             MainMenuController menuController = controllerObject.GetComponent<MainMenuController>();
 
-            CreateTopBar(canvas.transform);
-            CreateTitle(canvas.transform);
-            CreateRightBadge(canvas.transform);
-
-            Button startButton = CreateButton(canvas.transform, "StartButton", "START", new Vector2(0, -520), new Vector2(760, 160), 72, new Color(1f, 0.73f, 0.06f), new Color(0.22f, 0.11f, 0.02f));
-            Button settingsButton = CreateButton(canvas.transform, "SettingsButton", "SETTINGS", new Vector2(-235, -720), new Vector2(360, 110), 42, new Color(0.17f, 0.32f, 0.95f), Color.white);
-            Button shopButton = CreateButton(canvas.transform, "ShopButton", "SHOP", new Vector2(235, -720), new Vector2(360, 110), 42, new Color(0.17f, 0.32f, 0.95f), Color.white);
-
-            UnityEventTools.AddPersistentListener(startButton.onClick, menuController.StartGame);
-            UnityEventTools.AddPersistentListener(settingsButton.onClick, menuController.OpenSettings);
-            UnityEventTools.AddPersistentListener(shopButton.onClick, menuController.OpenShop);
-
-            CreateBottomTabs(canvas.transform);
+            CreateVideoMissingHint(canvas.transform);
+            CreateClickableHotspots(canvas.transform, menuController);
             CreateEventSystem();
 
             Selection.activeGameObject = controllerObject;
@@ -62,7 +53,7 @@ namespace SkinnyToBeast.EditorTools
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.tag = "MainCamera";
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.04f, 0.05f, 0.08f);
+            camera.backgroundColor = new Color(0.01f, 0.01f, 0.015f);
             camera.orthographic = true;
             camera.orthographicSize = 5;
         }
@@ -82,10 +73,39 @@ namespace SkinnyToBeast.EditorTools
             return canvas;
         }
 
-        private static RawImage CreateVideoBackground(Transform parent)
+        private static RenderTexture CreateOrLoadRenderTexture()
+        {
+            RenderTexture renderTexture = AssetDatabase.LoadAssetAtPath<RenderTexture>(RenderTexturePath);
+            if (renderTexture != null)
+            {
+                renderTexture.width = 1080;
+                renderTexture.height = 1920;
+                renderTexture.depth = 0;
+                renderTexture.format = RenderTextureFormat.ARGB32;
+                EditorUtility.SetDirty(renderTexture);
+                return renderTexture;
+            }
+
+            renderTexture = new RenderTexture(1080, 1920, 0, RenderTextureFormat.ARGB32)
+            {
+                name = "MainMenuRenderTexture",
+                antiAliasing = 1,
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                useMipMap = false,
+                autoGenerateMips = false
+            };
+
+            AssetDatabase.CreateAsset(renderTexture, RenderTexturePath);
+            AssetDatabase.SaveAssets();
+            return renderTexture;
+        }
+
+        private static RawImage CreateVideoBackground(Transform parent, RenderTexture renderTexture)
         {
             GameObject backgroundObject = new GameObject("VideoBackground");
             backgroundObject.transform.SetParent(parent, false);
+            backgroundObject.transform.SetAsFirstSibling();
 
             RectTransform rect = backgroundObject.AddComponent<RectTransform>();
             rect.anchorMin = Vector2.zero;
@@ -94,28 +114,38 @@ namespace SkinnyToBeast.EditorTools
             rect.offsetMax = Vector2.zero;
 
             RawImage rawImage = backgroundObject.AddComponent<RawImage>();
+            rawImage.texture = renderTexture;
             rawImage.color = Color.white;
+            rawImage.raycastTarget = false;
 
             AspectRatioFitter fitter = backgroundObject.AddComponent<AspectRatioFitter>();
             fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-            fitter.aspectRatio = 1280f / 720f;
+            fitter.aspectRatio = 9f / 16f;
 
             return rawImage;
         }
 
-        private static GameObject CreateController(RawImage videoImage)
+        private static GameObject CreateController(RawImage videoImage, RenderTexture renderTexture)
         {
             GameObject controllerObject = new GameObject("MainMenuController");
             MainMenuVideoController videoController = controllerObject.AddComponent<MainMenuVideoController>();
-            controllerObject.AddComponent<MainMenuController>();
+            MainMenuController menuController = controllerObject.AddComponent<MainMenuController>();
             VideoPlayer player = controllerObject.GetComponent<VideoPlayer>();
             VideoClip clip = AssetDatabase.LoadAssetAtPath<VideoClip>(VideoPath);
 
             AssignReference(videoController, "targetImage", videoImage);
             AssignReference(videoController, "menuLoopClip", clip);
+            AssignReference(videoController, "targetTexture", renderTexture);
+            AssignString(menuController, "gameplaySceneName", "Main");
 
+            player.source = VideoSource.VideoClip;
+            player.clip = clip;
+            player.renderMode = VideoRenderMode.RenderTexture;
+            player.targetTexture = renderTexture;
             player.isLooping = true;
-            player.playOnAwake = false;
+            player.playOnAwake = true;
+            player.skipOnDrop = true;
+            player.audioOutputMode = VideoAudioOutputMode.None;
 
             if (clip == null)
             {
@@ -125,35 +155,66 @@ namespace SkinnyToBeast.EditorTools
             return controllerObject;
         }
 
-        private static void CreateTopBar(Transform parent)
+        private static void CreateVideoMissingHint(Transform parent)
         {
-            GameObject coinPanel = CreatePanel(parent, "CoinPanel", new Vector2(-330, 830), new Vector2(360, 90), new Color(0.03f, 0.06f, 0.12f, 0.78f));
-            CreateText(coinPanel.transform, "CoinText", "💪 10.2K   +", 42, Vector2.zero, Color.white, TextAlignmentOptions.Center, new Vector2(330, 80));
+            VideoClip clip = AssetDatabase.LoadAssetAtPath<VideoClip>(VideoPath);
+            if (clip != null)
+            {
+                return;
+            }
 
-            GameObject leaderboard = CreatePanel(parent, "LeaderboardPanel", new Vector2(355, 825), new Vector2(240, 110), new Color(0.03f, 0.06f, 0.12f, 0.78f));
-            CreateText(leaderboard.transform, "LeaderboardText", "🏆\nLEADERS", 30, Vector2.zero, Color.white, TextAlignmentOptions.Center, new Vector2(220, 95));
+            GameObject panel = CreatePanel(parent, "MissingVideoHint", new Vector2(0, 0), new Vector2(900, 260), new Color(0f, 0f, 0f, 0.72f), true);
+            CreateText(panel.transform, "HintText", "VIDEO NOT FOUND\nPut MP4 here:\nAssets/Videos/MainMenuLoop.mp4\nThen run Tools → Skinny To Beast → Create Video Main Menu Scene", 38, Vector2.zero, Color.white, TextAlignmentOptions.Center, new Vector2(850, 240));
         }
 
-        private static void CreateTitle(Transform parent)
+        private static void CreateClickableHotspots(Transform parent, MainMenuController menuController)
         {
-            GameObject titlePanel = CreatePanel(parent, "TitlePanel", new Vector2(0, 605), new Vector2(980, 260), new Color(0.02f, 0.02f, 0.03f, 0.45f));
-            CreateText(titlePanel.transform, "TitleText", "SKINNY\nTO BEAST", 92, new Vector2(0, 20), new Color(1f, 0.81f, 0.08f), TextAlignmentOptions.Center, new Vector2(940, 180));
-            CreateText(titlePanel.transform, "SubtitleText", "Idle Gym Clicker", 38, new Vector2(0, -100), Color.white, TextAlignmentOptions.Center, new Vector2(700, 70));
+            Button startButton = CreateHotspot(parent, "StartHotspot", new Vector2(0, -520), new Vector2(800, 180));
+            Button settingsButton = CreateHotspot(parent, "SettingsHotspot", new Vector2(-235, -720), new Vector2(380, 130));
+            Button shopButton = CreateHotspot(parent, "ShopHotspot", new Vector2(235, -720), new Vector2(380, 130));
+            Button trainTab = CreateHotspot(parent, "TrainTabHotspot", new Vector2(-390, -900), new Vector2(240, 120));
+            Button upgradeTab = CreateHotspot(parent, "UpgradeTabHotspot", new Vector2(-130, -900), new Vector2(260, 120));
+            Button earnTab = CreateHotspot(parent, "EarnTabHotspot", new Vector2(130, -900), new Vector2(240, 120));
+            Button achieveTab = CreateHotspot(parent, "AchieveTabHotspot", new Vector2(390, -900), new Vector2(260, 120));
+
+            UnityEventTools.AddPersistentListener(startButton.onClick, menuController.StartGame);
+            UnityEventTools.AddPersistentListener(settingsButton.onClick, menuController.OpenSettings);
+            UnityEventTools.AddPersistentListener(shopButton.onClick, menuController.OpenShop);
+            UnityEventTools.AddPersistentListener(trainTab.onClick, menuController.StartGame);
+            UnityEventTools.AddPersistentListener(upgradeTab.onClick, menuController.OpenSettings);
+            UnityEventTools.AddPersistentListener(earnTab.onClick, menuController.OpenShop);
+            UnityEventTools.AddPersistentListener(achieveTab.onClick, menuController.OpenSettings);
         }
 
-        private static void CreateRightBadge(Transform parent)
+        private static Button CreateHotspot(Transform parent, string name, Vector2 anchoredPosition, Vector2 size)
         {
-            GameObject badge = CreatePanel(parent, "MotivationBadge", new Vector2(330, -260), new Vector2(300, 160), new Color(0.02f, 0.02f, 0.03f, 0.72f));
-            CreateText(badge.transform, "BadgeText", "TRANSFORM\nYOUR BODY\nBUILD LEGACY", 28, Vector2.zero, new Color(1f, 0.86f, 0.08f), TextAlignmentOptions.Center, new Vector2(280, 145));
+            GameObject buttonObject = new GameObject(name);
+            buttonObject.transform.SetParent(parent, false);
+
+            RectTransform rect = buttonObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+
+            Image image = buttonObject.AddComponent<Image>();
+            image.color = new Color(1f, 1f, 1f, 0.001f);
+            image.raycastTarget = true;
+
+            Button button = buttonObject.AddComponent<Button>();
+            ColorBlock colors = button.colors;
+            colors.normalColor = new Color(1f, 1f, 1f, 0.001f);
+            colors.highlightedColor = new Color(1f, 1f, 1f, 0.06f);
+            colors.pressedColor = new Color(1f, 0.78f, 0f, 0.12f);
+            colors.selectedColor = new Color(1f, 1f, 1f, 0.001f);
+            colors.disabledColor = new Color(0f, 0f, 0f, 0f);
+            button.colors = colors;
+
+            return button;
         }
 
-        private static void CreateBottomTabs(Transform parent)
-        {
-            GameObject bottomBar = CreatePanel(parent, "BottomTabs", new Vector2(0, -900), new Vector2(1040, 120), new Color(0.02f, 0.04f, 0.08f, 0.86f));
-            CreateText(bottomBar.transform, "TabsText", "TRAIN        UPGRADE        EARN        ACHIEVE", 28, Vector2.zero, Color.white, TextAlignmentOptions.Center, new Vector2(1000, 85));
-        }
-
-        private static GameObject CreatePanel(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, Color color)
+        private static GameObject CreatePanel(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, Color color, bool raycastTarget)
         {
             GameObject panel = new GameObject(name);
             panel.transform.SetParent(parent, false);
@@ -167,30 +228,9 @@ namespace SkinnyToBeast.EditorTools
 
             Image image = panel.AddComponent<Image>();
             image.color = color;
+            image.raycastTarget = raycastTarget;
 
             return panel;
-        }
-
-        private static Button CreateButton(Transform parent, string name, string label, Vector2 anchoredPosition, Vector2 size, int fontSize, Color buttonColor, Color textColor)
-        {
-            GameObject buttonObject = new GameObject(name);
-            buttonObject.transform.SetParent(parent, false);
-
-            RectTransform rect = buttonObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = buttonColor;
-
-            Button button = buttonObject.AddComponent<Button>();
-            TMP_Text text = CreateText(buttonObject.transform, "Text", label, fontSize, Vector2.zero, textColor, TextAlignmentOptions.Center, size);
-            text.fontStyle = FontStyles.Bold;
-
-            return button;
         }
 
         private static TMP_Text CreateText(Transform parent, string name, string value, int fontSize, Vector2 anchoredPosition, Color color, TextAlignmentOptions alignment, Vector2 size)
@@ -235,6 +275,21 @@ namespace SkinnyToBeast.EditorTools
             }
 
             property.objectReferenceValue = value;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(target);
+        }
+
+        private static void AssignString(Object target, string propertyName, string value)
+        {
+            SerializedObject serializedObject = new SerializedObject(target);
+            SerializedProperty property = serializedObject.FindProperty(propertyName);
+            if (property == null)
+            {
+                Debug.LogWarning($"Property not found: {target.name}.{propertyName}");
+                return;
+            }
+
+            property.stringValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(target);
         }
