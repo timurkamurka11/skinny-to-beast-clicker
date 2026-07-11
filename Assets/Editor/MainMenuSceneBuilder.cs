@@ -23,13 +23,9 @@ namespace SkinnyToBeast.EditorTools
         private const string VideoPath = "Assets/Videos/MainMenuLoop.mp4";
         private const string RenderTexturePath = "Assets/Videos/MainMenuRenderTexture.renderTexture";
 
-        private static readonly Color PopupBackground = new Color(0.015f, 0.03f, 0.065f, 0.98f);
-        private static readonly Color Blue = new Color(0.08f, 0.33f, 0.93f, 1f);
-        private static readonly Color Gold = new Color(1f, 0.62f, 0.04f, 1f);
-
         [MenuItem("Tools/Skinny To Beast/Create Video Hotspot Main Menu")]
-        [MenuItem("Tools/Skinny To Beast/Create Animated Main Menu Scene")]
         [MenuItem("Tools/Skinny To Beast/Create Video Main Menu Scene")]
+        [MenuItem("Tools/Skinny To Beast/Create Animated Main Menu Scene")]
         public static void CreateVideoHotspotMainMenu()
         {
             EnsureFolder("Assets", "Scenes");
@@ -42,31 +38,27 @@ namespace SkinnyToBeast.EditorTools
             Canvas canvas = CreateCanvas();
             RenderTexture renderTexture = CreateOrLoadRenderTexture();
             RawImage videoImage = CreateVideoBackground(canvas.transform, renderTexture);
-
             GameObject controllerObject = CreateController(videoImage, renderTexture);
             MainMenuController menuController = controllerObject.GetComponent<MainMenuController>();
 
-            RectTransform safeArea = CreateSafeArea(canvas.transform);
-            CreateInvisibleHotspots(safeArea, menuController);
+            CreateInvisibleHotspots(canvas.transform, menuController);
 
             PopupPanelAnimator settingsPopup = CreateSettingsPopup(
-                safeArea,
+                canvas.transform,
                 menuController,
                 out TMP_Text musicValue,
                 out TMP_Text sfxValue,
                 out TMP_Text vibrationValue
             );
 
-            PopupPanelAnimator shopPopup = CreateShopPopup(safeArea, menuController);
             PopupPanelAnimator messagePopup = CreateMessagePopup(
-                safeArea,
+                canvas.transform,
                 menuController,
                 out TMP_Text messageTitle,
                 out TMP_Text messageBody
             );
 
             AssignReference(menuController, "settingsPanel", settingsPopup);
-            AssignReference(menuController, "shopPanel", shopPopup);
             AssignReference(menuController, "messagePanel", messagePopup);
             AssignReference(menuController, "musicValueText", musicValue);
             AssignReference(menuController, "sfxValueText", sfxValue);
@@ -74,7 +66,7 @@ namespace SkinnyToBeast.EditorTools
             AssignReference(menuController, "messageTitleText", messageTitle);
             AssignReference(menuController, "messageBodyText", messageBody);
 
-            CreateVideoMissingHint(safeArea);
+            CreateMissingVideoHint(canvas.transform);
             CreateEventSystem();
 
             Selection.activeGameObject = controllerObject;
@@ -83,7 +75,7 @@ namespace SkinnyToBeast.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("Main menu rebuilt: baked video UI is visible, Unity uses transparent clickable hotspots only.");
+            Debug.Log($"Vertical loop menu created with invisible START and SETTINGS hotspots: {ScenePath}");
         }
 
         private static void CreateMainCamera()
@@ -107,18 +99,9 @@ namespace SkinnyToBeast.EditorTools
             CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
-            scaler.matchWidthOrHeight = 1f;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
             return canvas;
-        }
-
-        private static RectTransform CreateSafeArea(Transform parent)
-        {
-            GameObject safeAreaObject = new GameObject("SafeArea");
-            safeAreaObject.transform.SetParent(parent, false);
-            RectTransform rect = safeAreaObject.AddComponent<RectTransform>();
-            Stretch(rect);
-            safeAreaObject.AddComponent<SafeAreaFitter>();
-            return rect;
         }
 
         private static RenderTexture CreateOrLoadRenderTexture()
@@ -126,7 +109,7 @@ namespace SkinnyToBeast.EditorTools
             RenderTexture renderTexture = AssetDatabase.LoadAssetAtPath<RenderTexture>(RenderTexturePath);
             if (renderTexture == null)
             {
-                renderTexture = new RenderTexture(1080, 1920, 0, RenderTextureFormat.ARGB32)
+                renderTexture = new RenderTexture(720, 1280, 0, RenderTextureFormat.ARGB32)
                 {
                     name = "MainMenuRenderTexture",
                     antiAliasing = 1,
@@ -140,8 +123,8 @@ namespace SkinnyToBeast.EditorTools
             else
             {
                 renderTexture.Release();
-                renderTexture.width = 1080;
-                renderTexture.height = 1920;
+                renderTexture.width = 720;
+                renderTexture.height = 1280;
                 renderTexture.depth = 0;
                 renderTexture.format = RenderTextureFormat.ARGB32;
                 EditorUtility.SetDirty(renderTexture);
@@ -164,6 +147,10 @@ namespace SkinnyToBeast.EditorTools
             rawImage.color = Color.white;
             rawImage.raycastTarget = false;
             rawImage.uvRect = new Rect(0f, 0f, 1f, 1f);
+
+            AspectRatioFitter fitter = backgroundObject.AddComponent<AspectRatioFitter>();
+            fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            fitter.aspectRatio = 9f / 16f;
             return rawImage;
         }
 
@@ -178,14 +165,14 @@ namespace SkinnyToBeast.EditorTools
             AssignReference(videoController, "targetImage", videoImage);
             AssignReference(videoController, "menuLoopClip", clip);
             AssignReference(videoController, "targetTexture", renderTexture);
-            AssignBool(videoController, "stretchToPortraitScreen", true);
+            AssignBool(videoController, "stretchToPortraitScreen", false);
             AssignString(menuController, "gameplaySceneName", "Main");
 
             player.source = VideoSource.VideoClip;
             player.clip = clip;
             player.renderMode = VideoRenderMode.RenderTexture;
             player.targetTexture = renderTexture;
-            player.aspectRatio = VideoAspectRatio.Stretch;
+            player.aspectRatio = VideoAspectRatio.FitInside;
             player.isLooping = true;
             player.playOnAwake = true;
             player.skipOnDrop = true;
@@ -195,58 +182,48 @@ namespace SkinnyToBeast.EditorTools
 
         private static void CreateInvisibleHotspots(Transform parent, MainMenuController controller)
         {
-            GameObject root = new GameObject("InvisibleClickableHotspots");
+            GameObject root = new GameObject("InvisibleClickableUI");
             root.transform.SetParent(parent, false);
             RectTransform rootRect = root.AddComponent<RectTransform>();
             Stretch(rootRect);
 
-            // Coordinates match the UI that is already baked into the menu video.
-            Button power = CreateHotspot(root.transform, "PowerHotspot", new Vector2(-355f, 835f), new Vector2(350f, 130f));
-            Button leaderboard = CreateHotspot(root.transform, "LeaderboardHotspot", new Vector2(65f, 830f), new Vector2(220f, 150f));
-            Button settings = CreateHotspot(root.transform, "SettingsHotspot", new Vector2(385f, 835f), new Vector2(285f, 135f));
+            // Coordinates match the baked UI in the 720x1280 vertical video.
+            Button settingsButton = CreateHotspot(
+                root.transform,
+                "SettingsHotspot",
+                new Vector2(442f, 835f),
+                new Vector2(250f, 210f)
+            );
 
-            Button shop = CreateHotspot(root.transform, "ShopHotspot", new Vector2(455f, 285f), new Vector2(190f, 180f));
-            Button reward = CreateHotspot(root.transform, "RewardHotspot", new Vector2(455f, 80f), new Vector2(190f, 180f));
-            Button start = CreateHotspot(root.transform, "StartHotspot", new Vector2(330f, -430f), new Vector2(430f, 210f));
+            Button startButton = CreateHotspot(
+                root.transform,
+                "StartHotspot",
+                new Vector2(0f, -805f),
+                new Vector2(610f, 260f)
+            );
 
-            Button train = CreateHotspot(root.transform, "TrainTabHotspot", new Vector2(-390f, -875f), new Vector2(250f, 145f));
-            Button upgrade = CreateHotspot(root.transform, "UpgradeTabHotspot", new Vector2(-130f, -875f), new Vector2(260f, 145f));
-            Button earn = CreateHotspot(root.transform, "EarnTabHotspot", new Vector2(130f, -875f), new Vector2(250f, 145f));
-            Button achieve = CreateHotspot(root.transform, "AchieveTabHotspot", new Vector2(390f, -875f), new Vector2(260f, 145f));
-
-            UnityEventTools.AddPersistentListener(power.onClick, controller.OpenShop);
-            UnityEventTools.AddPersistentListener(leaderboard.onClick, controller.OpenLeaderboard);
-            UnityEventTools.AddPersistentListener(settings.onClick, controller.OpenSettings);
-            UnityEventTools.AddPersistentListener(shop.onClick, controller.OpenShop);
-            UnityEventTools.AddPersistentListener(reward.onClick, controller.ClaimDailyReward);
-            UnityEventTools.AddPersistentListener(start.onClick, controller.StartGame);
-            UnityEventTools.AddPersistentListener(train.onClick, controller.SelectTrainTab);
-            UnityEventTools.AddPersistentListener(upgrade.onClick, controller.SelectUpgradeTab);
-            UnityEventTools.AddPersistentListener(earn.onClick, controller.SelectEarnTab);
-            UnityEventTools.AddPersistentListener(achieve.onClick, controller.SelectAchieveTab);
+            UnityEventTools.AddPersistentListener(settingsButton.onClick, controller.OpenSettings);
+            UnityEventTools.AddPersistentListener(startButton.onClick, controller.StartGame);
         }
 
         private static Button CreateHotspot(Transform parent, string name, Vector2 position, Vector2 size)
         {
-            GameObject hotspotObject = new GameObject(name);
-            hotspotObject.transform.SetParent(parent, false);
+            GameObject objectRoot = new GameObject(name);
+            objectRoot.transform.SetParent(parent, false);
 
-            RectTransform rect = hotspotObject.AddComponent<RectTransform>();
+            RectTransform rect = objectRoot.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = position;
             rect.sizeDelta = size;
 
-            Image image = hotspotObject.AddComponent<Image>();
+            Image image = objectRoot.AddComponent<Image>();
             image.color = new Color(1f, 1f, 1f, 0.001f);
             image.raycastTarget = true;
 
-            Button button = hotspotObject.AddComponent<Button>();
+            Button button = objectRoot.AddComponent<Button>();
             button.transition = Selectable.Transition.None;
-            Navigation navigation = button.navigation;
-            navigation.mode = Navigation.Mode.None;
-            button.navigation = navigation;
             return button;
         }
 
@@ -257,37 +234,18 @@ namespace SkinnyToBeast.EditorTools
             out TMP_Text sfxValue,
             out TMP_Text vibrationValue)
         {
-            PopupPanelAnimator popup = CreatePopupBase(parent, "SettingsPopup", "SETTINGS", out RectTransform card);
+            PopupPanelAnimator popup = CreatePopupBase(parent, "SettingsPopup", "SETTINGS", out Transform card);
 
-            musicValue = CreateText(card, "MusicValue", "MUSIC   ON", 38, new Vector2(0f, 120f), Color.white, new Vector2(650f, 70f));
-            sfxValue = CreateText(card, "SfxValue", "SFX   ON", 38, new Vector2(0f, 25f), Color.white, new Vector2(650f, 70f));
-            vibrationValue = CreateText(card, "VibrationValue", "VIBRATION   ON", 38, new Vector2(0f, -70f), Color.white, new Vector2(650f, 70f));
-
-            Button musicButton = CreateVisibleButton(card, "MusicButton", new Vector2(0f, 120f), new Vector2(690f, 80f), new Color(0f, 0f, 0f, 0.001f));
-            Button sfxButton = CreateVisibleButton(card, "SfxButton", new Vector2(0f, 25f), new Vector2(690f, 80f), new Color(0f, 0f, 0f, 0.001f));
-            Button vibrationButton = CreateVisibleButton(card, "VibrationButton", new Vector2(0f, -70f), new Vector2(690f, 80f), new Color(0f, 0f, 0f, 0.001f));
-            Button closeButton = CreateLabeledButton(card, "CloseButton", "CLOSE", new Vector2(0f, -220f), new Vector2(430f, 105f), Blue);
+            Button musicButton = CreatePopupButton(card, "MusicButton", "MUSIC", new Vector2(0f, 120f), out musicValue);
+            Button sfxButton = CreatePopupButton(card, "SfxButton", "SFX", new Vector2(0f, 0f), out sfxValue);
+            Button vibrationButton = CreatePopupButton(card, "VibrationButton", "VIBRATION", new Vector2(0f, -120f), out vibrationValue);
+            Button closeButton = CreatePopupButton(card, "CloseButton", "CLOSE", new Vector2(0f, -260f), out _);
 
             UnityEventTools.AddPersistentListener(musicButton.onClick, controller.ToggleMusic);
             UnityEventTools.AddPersistentListener(sfxButton.onClick, controller.ToggleSfx);
             UnityEventTools.AddPersistentListener(vibrationButton.onClick, controller.ToggleVibration);
             UnityEventTools.AddPersistentListener(closeButton.onClick, controller.CloseSettings);
-            return popup;
-        }
-
-        private static PopupPanelAnimator CreateShopPopup(Transform parent, MainMenuController controller)
-        {
-            PopupPanelAnimator popup = CreatePopupBase(parent, "ShopPopup", "SHOP", out RectTransform card);
-
-            Button starter = CreateLabeledButton(card, "StarterPackButton", "STARTER PACK", new Vector2(0f, 120f), new Vector2(650f, 100f), Gold);
-            Button noAds = CreateLabeledButton(card, "NoAdsButton", "REMOVE ADS", new Vector2(0f, 5f), new Vector2(650f, 100f), Blue);
-            Button protein = CreateLabeledButton(card, "ProteinButton", "PROTEIN PACK", new Vector2(0f, -110f), new Vector2(650f, 100f), new Color(0.12f, 0.58f, 0.24f));
-            Button close = CreateLabeledButton(card, "CloseButton", "CLOSE", new Vector2(0f, -240f), new Vector2(430f, 100f), new Color(0.13f, 0.18f, 0.3f));
-
-            UnityEventTools.AddPersistentListener(starter.onClick, controller.BuyStarterPack);
-            UnityEventTools.AddPersistentListener(noAds.onClick, controller.BuyNoAds);
-            UnityEventTools.AddPersistentListener(protein.onClick, controller.BuyProteinPack);
-            UnityEventTools.AddPersistentListener(close.onClick, controller.CloseShop);
+            popup.HideImmediate();
             return popup;
         }
 
@@ -297,16 +255,16 @@ namespace SkinnyToBeast.EditorTools
             out TMP_Text title,
             out TMP_Text body)
         {
-            PopupPanelAnimator popup = CreatePopupBase(parent, "MessagePopup", "INFO", out RectTransform card);
-            title = card.Find("Title").GetComponent<TMP_Text>();
-            body = CreateText(card, "MessageBody", "COMING SOON", 32, new Vector2(0f, 15f), Color.white, new Vector2(700f, 270f));
-            body.enableWordWrapping = true;
-            Button close = CreateLabeledButton(card, "CloseButton", "CLOSE", new Vector2(0f, -220f), new Vector2(430f, 105f), Blue);
-            UnityEventTools.AddPersistentListener(close.onClick, controller.CloseMessage);
+            PopupPanelAnimator popup = CreatePopupBase(parent, "MessagePopup", string.Empty, out Transform card);
+            title = CreateText(card, "MessageTitle", "INFO", 54, new Vector2(0f, 180f), new Vector2(700f, 80f));
+            body = CreateText(card, "MessageBody", "", 34, new Vector2(0f, 20f), new Vector2(700f, 250f));
+            Button closeButton = CreatePopupButton(card, "CloseButton", "CLOSE", new Vector2(0f, -230f), out _);
+            UnityEventTools.AddPersistentListener(closeButton.onClick, controller.CloseMessage);
+            popup.HideImmediate();
             return popup;
         }
 
-        private static PopupPanelAnimator CreatePopupBase(Transform parent, string name, string titleText, out RectTransform cardRect)
+        private static PopupPanelAnimator CreatePopupBase(Transform parent, string name, string title, out Transform card)
         {
             GameObject root = new GameObject(name);
             root.transform.SetParent(parent, false);
@@ -318,60 +276,55 @@ namespace SkinnyToBeast.EditorTools
             dim.raycastTarget = true;
 
             CanvasGroup canvasGroup = root.AddComponent<CanvasGroup>();
-            canvasGroup.alpha = 0f;
-            canvasGroup.interactable = false;
-            canvasGroup.blocksRaycasts = false;
-
-            GameObject card = new GameObject("Card");
-            card.transform.SetParent(root.transform, false);
-            cardRect = card.AddComponent<RectTransform>();
+            GameObject cardObject = new GameObject("Card");
+            cardObject.transform.SetParent(root.transform, false);
+            RectTransform cardRect = cardObject.AddComponent<RectTransform>();
             cardRect.anchorMin = new Vector2(0.5f, 0.5f);
             cardRect.anchorMax = new Vector2(0.5f, 0.5f);
             cardRect.pivot = new Vector2(0.5f, 0.5f);
-            cardRect.sizeDelta = new Vector2(850f, 650f);
-            cardRect.localScale = Vector3.one * 0.88f;
+            cardRect.sizeDelta = new Vector2(820f, 760f);
 
-            Image cardImage = card.AddComponent<Image>();
-            cardImage.color = PopupBackground;
-            Outline outline = card.AddComponent<Outline>();
-            outline.effectColor = new Color(1f, 0.63f, 0.04f, 0.95f);
+            Image cardImage = cardObject.AddComponent<Image>();
+            cardImage.color = new Color(0.025f, 0.045f, 0.08f, 0.98f);
+            Outline outline = cardObject.AddComponent<Outline>();
+            outline.effectColor = new Color(1f, 0.63f, 0.05f, 0.95f);
             outline.effectDistance = new Vector2(4f, -4f);
-
-            TMP_Text title = CreateText(card.transform, "Title", titleText, 54, new Vector2(0f, 240f), Gold, new Vector2(720f, 80f));
-            title.fontStyle = FontStyles.Bold;
 
             PopupPanelAnimator animator = root.AddComponent<PopupPanelAnimator>();
             AssignReference(animator, "canvasGroup", canvasGroup);
             AssignReference(animator, "card", cardRect);
+
+            card = cardObject.transform;
+            if (!string.IsNullOrEmpty(title))
+            {
+                TMP_Text titleText = CreateText(card, "Title", title, 58, new Vector2(0f, 285f), new Vector2(700f, 85f));
+                titleText.color = new Color(1f, 0.78f, 0.08f);
+            }
+
             return animator;
         }
 
-        private static Button CreateVisibleButton(Transform parent, string name, Vector2 position, Vector2 size, Color color)
+        private static Button CreatePopupButton(Transform parent, string name, string label, Vector2 position, out TMP_Text labelText)
         {
             GameObject buttonObject = new GameObject(name);
             buttonObject.transform.SetParent(parent, false);
+
             RectTransform rect = buttonObject.AddComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = position;
-            rect.sizeDelta = size;
+            rect.sizeDelta = new Vector2(620f, 95f);
 
             Image image = buttonObject.AddComponent<Image>();
-            image.color = color;
+            image.color = new Color(0.08f, 0.28f, 0.8f, 1f);
             Button button = buttonObject.AddComponent<Button>();
+            labelText = CreateText(buttonObject.transform, "Text", label, 38, Vector2.zero, rect.sizeDelta);
+            labelText.fontStyle = FontStyles.Bold;
             return button;
         }
 
-        private static Button CreateLabeledButton(Transform parent, string name, string label, Vector2 position, Vector2 size, Color color)
-        {
-            Button button = CreateVisibleButton(parent, name, position, size, color);
-            TMP_Text text = CreateText(button.transform, "Text", label, 36, Vector2.zero, Color.white, size);
-            text.fontStyle = FontStyles.Bold;
-            return button;
-        }
-
-        private static TMP_Text CreateText(Transform parent, string name, string value, int fontSize, Vector2 position, Color color, Vector2 size)
+        private static TMP_Text CreateText(Transform parent, string name, string value, int fontSize, Vector2 position, Vector2 size)
         {
             GameObject textObject = new GameObject(name);
             textObject.transform.SetParent(parent, false);
@@ -386,31 +339,30 @@ namespace SkinnyToBeast.EditorTools
             text.text = value;
             text.fontSize = fontSize;
             text.enableAutoSizing = true;
-            text.fontSizeMin = 18f;
+            text.fontSizeMin = 20f;
             text.fontSizeMax = fontSize;
             text.alignment = TextAlignmentOptions.Center;
-            text.color = color;
+            text.color = Color.white;
             text.raycastTarget = false;
             return text;
         }
 
-        private static void CreateVideoMissingHint(Transform parent)
+        private static void CreateMissingVideoHint(Transform parent)
         {
             if (AssetDatabase.LoadAssetAtPath<VideoClip>(VideoPath) != null)
             {
                 return;
             }
 
-            TMP_Text hint = CreateText(
-                parent,
-                "MissingVideoHint",
-                "VIDEO NOT FOUND\nAssets/Videos/MainMenuLoop.mp4",
-                42,
-                Vector2.zero,
-                Color.white,
-                new Vector2(900f, 240f)
-            );
-            hint.enableWordWrapping = true;
+            GameObject hint = new GameObject("MissingVideoHint");
+            hint.transform.SetParent(parent, false);
+            RectTransform rect = hint.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(900f, 300f);
+            Image image = hint.AddComponent<Image>();
+            image.color = new Color(0f, 0f, 0f, 0.85f);
+            CreateText(hint.transform, "Text", "VIDEO NOT FOUND\nPut the loop here:\nAssets/Videos/MainMenuLoop.mp4", 38, Vector2.zero, new Vector2(820f, 260f));
         }
 
         private static void CreateEventSystem()
@@ -454,7 +406,6 @@ namespace SkinnyToBeast.EditorTools
             SerializedProperty property = serializedObject.FindProperty(propertyName);
             if (property == null)
             {
-                Debug.LogWarning($"Property not found: {target.name}.{propertyName}");
                 return;
             }
 
