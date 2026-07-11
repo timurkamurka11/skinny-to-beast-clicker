@@ -27,6 +27,19 @@ namespace SkinnyToBeast.EditorTools
             }
 
             Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null)
+            {
+                mainCamera = Object.FindFirstObjectByType<Camera>();
+            }
+
+            if (mainCamera != null && mainCamera.GetComponent<AudioListener>() == null)
+            {
+                mainCamera.gameObject.AddComponent<AudioListener>();
+                EditorUtility.SetDirty(mainCamera.gameObject);
+            }
+
             GameObject musicObject = GameObject.Find("MainMenuBGM");
             if (musicObject == null)
             {
@@ -71,7 +84,7 @@ namespace SkinnyToBeast.EditorTools
             Selection.activeGameObject = musicObject;
             Debug.Log(
                 $"Main menu BGM attached and enabled: {clip.name}. " +
-                "Press Play in MainMenu to test it."
+                "AudioListener is present. Press Play in MainMenu to test it."
             );
         }
     }
