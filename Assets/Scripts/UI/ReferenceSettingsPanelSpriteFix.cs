@@ -5,11 +5,17 @@ using UnityEngine.UI;
 
 namespace SkinnyToBeast.UI
 {
-    [DefaultExecutionOrder(1100)]
+    [DefaultExecutionOrder(1200)]
     internal sealed class ReferenceSettingsPanelSpriteFix : MonoBehaviour
     {
         private const string MainMenuSceneName = "MainMenu";
-        private static Sprite cachedSprite;
+        private const string BackgroundObjectName = "ReferencePanelBackground";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Register()
@@ -38,48 +44,77 @@ namespace SkinnyToBeast.UI
 
         private IEnumerator Start()
         {
-            for (int i = 0; i < 10; i++)
+            float timeout = 6f;
+            while (timeout > 0f)
             {
-                yield return null;
+                if (TryApply())
+                {
+                    yield break;
+                }
+
+                timeout -= 0.1f;
+                yield return new WaitForSecondsRealtime(0.1f);
             }
 
-            TryApply();
+            Debug.LogError("ReferenceSettingsPanelSpriteFix: failed to apply settings reference texture.");
         }
 
-        private void TryApply()
+        private static bool TryApply()
         {
             GameObject panel = GameObject.Find("ReferencePanel");
-            if (panel == null)
+            if (panel == null) return false;
+
+            Texture texture = LoadReferenceTexture();
+            if (texture == null) return false;
+
+            Image blocker = panel.GetComponent<Image>();
+            if (blocker == null)
             {
-                Debug.LogWarning("ReferenceSettingsPanelSpriteFix: ReferencePanel not found.");
-                return;
+                blocker = panel.AddComponent<Image>();
             }
 
-            Image image = panel.GetComponent<Image>();
-            if (image == null)
+            // Keep the panel blocking clicks, but never let its fallback white image cover the reference.
+            blocker.sprite = null;
+            blocker.color = new Color(1f, 1f, 1f, 0.001f);
+            blocker.raycastTarget = true;
+
+            Transform existing = panel.transform.Find(BackgroundObjectName);
+            RawImage rawImage;
+            if (existing == null)
             {
-                Debug.LogWarning("ReferenceSettingsPanelSpriteFix: Image component missing on ReferencePanel.");
-                return;
+                GameObject background = new GameObject(BackgroundObjectName, typeof(RectTransform), typeof(RawImage));
+                background.transform.SetParent(panel.transform, false);
+                background.transform.SetAsFirstSibling();
+                rawImage = background.GetComponent<RawImage>();
+
+                RectTransform rect = background.GetComponent<RectTransform>();
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = Vector2.zero;
+                rect.offsetMax = Vector2.zero;
+            }
+            else
+            {
+                rawImage = existing.GetComponent<RawImage>();
+                if (rawImage == null)
+                {
+                    rawImage = existing.gameObject.AddComponent<RawImage>();
+                }
+
+                existing.SetAsFirstSibling();
             }
 
-            Sprite sprite = LoadSprite();
-            if (sprite == null)
-            {
-                Debug.LogError("ReferenceSettingsPanelSpriteFix: Could not load settings reference sprite from Resources/UI/Settings.");
-                return;
-            }
+            rawImage.texture = texture;
+            rawImage.color = Color.white;
+            rawImage.raycastTarget = false;
+            rawImage.uvRect = new Rect(0f, 0f, 1f, 1f);
 
-            image.sprite = sprite;
-            image.color = Color.white;
-            image.preserveAspect = true;
-            image.type = Image.Type.Simple;
-            Debug.Log("ReferenceSettingsPanelSpriteFix: reference settings panel sprite applied.");
+            Debug.Log($"ReferenceSettingsPanelSpriteFix: settings reference texture applied ({texture.width}x{texture.height}).");
+            return true;
         }
 
-        private static Sprite LoadSprite()
+        private static Texture LoadReferenceTexture()
         {
-            if (cachedSprite != null) return cachedSprite;
-
             string[] candidates =
             {
                 "UI/Settings/settings_ref",
@@ -92,11 +127,10 @@ namespace SkinnyToBeast.UI
             foreach (string path in candidates)
             {
                 Texture2D texture = Resources.Load<Texture2D>(path);
-                if (texture == null) continue;
+                if (texture != null) return texture;
 
-                cachedSprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
-                cachedSprite.name = texture.name + "_Sprite";
-                return cachedSprite;
+                Sprite sprite = Resources.Load<Sprite>(path);
+                if (sprite != null && sprite.texture != null) return sprite.texture;
             }
 
             return null;
