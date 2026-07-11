@@ -12,7 +12,8 @@ namespace SkinnyToBeast.UI
         private const string MainMenuSceneName = "MainMenu";
         private const string SfxEnabledKey = "settings.sfx";
         private const string SfxVolumeKey = "settings.sfx.volume";
-        private const string BalanceMigrationKey = "settings.audio.balance.v2";
+        private const string BalanceMigrationKey = "settings.audio.balance.v3";
+        private const float SampleBoost = 3.6f;
 
         private static UiSoundPlayer instance;
         private readonly Dictionary<string, AudioClip> clips = new();
@@ -76,7 +77,8 @@ namespace SkinnyToBeast.UI
             }
 
             instance = this;
-            ApplyOneTimeBalanceMigration();
+            ApplyBalanceMigration();
+            AudioListener.volume = 1f;
 
             source = gameObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
@@ -92,24 +94,74 @@ namespace SkinnyToBeast.UI
             LoadAll();
         }
 
-        private static void ApplyOneTimeBalanceMigration()
+        private static void ApplyBalanceMigration()
         {
             if (PlayerPrefs.GetInt(BalanceMigrationKey, 0) == 1) return;
 
+            PlayerPrefs.SetInt(SfxEnabledKey, 1);
             PlayerPrefs.SetFloat(SfxVolumeKey, 1f);
-            PlayerPrefs.SetFloat("settings.music.volume", 0.18f);
+            PlayerPrefs.SetFloat("settings.music.volume", 0.12f);
             PlayerPrefs.SetInt(BalanceMigrationKey, 1);
             PlayerPrefs.Save();
         }
 
         private void LoadAll()
         {
-            clips["Open"] = Resources.Load<AudioClip>("Audio/UI/Open");
-            clips["Close"] = Resources.Load<AudioClip>("Audio/UI/Close");
-            clips["Back"] = Resources.Load<AudioClip>("Audio/UI/Back");
-            clips["Confirm"] = Resources.Load<AudioClip>("Audio/UI/Confirm");
-            clips["ToggleOn"] = Resources.Load<AudioClip>("Audio/UI/ToggleOn");
-            clips["ToggleOff"] = Resources.Load<AudioClip>("Audio/UI/ToggleOff");
+            LoadClip("Open");
+            LoadClip("Close");
+            LoadClip("Back");
+            LoadClip("Confirm");
+            LoadClip("ToggleOn");
+            LoadClip("ToggleOff");
+        }
+
+        private void LoadClip(string id)
+        {
+            AudioClip original = Resources.Load<AudioClip>($"Audio/UI/{id}");
+            if (original == null)
+            {
+                Debug.LogWarning($"UI sound missing: Audio/UI/{id}");
+                return;
+            }
+
+            AudioClip amplified = CreateAmplifiedCopy(original, SampleBoost);
+            clips[id] = amplified != null ? amplified : original;
+        }
+
+        private static AudioClip CreateAmplifiedCopy(AudioClip original, float boost)
+        {
+            if (original == null) return null;
+
+            try
+            {
+                original.LoadAudioData();
+                float[] samples = new float[original.samples * original.channels];
+                if (!original.GetData(samples, 0))
+                {
+                    return null;
+                }
+
+                for (int i = 0; i < samples.Length; i++)
+                {
+                    // Soft limiter keeps the generated click punchy without digital clipping.
+                    samples[i] = Mathf.Tanh(samples[i] * boost);
+                }
+
+                AudioClip amplified = AudioClip.Create(
+                    original.name + "_Amplified",
+                    original.samples,
+                    original.channels,
+                    original.frequency,
+                    false);
+
+                amplified.SetData(samples, 0);
+                return amplified;
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning($"Could not amplify UI sound '{original.name}': {exception.Message}");
+                return null;
+            }
         }
 
         public static void PlayOpen() => Play("Open");
@@ -131,19 +183,12 @@ namespace SkinnyToBeast.UI
 
             if (!clips.TryGetValue(id, out AudioClip clip) || clip == null)
             {
-                clip = Resources.Load<AudioClip>($"Audio/UI/{id}");
-                if (clip == null)
-                {
-                    Debug.LogWarning($"UI sound missing: Audio/UI/{id}");
-                    return;
-                }
-
-                clips[id] = clip;
+                LoadClip(id);
+                if (!clips.TryGetValue(id, out clip) || clip == null) return;
             }
 
-            float savedVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 1f));
-            float boostedVolume = savedVolume <= 0.001f ? 0f : Mathf.Clamp01(savedVolume * 1.8f);
-            source.PlayOneShot(clip, boostedVolume);
+            float volume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 1f));
+            source.PlayOneShot(clip, volume);
             DuckMenuBgm(Mathf.Clamp(clip.length + 0.10f, 0.25f, 1.4f));
         }
 
@@ -163,8 +208,8 @@ namespace SkinnyToBeast.UI
 
         private IEnumerator DuckRoutine(AudioSource bgm, float duration, int generation)
         {
-            float targetVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("settings.music.volume", 0.18f));
-            bgm.volume = targetVolume * 0.22f;
+            float targetVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("settings.music.volume", 0.12f));
+            bgm.volume = targetVolume * 0.08f;
 
             yield return new WaitForSecondsRealtime(duration);
 
@@ -194,6 +239,20 @@ namespace SkinnyToBeast.UI
             }
 
             return null;
+        }
+
+        private void OnDestroy()
+        {
+            foreach (AudioClip clip in clips.Values)
+            {
+                if (clip != null && clip.name.EndsWith("_Amplified"))
+                {
+                    Destroy(clip);
+                }
+            }
+
+            clips.Clear();
+            if (instance == this) instance = null;
         }
     }
 }
