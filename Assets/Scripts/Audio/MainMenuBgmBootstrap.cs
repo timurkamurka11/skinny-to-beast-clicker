@@ -118,6 +118,8 @@ namespace SkinnyToBeast.Audio
                 return;
             }
 
+            EnsureAudioListener();
+
             if (audioSource == null)
             {
                 audioSource = GetComponent<AudioSource>();
@@ -170,6 +172,30 @@ namespace SkinnyToBeast.Audio
                     "Open SETTINGS and switch MUSIC to ON."
                 );
             }
+        }
+
+        private void EnsureAudioListener()
+        {
+            AudioListener existingListener = Object.FindFirstObjectByType<AudioListener>();
+            if (existingListener != null)
+            {
+                if (!existingListener.enabled)
+                {
+                    existingListener.enabled = true;
+                }
+
+                return;
+            }
+
+            Camera mainCamera = Camera.main;
+            if (mainCamera == null)
+            {
+                mainCamera = Object.FindFirstObjectByType<Camera>();
+            }
+
+            GameObject listenerHost = mainCamera != null ? mainCamera.gameObject : gameObject;
+            listenerHost.AddComponent<AudioListener>();
+            Debug.Log($"AudioListener added automatically to '{listenerHost.name}'.");
         }
 
         private void ApplyMusicSetting(bool force)
