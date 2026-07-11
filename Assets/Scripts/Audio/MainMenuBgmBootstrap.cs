@@ -9,6 +9,7 @@ namespace SkinnyToBeast.Audio
         private const string MainMenuSceneName = "MainMenu";
         private const string MusicResourcePath = "Audio/MainMenuBGM";
         private const string MusicSettingKey = "settings.music";
+        private const string MusicVolumeKey = "settings.music.volume";
 
         [Header("Optional explicit references")]
         [SerializeField] private AudioClip clipOverride;
@@ -19,6 +20,7 @@ namespace SkinnyToBeast.Audio
 
         private static MainMenuBgmBootstrap instance;
         private int cachedMusicSetting = -1;
+        private float cachedVolume = -1f;
         private float nextSettingCheckTime;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -163,7 +165,7 @@ namespace SkinnyToBeast.Audio
             if (!audioSource.mute && !audioSource.isPlaying)
             {
                 audioSource.Play();
-                Debug.Log($"Main menu BGM started: {clip.name}, volume {volume:0.00}");
+                Debug.Log($"Main menu BGM started: {clip.name}, volume {audioSource.volume:0.00}");
             }
             else if (audioSource.mute)
             {
@@ -206,13 +208,17 @@ namespace SkinnyToBeast.Audio
             }
 
             int currentSetting = PlayerPrefs.GetInt(MusicSettingKey, 1);
-            if (!force && currentSetting == cachedMusicSetting)
+            float currentVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MusicVolumeKey, volume));
+
+            if (!force && currentSetting == cachedMusicSetting && Mathf.Approximately(currentVolume, cachedVolume))
             {
                 return;
             }
 
             cachedMusicSetting = currentSetting;
+            cachedVolume = currentVolume;
             audioSource.mute = currentSetting == 0;
+            audioSource.volume = currentVolume;
 
             if (!audioSource.mute && audioSource.clip != null && !audioSource.isPlaying)
             {
