@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -5,17 +6,41 @@ namespace SkinnyToBeast.UI
 {
     public class MainMenuController : MonoBehaviour
     {
+        private const string MusicKey = "settings.music";
+        private const string SfxKey = "settings.sfx";
+        private const string VibrationKey = "settings.vibration";
+
         [Header("Scene Names")]
         [SerializeField] private string gameplaySceneName = "Main";
 
-        [Header("Popup Panels")]
-        [SerializeField] private GameObject settingsPanel;
-        [SerializeField] private GameObject shopPanel;
-        [SerializeField] private GameObject messagePanel;
+        [Header("Animated Popups")]
+        [SerializeField] private PopupPanelAnimator settingsPanel;
+        [SerializeField] private PopupPanelAnimator shopPanel;
+        [SerializeField] private PopupPanelAnimator messagePanel;
+
+        [Header("Settings Labels")]
+        [SerializeField] private TMP_Text musicValueText;
+        [SerializeField] private TMP_Text sfxValueText;
+        [SerializeField] private TMP_Text vibrationValueText;
+
+        [Header("Message Content")]
+        [SerializeField] private TMP_Text messageTitleText;
+        [SerializeField] private TMP_Text messageBodyText;
+
+        private bool musicEnabled;
+        private bool sfxEnabled;
+        private bool vibrationEnabled;
 
         private void Awake()
         {
-            CloseAllPanels();
+            musicEnabled = PlayerPrefs.GetInt(MusicKey, 1) == 1;
+            sfxEnabled = PlayerPrefs.GetInt(SfxKey, 1) == 1;
+            vibrationEnabled = PlayerPrefs.GetInt(VibrationKey, 1) == 1;
+
+            settingsPanel?.HideImmediate();
+            shopPanel?.HideImmediate();
+            messagePanel?.HideImmediate();
+            RefreshSettingsLabels();
         }
 
         public void StartGame()
@@ -28,42 +53,88 @@ namespace SkinnyToBeast.UI
                 return;
             }
 
-            Debug.LogWarning($"Gameplay scene '{gameplaySceneName}' is not added to Build Settings yet. Open File > Build Settings and add MainMenu + Main scenes.");
-            ShowMessagePanel();
+            ShowMessage(
+                "GAMEPLAY SCENE MISSING",
+                $"Scene '{gameplaySceneName}' is not available in Build Settings. Rebuild Main and MainMenu through the Tools menu."
+            );
         }
 
         public void OpenSettings()
         {
             OpenSinglePanel(settingsPanel);
-            Debug.Log("Settings panel opened.");
         }
 
         public void OpenShop()
         {
             OpenSinglePanel(shopPanel);
-            Debug.Log("Shop panel opened.");
         }
 
         public void CloseSettings()
         {
-            SetPanel(settingsPanel, false);
+            settingsPanel?.Hide();
         }
 
         public void CloseShop()
         {
-            SetPanel(shopPanel, false);
+            shopPanel?.Hide();
         }
 
         public void CloseMessage()
         {
-            SetPanel(messagePanel, false);
+            messagePanel?.Hide();
         }
 
         public void CloseAllPanels()
         {
-            SetPanel(settingsPanel, false);
-            SetPanel(shopPanel, false);
-            SetPanel(messagePanel, false);
+            settingsPanel?.Hide();
+            shopPanel?.Hide();
+            messagePanel?.Hide();
+        }
+
+        public void ToggleMusic()
+        {
+            musicEnabled = !musicEnabled;
+            SaveSetting(MusicKey, musicEnabled);
+            RefreshSettingsLabels();
+        }
+
+        public void ToggleSfx()
+        {
+            sfxEnabled = !sfxEnabled;
+            SaveSetting(SfxKey, sfxEnabled);
+            RefreshSettingsLabels();
+        }
+
+        public void ToggleVibration()
+        {
+            vibrationEnabled = !vibrationEnabled;
+            SaveSetting(VibrationKey, vibrationEnabled);
+            RefreshSettingsLabels();
+        }
+
+        public void BuyStarterPack()
+        {
+            ShowMessage("STARTER PACK", "Store integration will be connected after the core gameplay loop is ready.");
+        }
+
+        public void BuyNoAds()
+        {
+            ShowMessage("REMOVE ADS", "This purchase will become available together with Google Play Billing.");
+        }
+
+        public void BuyProteinPack()
+        {
+            ShowMessage("PROTEIN PACK", "Premium boosters are planned for a later monetization milestone.");
+        }
+
+        public void ClaimDailyReward()
+        {
+            ShowMessage("DAILY REWARD", "Daily rewards are programmed as a menu action and will be connected to player saves next.");
+        }
+
+        public void OpenLeaderboard()
+        {
+            ShowMessage("LEADERBOARD", "Global rankings will be connected after player profiles and cloud saves.");
         }
 
         public void SelectTrainTab()
@@ -73,7 +144,7 @@ namespace SkinnyToBeast.UI
 
         public void SelectUpgradeTab()
         {
-            OpenSettings();
+            ShowMessage("UPGRADES", "The full upgrade screen will open here after the first playable training scene is finished.");
         }
 
         public void SelectEarnTab()
@@ -83,27 +154,68 @@ namespace SkinnyToBeast.UI
 
         public void SelectAchieveTab()
         {
-            OpenSinglePanel(messagePanel);
-            Debug.Log("Achievements panel placeholder opened.");
+            ShowMessage("ACHIEVEMENTS", "Achievements are planned for the next progression milestone.");
         }
 
-        private void ShowMessagePanel()
+        private void ShowMessage(string title, string body)
         {
-            OpenSinglePanel(messagePanel);
-        }
-
-        private void OpenSinglePanel(GameObject panel)
-        {
-            CloseAllPanels();
-            SetPanel(panel, true);
-        }
-
-        private static void SetPanel(GameObject panel, bool isActive)
-        {
-            if (panel != null)
+            if (messageTitleText != null)
             {
-                panel.SetActive(isActive);
+                messageTitleText.text = title;
             }
+
+            if (messageBodyText != null)
+            {
+                messageBodyText.text = body;
+            }
+
+            OpenSinglePanel(messagePanel);
+        }
+
+        private void OpenSinglePanel(PopupPanelAnimator panel)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            if (settingsPanel != panel)
+            {
+                settingsPanel?.Hide();
+            }
+
+            if (shopPanel != panel)
+            {
+                shopPanel?.Hide();
+            }
+
+            if (messagePanel != panel)
+            {
+                messagePanel?.Hide();
+            }
+
+            panel.Show();
+        }
+
+        private void RefreshSettingsLabels()
+        {
+            SetToggleLabel(musicValueText, "MUSIC", musicEnabled);
+            SetToggleLabel(sfxValueText, "SFX", sfxEnabled);
+            SetToggleLabel(vibrationValueText, "VIBRATION", vibrationEnabled);
+        }
+
+        private static void SetToggleLabel(TMP_Text target, string label, bool enabled)
+        {
+            if (target != null)
+            {
+                target.text = $"{label}   {(enabled ? "ON" : "OFF")}";
+            }
+        }
+
+        private static void SaveSetting(string key, bool value)
+        {
+            PlayerPrefs.SetInt(key, value ? 1 : 0);
+            PlayerPrefs.Save();
         }
     }
 }
