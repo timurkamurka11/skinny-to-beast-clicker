@@ -143,8 +143,8 @@ namespace SkinnyToBeast.UI
 
                 for (int i = 0; i < samples.Length; i++)
                 {
-                    // Soft limiter keeps the generated click punchy without digital clipping.
-                    samples[i] = Mathf.Tanh(samples[i] * boost);
+                    // System.Math.Tanh is available in Unity's C# runtime; Mathf has no Tanh method.
+                    samples[i] = (float)System.Math.Tanh(samples[i] * boost);
                 }
 
                 AudioClip amplified = AudioClip.Create(
