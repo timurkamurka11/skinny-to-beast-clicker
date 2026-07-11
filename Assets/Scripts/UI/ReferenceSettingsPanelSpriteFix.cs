@@ -9,6 +9,7 @@ namespace SkinnyToBeast.UI
     internal sealed class ReferenceSettingsPanelSpriteFix : MonoBehaviour
     {
         private const string MainMenuSceneName = "MainMenu";
+        private const string PanelObjectName = "ReferencePanel";
         private const string BackgroundObjectName = "ReferencePanelBackground";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -44,7 +45,7 @@ namespace SkinnyToBeast.UI
 
         private IEnumerator Start()
         {
-            float timeout = 6f;
+            float timeout = 10f;
             while (timeout > 0f)
             {
                 if (TryApply())
@@ -59,13 +60,26 @@ namespace SkinnyToBeast.UI
             Debug.LogError("ReferenceSettingsPanelSpriteFix: failed to apply settings reference texture.");
         }
 
+        private void Update()
+        {
+            // The popup is created inactive. Re-check after it is opened or rebuilt.
+            if (Time.frameCount % 30 == 0)
+            {
+                TryApply();
+            }
+        }
+
         private static bool TryApply()
         {
-            GameObject panel = GameObject.Find("ReferencePanel");
+            GameObject panel = FindInactivePanel();
             if (panel == null) return false;
 
             Texture texture = LoadReferenceTexture();
-            if (texture == null) return false;
+            if (texture == null)
+            {
+                Debug.LogError("ReferenceSettingsPanelSpriteFix: settings_ref texture is missing from Resources/UI/Settings.");
+                return false;
+            }
 
             Image blocker = panel.GetComponent<Image>();
             if (blocker == null)
@@ -73,7 +87,6 @@ namespace SkinnyToBeast.UI
                 blocker = panel.AddComponent<Image>();
             }
 
-            // Keep the panel blocking clicks, but never let its fallback white image cover the reference.
             blocker.sprite = null;
             blocker.color = new Color(1f, 1f, 1f, 0.001f);
             blocker.raycastTarget = true;
@@ -109,8 +122,21 @@ namespace SkinnyToBeast.UI
             rawImage.raycastTarget = false;
             rawImage.uvRect = new Rect(0f, 0f, 1f, 1f);
 
-            Debug.Log($"ReferenceSettingsPanelSpriteFix: settings reference texture applied ({texture.width}x{texture.height}).");
             return true;
+        }
+
+        private static GameObject FindInactivePanel()
+        {
+            RectTransform[] allRects = Resources.FindObjectsOfTypeAll<RectTransform>();
+            foreach (RectTransform rect in allRects)
+            {
+                if (rect == null || rect.name != PanelObjectName) continue;
+                GameObject candidate = rect.gameObject;
+                if (!candidate.scene.IsValid() || !candidate.scene.isLoaded) continue;
+                return candidate;
+            }
+
+            return null;
         }
 
         private static Texture LoadReferenceTexture()
