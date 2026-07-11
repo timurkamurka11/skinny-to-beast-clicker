@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -11,11 +12,13 @@ namespace SkinnyToBeast.UI
         private const string MainMenuSceneName = "MainMenu";
         private const string SfxEnabledKey = "settings.sfx";
         private const string SfxVolumeKey = "settings.sfx.volume";
-        private const float SfxBoost = 1.55f;
+        private const string BalanceMigrationKey = "settings.audio.balance.v2";
 
         private static UiSoundPlayer instance;
         private readonly Dictionary<string, AudioClip> clips = new();
         private AudioSource source;
+        private Coroutine duckRoutine;
+        private int duckGeneration;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
@@ -51,6 +54,7 @@ namespace SkinnyToBeast.UI
         private static UiSoundPlayer EnsureInstance()
         {
             if (instance != null) return instance;
+
             UiSoundPlayer existing = Object.FindFirstObjectByType<UiSoundPlayer>();
             if (existing != null)
             {
@@ -72,14 +76,30 @@ namespace SkinnyToBeast.UI
             }
 
             instance = this;
+            ApplyOneTimeBalanceMigration();
+
             source = gameObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
             source.loop = false;
             source.spatialBlend = 0f;
-            source.ignoreListenerPause = true;
-            source.priority = 16;
+            source.priority = 0;
             source.volume = 1f;
+            source.ignoreListenerPause = true;
+            source.bypassEffects = true;
+            source.bypassListenerEffects = true;
+            source.bypassReverbZones = true;
+
             LoadAll();
+        }
+
+        private static void ApplyOneTimeBalanceMigration()
+        {
+            if (PlayerPrefs.GetInt(BalanceMigrationKey, 0) == 1) return;
+
+            PlayerPrefs.SetFloat(SfxVolumeKey, 1f);
+            PlayerPrefs.SetFloat("settings.music.volume", 0.18f);
+            PlayerPrefs.SetInt(BalanceMigrationKey, 1);
+            PlayerPrefs.Save();
         }
 
         private void LoadAll()
@@ -102,21 +122,78 @@ namespace SkinnyToBeast.UI
         private static void Play(string id, bool force = false)
         {
             UiSoundPlayer player = EnsureInstance();
-            if (player == null) return;
-            player.PlayInternal(id, force);
+            player?.PlayInternal(id, force);
         }
 
         private void PlayInternal(string id, bool force)
         {
             if (!force && PlayerPrefs.GetInt(SfxEnabledKey, 1) == 0) return;
+
             if (!clips.TryGetValue(id, out AudioClip clip) || clip == null)
             {
-                Debug.LogWarning($"UI sound missing: {id}");
-                return;
+                clip = Resources.Load<AudioClip>($"Audio/UI/{id}");
+                if (clip == null)
+                {
+                    Debug.LogWarning($"UI sound missing: Audio/UI/{id}");
+                    return;
+                }
+
+                clips[id] = clip;
             }
 
-            float volume = Mathf.Clamp(PlayerPrefs.GetFloat(SfxVolumeKey, 0.95f) * SfxBoost, 0f, 1.6f);
-            source.PlayOneShot(clip, volume);
+            float savedVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, 1f));
+            float boostedVolume = savedVolume <= 0.001f ? 0f : Mathf.Clamp01(savedVolume * 1.8f);
+            source.PlayOneShot(clip, boostedVolume);
+            DuckMenuBgm(Mathf.Clamp(clip.length + 0.10f, 0.25f, 1.4f));
+        }
+
+        private void DuckMenuBgm(float duration)
+        {
+            AudioSource bgm = FindMenuBgm();
+            if (bgm == null) return;
+
+            duckGeneration++;
+            if (duckRoutine != null)
+            {
+                StopCoroutine(duckRoutine);
+            }
+
+            duckRoutine = StartCoroutine(DuckRoutine(bgm, duration, duckGeneration));
+        }
+
+        private IEnumerator DuckRoutine(AudioSource bgm, float duration, int generation)
+        {
+            float targetVolume = Mathf.Clamp01(PlayerPrefs.GetFloat("settings.music.volume", 0.18f));
+            bgm.volume = targetVolume * 0.22f;
+
+            yield return new WaitForSecondsRealtime(duration);
+
+            if (generation == duckGeneration && bgm != null)
+            {
+                bgm.volume = targetVolume;
+            }
+
+            duckRoutine = null;
+        }
+
+        private static AudioSource FindMenuBgm()
+        {
+            GameObject named = GameObject.Find("MainMenuBGM");
+            if (named != null && named.TryGetComponent(out AudioSource source))
+            {
+                return source;
+            }
+
+            AudioSource[] sources = Object.FindObjectsByType<AudioSource>(FindObjectsSortMode.None);
+            foreach (AudioSource candidate in sources)
+            {
+                if (candidate != null && candidate.loop && candidate.clip != null)
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
         }
     }
 }
