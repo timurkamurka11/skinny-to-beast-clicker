@@ -193,14 +193,14 @@ namespace SkinnyToBeast.UI
             Color rowColor = new Color(0.018f, 0.050f, 0.072f, 1f);
 
             // Audio: erase the three preview sliders and blue ON badges.
-            CreateSourceMask(root, "MusicControlMask", 94f, 30f, 184f, 25f, rowColor);
-            CreateSourceMask(root, "SfxControlMask", 94f, 56f, 184f, 25f, rowColor);
-            CreateSourceMask(root, "VoiceControlMask", 94f, 82f, 184f, 25f, rowColor);
+            CreateSourceMask(root, "MusicControlMask", 88f, 29f, 191f, 27f, rowColor);
+            CreateSourceMask(root, "SfxControlMask", 88f, 55f, 191f, 27f, rowColor);
+            CreateSourceMask(root, "VoiceControlMask", 88f, 81f, 191f, 27f, rowColor);
 
-            // Gameplay: erase only the baked control wells, preserving labels and icons.
-            CreateSourceMask(root, "VibrationControlMask", 205f, 134f, 73f, 27f, rowColor);
-            CreateSourceMask(root, "LanguageControlMask", 119f, 161f, 159f, 30f, rowColor);
-            CreateSourceMask(root, "NotificationsControlMask", 205f, 191f, 73f, 27f, rowColor);
+            // Gameplay: erase the complete baked wells and their offset shadows.
+            CreateSourceMask(root, "VibrationControlMask", 195f, 133f, 84f, 29f, rowColor);
+            CreateSourceMask(root, "LanguageControlMask", 112f, 160f, 167f, 32f, rowColor);
+            CreateSourceMask(root, "NotificationsControlMask", 195f, 190f, 84f, 29f, rowColor);
         }
 
         private static void CreateSourceMask(
