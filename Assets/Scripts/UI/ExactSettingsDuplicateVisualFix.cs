@@ -1,5 +1,4 @@
 using System.Collections;
-using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -10,22 +9,19 @@ namespace SkinnyToBeast.UI
     internal sealed class ExactSettingsDuplicateVisualFix : MonoBehaviour
     {
         private const string MainMenuSceneName = "MainMenu";
-        private const float HiddenAlpha = 0.001f;
         private static ExactSettingsDuplicateVisualFix instance;
+        private static Sprite referenceSprite;
 
-        private static readonly string[] SliderNames =
+        private static readonly string[] LiveControlNames =
         {
             "MusicSlider",
-            "SfxSlider",
-            "VoiceSlider"
-        };
-
-        private static readonly string[] ToggleNames =
-        {
             "MusicToggle",
+            "SfxSlider",
             "SfxToggle",
+            "VoiceSlider",
             "VoiceToggle",
             "VibrationToggle",
+            "LanguageButton",
             "NotificationsToggle"
         };
 
@@ -33,6 +29,7 @@ namespace SkinnyToBeast.UI
         private static void ResetStatics()
         {
             instance = null;
+            referenceSprite = null;
             SceneManager.sceneLoaded -= OnSceneLoaded;
         }
 
@@ -64,177 +61,66 @@ namespace SkinnyToBeast.UI
 
         private IEnumerator Start()
         {
-            // RuntimeSettingsPopupInstaller creates the panel after scene load.
-            // Re-apply only to named duplicated control visuals; never disable popup roots.
             for (int i = 0; i < 300; i++)
             {
-                ApplyTargetedFix();
+                ApplySingleLayerFix();
                 yield return null;
             }
         }
 
         private void LateUpdate()
         {
-            // Unity Selectables and toggle listeners can repaint on the same frame that
-            // the popup opens. Keep the input areas alive, but suppress their duplicate
-            // graphics before every rendered frame.
-            ApplyTargetedFix();
+            if (Time.frameCount % 30 == 0)
+            {
+                ApplySingleLayerFix();
+            }
         }
 
-        private static void ApplyTargetedFix()
+        private static void ApplySingleLayerFix()
         {
-            DisableOnlyObsoleteFallbackBackground();
+            DisableLegacyBackgroundBuilders();
 
             RectTransform panel = FindPanel();
             if (panel == null) return;
 
-            foreach (string sliderName in SliderNames)
+            Image panelImage = panel.GetComponent<Image>();
+            if (panelImage != null)
             {
-                Transform sliderRoot = FindChildRecursive(panel, sliderName);
-                if (sliderRoot != null)
+                referenceSprite ??= EmbeddedSettingsAssets.CreatePanelSprite();
+                panelImage.sprite = referenceSprite;
+                panelImage.preserveAspect = true;
+                panelImage.color = Color.white;
+                panelImage.raycastTarget = true;
+            }
+
+            Transform cleanup = FindChildRecursive(panel, "BakedControlsCleanup");
+            if (cleanup != null)
+            {
+                cleanup.gameObject.SetActive(true);
+                cleanup.SetAsFirstSibling();
+            }
+
+            // Keep the masks behind the one functional control set.
+            foreach (string controlName in LiveControlNames)
+            {
+                Transform control = FindChildRecursive(panel, controlName);
+                if (control != null)
                 {
-                    HideSliderGraphics(sliderRoot);
+                    control.gameObject.SetActive(true);
+                    control.SetAsLastSibling();
                 }
-            }
-
-            foreach (string toggleName in ToggleNames)
-            {
-                Transform toggleRoot = FindChildRecursive(panel, toggleName);
-                if (toggleRoot != null)
-                {
-                    HideToggleGraphics(toggleRoot);
-                }
-            }
-
-            Transform languageRoot = FindChildRecursive(panel, "LanguageButton");
-            if (languageRoot != null)
-            {
-                HideLanguageGraphics(languageRoot);
-            }
-
-            // Restore Purchases and Privacy Policy hotspots are already invisible and remain functional.
-        }
-
-        private static void HideSliderGraphics(Transform sliderRoot)
-        {
-            Slider slider = sliderRoot.GetComponent<Slider>();
-            if (slider == null) return;
-            slider.transition = Selectable.Transition.None;
-
-            Image[] images = sliderRoot.GetComponentsInChildren<Image>(true);
-            foreach (Image image in images)
-            {
-                if (image == null) continue;
-                SetTransparentButInteractive(image);
-            }
-
-            Outline[] outlines = sliderRoot.GetComponentsInChildren<Outline>(true);
-            foreach (Outline outline in outlines)
-            {
-                if (outline != null) outline.enabled = false;
-            }
-
-            // Keep slider interaction active across the complete track area.
-            Image track = FindNamedComponent<Image>(sliderRoot, "Track");
-            if (track != null)
-            {
-                track.raycastTarget = true;
-                slider.targetGraphic = track;
             }
         }
 
-        private static void HideToggleGraphics(Transform toggleRoot)
+        private static void DisableLegacyBackgroundBuilders()
         {
-            Toggle toggle = toggleRoot.GetComponent<Toggle>();
-            if (toggle == null) return;
-            toggle.transition = Selectable.Transition.None;
-
-            ReferenceToggleVisual visual = toggleRoot.GetComponent<ReferenceToggleVisual>();
-            if (visual != null)
-            {
-                Object.Destroy(visual);
-            }
-
-            Image[] images = toggleRoot.GetComponentsInChildren<Image>(true);
-            foreach (Image image in images)
-            {
-                if (image == null) continue;
-                SetTransparentButInteractive(image);
-            }
-
-            TMP_Text[] texts = toggleRoot.GetComponentsInChildren<TMP_Text>(true);
-            foreach (TMP_Text text in texts)
-            {
-                if (text == null) continue;
-                Color color = text.color;
-                color.a = 0f;
-                text.color = color;
-                text.raycastTarget = false;
-            }
-
-            Outline[] outlines = toggleRoot.GetComponentsInChildren<Outline>(true);
-            foreach (Outline outline in outlines)
-            {
-                if (outline != null) outline.enabled = false;
-            }
-
-            Image rootImage = toggleRoot.GetComponent<Image>();
-            if (rootImage != null)
-            {
-                rootImage.raycastTarget = true;
-                toggle.targetGraphic = rootImage;
-            }
-        }
-
-        private static void HideLanguageGraphics(Transform languageRoot)
-        {
-            Button button = languageRoot.GetComponent<Button>();
-            if (button != null)
-            {
-                button.transition = Selectable.Transition.None;
-            }
-
-            Image background = languageRoot.GetComponent<Image>();
-            if (background != null)
-            {
-                SetTransparentButInteractive(background);
-                if (button != null)
-                {
-                    button.targetGraphic = background;
-                }
-            }
-
-            Transform arrowRoot = FindChildRecursive(languageRoot, "Arrow");
-            if (arrowRoot != null)
-            {
-                Graphic[] arrowGraphics = arrowRoot.GetComponentsInChildren<Graphic>(true);
-                foreach (Graphic graphic in arrowGraphics)
-                {
-                    if (graphic != null)
-                    {
-                        SetTransparentButInteractive(graphic);
-                        graphic.raycastTarget = false;
-                    }
-                }
-            }
-
-            Outline[] outlines = languageRoot.GetComponentsInChildren<Outline>(true);
-            foreach (Outline outline in outlines)
-            {
-                if (outline != null) outline.enabled = false;
-            }
-        }
-
-        private static void DisableOnlyObsoleteFallbackBackground()
-        {
-            // This old generated background duplicates the baked reference image.
-            // Disable only this named fallback, not SettingsPopup, ReferencePanel or controls.
             RectTransform[] allRects = Resources.FindObjectsOfTypeAll<RectTransform>();
             foreach (RectTransform rect in allRects)
             {
                 if (rect == null || !rect.gameObject.scene.IsValid()) continue;
 
                 if (rect.name == "SettingsReferenceHardBackground" ||
+                    rect.name == "ReferencePanelBackground" ||
                     rect.name == "ProceduralReferenceSurface")
                 {
                     rect.gameObject.SetActive(false);
@@ -246,7 +132,9 @@ namespace SkinnyToBeast.UI
             {
                 if (behaviour == null || !behaviour.gameObject.scene.IsValid()) continue;
 
-                if (behaviour.GetType().Name == "ReferenceSettingsPanelHardFix")
+                string typeName = behaviour.GetType().Name;
+                if (typeName == "ReferenceSettingsPanelHardFix" ||
+                    typeName == "ReferenceSettingsPanelSpriteFix")
                 {
                     behaviour.enabled = false;
                 }
@@ -279,21 +167,6 @@ namespace SkinnyToBeast.UI
             }
 
             return null;
-        }
-
-        private static T FindNamedComponent<T>(Transform parent, string exactName) where T : Component
-        {
-            Transform child = FindChildRecursive(parent, exactName);
-            return child != null ? child.GetComponent<T>() : null;
-        }
-
-        private static void SetTransparentButInteractive(Graphic graphic)
-        {
-            Color color = graphic.color;
-            color.a = HiddenAlpha;
-            graphic.color = color;
-            graphic.canvasRenderer.SetAlpha(HiddenAlpha);
-            graphic.raycastTarget = true;
         }
     }
 }
