@@ -1,4 +1,7 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -11,8 +14,15 @@ namespace SkinnyToBeast.UI
         private const string MainMenuSceneName = "MainMenu";
         private const float SourceWidth = 283f;
         private const float SourceHeight = 301f;
+        private const float BlueBadgeScaleX = 1.22f;
+        private const float BlueBadgeScaleY = 1.28f;
+        private const float OrangeBadgeScaleX = 1.24f;
+        private const float OrangeBadgeScaleY = 1.30f;
         private static ExactSettingsDuplicateVisualFix instance;
         private static Sprite referenceSprite;
+        private static readonly Dictionary<int, BadgeCoverLayout> BadgeLayouts =
+            new Dictionary<int, BadgeCoverLayout>();
+        private static int loggedBadgeCount;
 
         private static readonly string[] LiveControlNames =
         {
@@ -32,6 +42,8 @@ namespace SkinnyToBeast.UI
         {
             instance = null;
             referenceSprite = null;
+            BadgeLayouts.Clear();
+            loggedBadgeCount = 0;
             SceneManager.sceneLoaded -= OnSceneLoaded;
         }
 
@@ -81,7 +93,11 @@ namespace SkinnyToBeast.UI
             DisableLegacyBackgroundBuilders();
 
             RectTransform panel = FindPanel();
-            if (panel == null) return;
+            if (panel == null)
+            {
+                CoverVisibleStateBadges();
+                return;
+            }
 
             DisableDuplicateSettingsControls(panel);
             ForceVisibleControlLayout();
@@ -121,6 +137,10 @@ namespace SkinnyToBeast.UI
             {
                 edgeCleanup.gameObject.SetActive(false);
             }
+
+            // Run last: locally installed image-driven patches may rebuild or
+            // reposition their controls earlier in the same frame.
+            CoverVisibleStateBadges();
         }
 
         private static void ForceVisibleControlLayout()
@@ -171,6 +191,114 @@ namespace SkinnyToBeast.UI
                 (centerX - SourceWidth * 0.5f) * scaleX,
                 (SourceHeight * 0.5f - centerY) * scaleY);
             rect.SetAsLastSibling();
+        }
+
+        private static void CoverVisibleStateBadges()
+        {
+            Selectable[] selectables = Resources.FindObjectsOfTypeAll<Selectable>();
+            int matchedCount = 0;
+
+            foreach (Selectable selectable in selectables)
+            {
+                if (selectable == null || !selectable.gameObject.scene.IsValid()) continue;
+                if (!selectable.gameObject.activeInHierarchy) continue;
+                if (!(selectable is Toggle) && !(selectable is Button)) continue;
+
+                RectTransform rect = selectable.transform as RectTransform;
+                if (rect == null || !HasOnOffLabel(rect)) continue;
+
+                int id = rect.GetInstanceID();
+                if (!BadgeLayouts.TryGetValue(id, out BadgeCoverLayout layout) ||
+                    layout.Rect != rect)
+                {
+                    Vector2 baseSize = rect.rect.size;
+                    float aspect = baseSize.y > 0.01f ? baseSize.x / baseSize.y : 0f;
+                    bool isOrangeGameplayBadge = aspect >= 2.55f;
+
+                    layout = new BadgeCoverLayout(
+                        rect,
+                        isOrangeGameplayBadge ? OrangeBadgeScaleX : BlueBadgeScaleX,
+                        isOrangeGameplayBadge ? OrangeBadgeScaleY : BlueBadgeScaleY);
+                    BadgeLayouts[id] = layout;
+                }
+
+                layout.Apply();
+                matchedCount++;
+            }
+
+            if (matchedCount > loggedBadgeCount)
+            {
+                loggedBadgeCount = matchedCount;
+                Debug.Log(
+                    $"ExactSettingsDuplicateVisualFix: enlarged {matchedCount} live ON/OFF badges " +
+                    "to cover the baked background layer.");
+            }
+        }
+
+        private static bool HasOnOffLabel(Transform root)
+        {
+            TMP_Text[] tmpLabels = root.GetComponentsInChildren<TMP_Text>(true);
+            foreach (TMP_Text label in tmpLabels)
+            {
+                if (IsStateLabel(label != null ? label.text : null)) return true;
+            }
+
+            Text[] legacyLabels = root.GetComponentsInChildren<Text>(true);
+            foreach (Text label in legacyLabels)
+            {
+                if (IsStateLabel(label != null ? label.text : null)) return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsStateLabel(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            string normalized = value.Trim();
+            return string.Equals(normalized, "ON", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalized, "OFF", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private sealed class BadgeCoverLayout
+        {
+            internal readonly RectTransform Rect;
+            private readonly Vector2 baseAnchoredPosition;
+            private readonly Vector2 baseSize;
+            private readonly Vector3 baseScale;
+            private readonly float scaleX;
+            private readonly float scaleY;
+
+            internal BadgeCoverLayout(RectTransform rect, float scaleX, float scaleY)
+            {
+                Rect = rect;
+                baseAnchoredPosition = rect.anchoredPosition;
+                baseSize = rect.rect.size;
+                baseScale = rect.localScale;
+                this.scaleX = scaleX;
+                this.scaleY = scaleY;
+            }
+
+            internal void Apply()
+            {
+                if (Rect == null) return;
+
+                Rect.localScale = new Vector3(
+                    baseScale.x * scaleX,
+                    baseScale.y * scaleY,
+                    baseScale.z);
+
+                // Keep the original top-left edge fixed. All added coverage
+                // extends toward the protruding baked layer: right and down.
+                float shiftX =
+                    baseSize.x * baseScale.x * (scaleX - 1f) * Rect.pivot.x;
+                float shiftY =
+                    baseSize.y * baseScale.y * (scaleY - 1f) * (1f - Rect.pivot.y);
+                Rect.anchoredPosition =
+                    baseAnchoredPosition + new Vector2(shiftX, -shiftY);
+                Rect.SetAsLastSibling();
+            }
         }
 
         private static RectTransform FindReferencePanelAncestor(Transform source)
