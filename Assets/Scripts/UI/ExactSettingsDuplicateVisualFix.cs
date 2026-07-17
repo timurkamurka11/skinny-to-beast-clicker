@@ -195,71 +195,100 @@ namespace SkinnyToBeast.UI
 
         private static void CoverVisibleStateBadges()
         {
-            Selectable[] selectables = Resources.FindObjectsOfTypeAll<Selectable>();
             int matchedCount = 0;
 
-            foreach (Selectable selectable in selectables)
+            TMP_Text[] tmpLabels = Resources.FindObjectsOfTypeAll<TMP_Text>();
+            foreach (TMP_Text label in tmpLabels)
             {
-                if (selectable == null || !selectable.gameObject.scene.IsValid()) continue;
-                if (!selectable.gameObject.activeInHierarchy) continue;
-                if (!(selectable is Toggle) && !(selectable is Button)) continue;
+                if (label == null || !label.gameObject.scene.IsValid()) continue;
+                if (!label.gameObject.activeInHierarchy || !IsStateLabel(label.text)) continue;
 
-                RectTransform rect = selectable.transform as RectTransform;
-                if (rect == null || !HasOnOffLabel(selectable)) continue;
-
-                int id = rect.GetInstanceID();
-                if (!BadgeLayouts.TryGetValue(id, out BadgeCoverLayout layout) ||
-                    layout.Rect != rect)
+                RectTransform badge = FindBadgeVisualRoot(label.rectTransform);
+                if (badge != null && ApplyBadgeCover(badge))
                 {
-                    Vector2 baseSize = rect.rect.size;
-                    float aspect = baseSize.y > 0.01f ? baseSize.x / baseSize.y : 0f;
-                    bool isOrangeGameplayBadge = aspect >= 2.55f;
-
-                    layout = new BadgeCoverLayout(
-                        rect,
-                        isOrangeGameplayBadge ? OrangeBadgeScaleX : BlueBadgeScaleX,
-                        isOrangeGameplayBadge ? OrangeBadgeScaleY : BlueBadgeScaleY);
-                    BadgeLayouts[id] = layout;
+                    matchedCount++;
                 }
+            }
 
-                layout.Apply();
-                matchedCount++;
+            Text[] legacyLabels = Resources.FindObjectsOfTypeAll<Text>();
+            foreach (Text label in legacyLabels)
+            {
+                if (label == null || !label.gameObject.scene.IsValid()) continue;
+                if (!label.gameObject.activeInHierarchy || !IsStateLabel(label.text)) continue;
+
+                RectTransform badge = FindBadgeVisualRoot(label.rectTransform);
+                if (badge != null && ApplyBadgeCover(badge))
+                {
+                    matchedCount++;
+                }
             }
 
             if (matchedCount > loggedBadgeCount)
             {
                 loggedBadgeCount = matchedCount;
                 Debug.Log(
-                    $"ExactSettingsDuplicateVisualFix: enlarged {matchedCount} live ON/OFF badges " +
-                    "to cover the baked background layer.");
+                    $"ExactSettingsDuplicateVisualFix: enlarged {matchedCount} ON/OFF badge visuals only.");
             }
         }
 
-        private static bool HasOnOffLabel(Selectable owner)
+        private static bool ApplyBadgeCover(RectTransform rect)
         {
-            TMP_Text[] tmpLabels = owner.GetComponentsInChildren<TMP_Text>(true);
-            foreach (TMP_Text label in tmpLabels)
+            int id = rect.GetInstanceID();
+            if (!BadgeLayouts.TryGetValue(id, out BadgeCoverLayout layout) ||
+                layout.Rect != rect)
             {
-                if (label != null &&
-                    label.GetComponentInParent<Selectable>() == owner &&
-                    IsStateLabel(label.text))
+                Vector2 baseSize = rect.rect.size;
+                float aspect = baseSize.y > 0.01f ? baseSize.x / baseSize.y : 0f;
+                bool isOrangeGameplayBadge = aspect >= 2.55f;
+
+                layout = new BadgeCoverLayout(
+                    rect,
+                    isOrangeGameplayBadge ? OrangeBadgeScaleX : BlueBadgeScaleX,
+                    isOrangeGameplayBadge ? OrangeBadgeScaleY : BlueBadgeScaleY);
+                BadgeLayouts[id] = layout;
+            }
+
+            layout.Apply();
+            return true;
+        }
+
+        private static RectTransform FindBadgeVisualRoot(RectTransform labelRect)
+        {
+            Canvas canvas = labelRect.GetComponentInParent<Canvas>();
+            RectTransform canvasRect = canvas != null ? canvas.transform as RectTransform : null;
+            float maxWidth = canvasRect != null ? canvasRect.rect.width * 0.32f : 360f;
+            float maxHeight = canvasRect != null ? canvasRect.rect.height * 0.12f : 180f;
+
+            Transform current = labelRect.parent;
+            for (int depth = 0; current != null && depth < 5; depth++, current = current.parent)
+            {
+                if (current.GetComponent<Canvas>() != null) break;
+
+                RectTransform candidate = current as RectTransform;
+                if (candidate == null) continue;
+
+                float width = Mathf.Abs(candidate.rect.width);
+                float height = Mathf.Abs(candidate.rect.height);
+                if (height < 0.01f) continue;
+
+                float aspect = width / height;
+                bool badgeSized =
+                    width >= 16f &&
+                    height >= 8f &&
+                    width <= maxWidth &&
+                    height <= maxHeight &&
+                    aspect >= 1.35f &&
+                    aspect <= 6f;
+
+                // The actual pill owns its colored Image. Requiring it prevents
+                // the full-screen backdrop Button from ever being scaled.
+                if (badgeSized && candidate.GetComponent<Image>() != null)
                 {
-                    return true;
+                    return candidate;
                 }
             }
 
-            Text[] legacyLabels = owner.GetComponentsInChildren<Text>(true);
-            foreach (Text label in legacyLabels)
-            {
-                if (label != null &&
-                    label.GetComponentInParent<Selectable>() == owner &&
-                    IsStateLabel(label.text))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return null;
         }
 
         private static bool IsStateLabel(string value)
