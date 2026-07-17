@@ -7,7 +7,6 @@ namespace SkinnyToBeast.UI
     [DisallowMultipleComponent]
     internal sealed class ReferenceToggleVisual : MonoBehaviour
     {
-        private const float HiddenAlpha = 0.001f;
         private Toggle toggle;
         private Image background;
         private RectTransform knobRect;
@@ -51,37 +50,19 @@ namespace SkinnyToBeast.UI
 
             if (background != null)
             {
-                Color hiddenBackground = enabled ? enabledColor : disabledColor;
-                hiddenBackground.a = HiddenAlpha;
-                background.color = hiddenBackground;
-                background.canvasRenderer.SetAlpha(HiddenAlpha);
+                background.color = enabled ? enabledColor : disabledColor;
             }
 
             if (valueText != null)
             {
                 valueText.text = enabled ? "ON" : "OFF";
-                Color hiddenText = valueText.color;
-                hiddenText.a = 0f;
-                valueText.color = hiddenText;
             }
 
-            if (knobRect != null)
+            if (knobRect != null && moveKnob)
             {
-                if (moveKnob)
-                {
-                    Vector2 position = knobRect.anchoredPosition;
-                    position.x = enabled ? knobOffset : -knobOffset;
-                    knobRect.anchoredPosition = position;
-                }
-
-                Image knobImage = knobRect.GetComponent<Image>();
-                if (knobImage != null)
-                {
-                    Color hiddenKnob = knobImage.color;
-                    hiddenKnob.a = HiddenAlpha;
-                    knobImage.color = hiddenKnob;
-                    knobImage.canvasRenderer.SetAlpha(HiddenAlpha);
-                }
+                Vector2 position = knobRect.anchoredPosition;
+                position.x = enabled ? knobOffset : -knobOffset;
+                knobRect.anchoredPosition = position;
             }
         }
     }
