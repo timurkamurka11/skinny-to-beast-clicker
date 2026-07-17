@@ -113,13 +113,12 @@ namespace SkinnyToBeast.UI
                 }
             }
 
-            // Edge trims must render after the live controls so only the
-            // marked overflow pixels are clipped.
+            // The former edge-trim approach is intentionally disabled:
+            // live controls are now calibrated directly onto the baked wells.
             Transform edgeCleanup = FindChildRecursive(panel, "ControlEdgeCleanup");
             if (edgeCleanup != null)
             {
-                edgeCleanup.gameObject.SetActive(true);
-                edgeCleanup.SetAsLastSibling();
+                edgeCleanup.gameObject.SetActive(false);
             }
         }
 
