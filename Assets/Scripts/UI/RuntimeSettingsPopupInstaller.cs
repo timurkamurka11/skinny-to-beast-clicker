@@ -131,9 +131,6 @@ namespace SkinnyToBeast.UI
                 out Toggle notificationsToggle
             );
 
-            // Trim only the right/bottom overflow marked in the reference screenshot.
-            BuildControlEdgeCleanup(panelObject.transform);
-
             Button restorePurchasesButton = CreateInvisibleHotspot(
                 panelObject.transform,
                 "RestorePurchasesButton",
@@ -267,11 +264,13 @@ namespace SkinnyToBeast.UI
             sfxSlider = CreateReferenceSlider(panel, "SfxSlider", 100f, 62f, 122f, 15f);
             voiceSlider = CreateReferenceSlider(panel, "VoiceSlider", 100f, 88f, 122f, 15f);
 
-            musicToggle = CreateReferenceToggle(panel, "MusicToggle", 236f, 35f, 40f, 18f,
+            // Calibrated against the baked reference: its badges sit about
+            // two source pixels to the right of the previous live layer.
+            musicToggle = CreateReferenceToggle(panel, "MusicToggle", 238f, 35f, 40f, 18f,
                 new Color(0.04f, 0.49f, 0.94f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), false);
-            sfxToggle = CreateReferenceToggle(panel, "SfxToggle", 236f, 61f, 40f, 18f,
+            sfxToggle = CreateReferenceToggle(panel, "SfxToggle", 238f, 61f, 40f, 18f,
                 new Color(0.04f, 0.49f, 0.94f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), false);
-            voiceToggle = CreateReferenceToggle(panel, "VoiceToggle", 236f, 87f, 40f, 18f,
+            voiceToggle = CreateReferenceToggle(panel, "VoiceToggle", 238f, 87f, 40f, 18f,
                 new Color(0.04f, 0.49f, 0.94f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), false);
         }
 
@@ -282,10 +281,12 @@ namespace SkinnyToBeast.UI
             out TMP_Text languageValue,
             out Toggle notificationsToggle)
         {
-            vibrationToggle = CreateReferenceToggle(panel, "VibrationToggle", 219f, 139f, 57f, 20f,
+            // Gameplay controls were visibly up/left from their baked wells.
+            // Shift the live layer onto the exact background positions.
+            vibrationToggle = CreateReferenceToggle(panel, "VibrationToggle", 223f, 141f, 57f, 20f,
                 new Color(1f, 0.55f, 0.05f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), true);
-            languageButton = CreateLanguageControl(panel, 125f, 165f, 151f, 22f, out languageValue);
-            notificationsToggle = CreateReferenceToggle(panel, "NotificationsToggle", 219f, 199f, 57f, 20f,
+            languageButton = CreateLanguageControl(panel, 128f, 167f, 151f, 22f, out languageValue);
+            notificationsToggle = CreateReferenceToggle(panel, "NotificationsToggle", 223f, 201f, 57f, 20f,
                 new Color(1f, 0.55f, 0.05f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), true);
         }
 
@@ -299,6 +300,13 @@ namespace SkinnyToBeast.UI
         {
             RectTransform rect = CreateSourceRect(parent, name, x, y, width, height);
             Slider slider = rect.gameObject.AddComponent<Slider>();
+
+            // Opaque local cover hides the baked slider/handle before the live
+            // track is rendered, so a saved volume value cannot reveal two knobs.
+            Image bakedSliderCover = rect.gameObject.AddComponent<Image>();
+            bakedSliderCover.color = new Color(0.018f, 0.050f, 0.072f, 1f);
+            bakedSliderCover.raycastTarget = false;
+
             slider.minValue = 0f;
             slider.maxValue = 1f;
             slider.value = 0.8f;
