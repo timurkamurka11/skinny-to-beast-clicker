@@ -205,7 +205,7 @@ namespace SkinnyToBeast.UI
                 if (!(selectable is Toggle) && !(selectable is Button)) continue;
 
                 RectTransform rect = selectable.transform as RectTransform;
-                if (rect == null || !HasOnOffLabel(rect)) continue;
+                if (rect == null || !HasOnOffLabel(selectable)) continue;
 
                 int id = rect.GetInstanceID();
                 if (!BadgeLayouts.TryGetValue(id, out BadgeCoverLayout layout) ||
@@ -235,18 +235,28 @@ namespace SkinnyToBeast.UI
             }
         }
 
-        private static bool HasOnOffLabel(Transform root)
+        private static bool HasOnOffLabel(Selectable owner)
         {
-            TMP_Text[] tmpLabels = root.GetComponentsInChildren<TMP_Text>(true);
+            TMP_Text[] tmpLabels = owner.GetComponentsInChildren<TMP_Text>(true);
             foreach (TMP_Text label in tmpLabels)
             {
-                if (IsStateLabel(label != null ? label.text : null)) return true;
+                if (label != null &&
+                    label.GetComponentInParent<Selectable>() == owner &&
+                    IsStateLabel(label.text))
+                {
+                    return true;
+                }
             }
 
-            Text[] legacyLabels = root.GetComponentsInChildren<Text>(true);
+            Text[] legacyLabels = owner.GetComponentsInChildren<Text>(true);
             foreach (Text label in legacyLabels)
             {
-                if (IsStateLabel(label != null ? label.text : null)) return true;
+                if (label != null &&
+                    label.GetComponentInParent<Selectable>() == owner &&
+                    IsStateLabel(label.text))
+                {
+                    return true;
+                }
             }
 
             return false;
