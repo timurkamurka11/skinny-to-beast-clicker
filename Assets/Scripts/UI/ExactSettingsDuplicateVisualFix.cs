@@ -83,6 +83,8 @@ namespace SkinnyToBeast.UI
             RectTransform panel = FindPanel();
             if (panel == null) return;
 
+            DisableDuplicateSettingsControls(panel);
+
             Image panelImage = panel.GetComponent<Image>();
             if (panelImage != null)
             {
@@ -141,17 +143,77 @@ namespace SkinnyToBeast.UI
             }
         }
 
+        private static void DisableDuplicateSettingsControls(RectTransform canonicalPanel)
+        {
+            Selectable[] selectables = Resources.FindObjectsOfTypeAll<Selectable>();
+            foreach (Selectable selectable in selectables)
+            {
+                if (selectable == null || !selectable.gameObject.scene.IsValid()) continue;
+                if (selectable.transform.IsChildOf(canonicalPanel)) continue;
+
+                bool isSettingsControl =
+                    selectable is Slider ||
+                    selectable is Toggle ||
+                    selectable.name == "LanguageButton";
+
+                if (isSettingsControl && HasSettingsAncestor(selectable.transform))
+                {
+                    selectable.gameObject.SetActive(false);
+                }
+            }
+
+            RectTransform[] allRects = Resources.FindObjectsOfTypeAll<RectTransform>();
+            foreach (RectTransform rect in allRects)
+            {
+                if (rect == null || rect == canonicalPanel || rect.name != "ReferencePanel") continue;
+                if (!rect.gameObject.scene.IsValid() || !rect.gameObject.scene.isLoaded) continue;
+                rect.gameObject.SetActive(false);
+            }
+        }
+
+        private static bool HasSettingsAncestor(Transform source)
+        {
+            Transform current = source;
+            while (current != null)
+            {
+                string lowerName = current.name.ToLowerInvariant();
+                if (lowerName.Contains("settingspopup") ||
+                    lowerName.Contains("settings_popup") ||
+                    lowerName.Contains("settingspanel") ||
+                    lowerName.Contains("referencepanel"))
+                {
+                    return true;
+                }
+
+                if (current.GetComponent<Canvas>() != null) break;
+                current = current.parent;
+            }
+
+            return false;
+        }
+
         private static RectTransform FindPanel()
         {
+            RectTransform fallback = null;
             RectTransform[] allRects = Resources.FindObjectsOfTypeAll<RectTransform>();
             foreach (RectTransform rect in allRects)
             {
                 if (rect == null || rect.name != "ReferencePanel") continue;
                 if (!rect.gameObject.scene.IsValid() || !rect.gameObject.scene.isLoaded) continue;
-                return rect;
+
+                // Only the panel built by the current installer owns this marker.
+                if (FindChildRecursive(rect, "BakedControlsCleanup") != null)
+                {
+                    return rect;
+                }
+
+                if (fallback == null)
+                {
+                    fallback = rect;
+                }
             }
 
-            return null;
+            return fallback;
         }
 
         private static Transform FindChildRecursive(Transform parent, string exactName)
