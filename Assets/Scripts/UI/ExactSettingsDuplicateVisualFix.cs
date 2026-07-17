@@ -10,6 +10,7 @@ namespace SkinnyToBeast.UI
     internal sealed class ExactSettingsDuplicateVisualFix : MonoBehaviour
     {
         private const string MainMenuSceneName = "MainMenu";
+        private const float HiddenAlpha = 0.001f;
         private static ExactSettingsDuplicateVisualFix instance;
 
         private static readonly string[] SliderNames =
@@ -74,12 +75,10 @@ namespace SkinnyToBeast.UI
 
         private void LateUpdate()
         {
-            // ReferenceToggleVisual can repaint a toggle after its value changes.
-            // Re-hide only those duplicate visual layers while preserving input and callbacks.
-            if (Time.frameCount % 10 == 0)
-            {
-                ApplyTargetedFix();
-            }
+            // Unity Selectables and toggle listeners can repaint on the same frame that
+            // the popup opens. Keep the input areas alive, but suppress their duplicate
+            // graphics before every rendered frame.
+            ApplyTargetedFix();
         }
 
         private static void ApplyTargetedFix()
@@ -107,7 +106,12 @@ namespace SkinnyToBeast.UI
                 }
             }
 
-            // Language control is intentionally left untouched because its live text must remain visible.
+            Transform languageRoot = FindChildRecursive(panel, "LanguageButton");
+            if (languageRoot != null)
+            {
+                HideLanguageGraphics(languageRoot);
+            }
+
             // Restore Purchases and Privacy Policy hotspots are already invisible and remain functional.
         }
 
@@ -115,6 +119,7 @@ namespace SkinnyToBeast.UI
         {
             Slider slider = sliderRoot.GetComponent<Slider>();
             if (slider == null) return;
+            slider.transition = Selectable.Transition.None;
 
             Image[] images = sliderRoot.GetComponentsInChildren<Image>(true);
             foreach (Image image in images)
@@ -142,6 +147,13 @@ namespace SkinnyToBeast.UI
         {
             Toggle toggle = toggleRoot.GetComponent<Toggle>();
             if (toggle == null) return;
+            toggle.transition = Selectable.Transition.None;
+
+            ReferenceToggleVisual visual = toggleRoot.GetComponent<ReferenceToggleVisual>();
+            if (visual != null)
+            {
+                Object.Destroy(visual);
+            }
 
             Image[] images = toggleRoot.GetComponentsInChildren<Image>(true);
             foreach (Image image in images)
@@ -171,6 +183,45 @@ namespace SkinnyToBeast.UI
             {
                 rootImage.raycastTarget = true;
                 toggle.targetGraphic = rootImage;
+            }
+        }
+
+        private static void HideLanguageGraphics(Transform languageRoot)
+        {
+            Button button = languageRoot.GetComponent<Button>();
+            if (button != null)
+            {
+                button.transition = Selectable.Transition.None;
+            }
+
+            Image background = languageRoot.GetComponent<Image>();
+            if (background != null)
+            {
+                SetTransparentButInteractive(background);
+                if (button != null)
+                {
+                    button.targetGraphic = background;
+                }
+            }
+
+            Transform arrowRoot = FindChildRecursive(languageRoot, "Arrow");
+            if (arrowRoot != null)
+            {
+                Graphic[] arrowGraphics = arrowRoot.GetComponentsInChildren<Graphic>(true);
+                foreach (Graphic graphic in arrowGraphics)
+                {
+                    if (graphic != null)
+                    {
+                        SetTransparentButInteractive(graphic);
+                        graphic.raycastTarget = false;
+                    }
+                }
+            }
+
+            Outline[] outlines = languageRoot.GetComponentsInChildren<Outline>(true);
+            foreach (Outline outline in outlines)
+            {
+                if (outline != null) outline.enabled = false;
             }
         }
 
@@ -239,8 +290,9 @@ namespace SkinnyToBeast.UI
         private static void SetTransparentButInteractive(Graphic graphic)
         {
             Color color = graphic.color;
-            color.a = 0.001f;
+            color.a = HiddenAlpha;
             graphic.color = color;
+            graphic.canvasRenderer.SetAlpha(HiddenAlpha);
             graphic.raycastTarget = true;
         }
     }
