@@ -109,6 +109,10 @@ namespace SkinnyToBeast.UI
             panelImage.raycastTarget = true;
             panelImage.color = Color.white;
 
+            // The reference JPG contains a decorative preview of the controls.
+            // Cover those baked pixels first, then draw one live interactive set above.
+            BuildBakedControlCleanupMasks(panelObject.transform);
+
             BuildAudioControls(
                 panelObject.transform,
                 out Slider musicSlider,
@@ -172,6 +176,46 @@ namespace SkinnyToBeast.UI
             Debug.Log(
                 "Reference-driven Settings UI installed: baked panel, aligned interactive controls and synchronized UI sounds."
             );
+        }
+
+        private static void BuildBakedControlCleanupMasks(Transform panel)
+        {
+            GameObject rootObject = new GameObject(
+                "BakedControlsCleanup",
+                typeof(RectTransform)
+            );
+            rootObject.transform.SetParent(panel, false);
+            rootObject.transform.SetAsFirstSibling();
+
+            RectTransform root = rootObject.GetComponent<RectTransform>();
+            Stretch(root);
+
+            Color rowColor = new Color(0.018f, 0.050f, 0.072f, 1f);
+
+            // Audio: erase the three preview sliders and blue ON badges.
+            CreateSourceMask(root, "MusicControlMask", 94f, 30f, 184f, 25f, rowColor);
+            CreateSourceMask(root, "SfxControlMask", 94f, 56f, 184f, 25f, rowColor);
+            CreateSourceMask(root, "VoiceControlMask", 94f, 82f, 184f, 25f, rowColor);
+
+            // Gameplay: erase only the baked control wells, preserving labels and icons.
+            CreateSourceMask(root, "VibrationControlMask", 205f, 134f, 73f, 27f, rowColor);
+            CreateSourceMask(root, "LanguageControlMask", 119f, 161f, 159f, 30f, rowColor);
+            CreateSourceMask(root, "NotificationsControlMask", 205f, 191f, 73f, 27f, rowColor);
+        }
+
+        private static void CreateSourceMask(
+            Transform parent,
+            string name,
+            float x,
+            float y,
+            float width,
+            float height,
+            Color color)
+        {
+            RectTransform rect = CreateSourceRect(parent, name, x, y, width, height);
+            Image image = rect.gameObject.AddComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false;
         }
 
         private static void BuildAudioControls(
