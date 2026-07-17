@@ -9,6 +9,8 @@ namespace SkinnyToBeast.UI
     internal sealed class ExactSettingsDuplicateVisualFix : MonoBehaviour
     {
         private const string MainMenuSceneName = "MainMenu";
+        private const float SourceWidth = 283f;
+        private const float SourceHeight = 301f;
         private static ExactSettingsDuplicateVisualFix instance;
         private static Sprite referenceSprite;
 
@@ -70,10 +72,8 @@ namespace SkinnyToBeast.UI
 
         private void LateUpdate()
         {
-            if (Time.frameCount % 30 == 0)
-            {
-                ApplySingleLayerFix();
-            }
+            // Enforce the calibrated positions after every other UI/layout update.
+            ApplySingleLayerFix();
         }
 
         private static void ApplySingleLayerFix()
@@ -84,6 +84,7 @@ namespace SkinnyToBeast.UI
             if (panel == null) return;
 
             DisableDuplicateSettingsControls(panel);
+            ForceVisibleControlLayout();
 
             Image panelImage = panel.GetComponent<Image>();
             if (panelImage != null)
@@ -120,6 +121,72 @@ namespace SkinnyToBeast.UI
             {
                 edgeCleanup.gameObject.SetActive(false);
             }
+        }
+
+        private static void ForceVisibleControlLayout()
+        {
+            RectTransform[] allRects = Resources.FindObjectsOfTypeAll<RectTransform>();
+            foreach (RectTransform rect in allRects)
+            {
+                if (rect == null || !rect.gameObject.scene.IsValid()) continue;
+
+                switch (rect.name)
+                {
+                    case "MusicToggle":
+                        SetSourceLayout(rect, 239f, 37f, 40f, 18f);
+                        break;
+                    case "SfxToggle":
+                        SetSourceLayout(rect, 239f, 63f, 40f, 18f);
+                        break;
+                    case "VoiceToggle":
+                        SetSourceLayout(rect, 239f, 89f, 40f, 18f);
+                        break;
+                    case "VibrationToggle":
+                        SetSourceLayout(rect, 225f, 144f, 57f, 20f);
+                        break;
+                    case "NotificationsToggle":
+                        SetSourceLayout(rect, 225f, 204f, 57f, 20f);
+                        break;
+                }
+            }
+        }
+
+        private static void SetSourceLayout(
+            RectTransform rect,
+            float x,
+            float y,
+            float width,
+            float height)
+        {
+            RectTransform panel = FindReferencePanelAncestor(rect);
+            if (panel == null) return;
+
+            float scaleX = panel.rect.width / SourceWidth;
+            float scaleY = panel.rect.height / SourceHeight;
+            rect.sizeDelta = new Vector2(width * scaleX, height * scaleY);
+
+            float centerX = x + width * 0.5f;
+            float centerY = y + height * 0.5f;
+            rect.anchoredPosition = new Vector2(
+                (centerX - SourceWidth * 0.5f) * scaleX,
+                (SourceHeight * 0.5f - centerY) * scaleY);
+            rect.SetAsLastSibling();
+        }
+
+        private static RectTransform FindReferencePanelAncestor(Transform source)
+        {
+            Transform current = source;
+            while (current != null)
+            {
+                if (current.name == "ReferencePanel")
+                {
+                    return current as RectTransform;
+                }
+
+                current = current.parent;
+            }
+
+            return null;
         }
 
         private static void DisableLegacyBackgroundBuilders()
