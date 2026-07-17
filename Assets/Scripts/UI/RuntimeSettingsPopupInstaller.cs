@@ -131,6 +131,9 @@ namespace SkinnyToBeast.UI
                 out Toggle notificationsToggle
             );
 
+            // Trim only the right/bottom overflow marked in the reference screenshot.
+            BuildControlEdgeCleanup(panelObject.transform);
+
             Button restorePurchasesButton = CreateInvisibleHotspot(
                 panelObject.transform,
                 "RestorePurchasesButton",
@@ -216,6 +219,39 @@ namespace SkinnyToBeast.UI
             Image image = rect.gameObject.AddComponent<Image>();
             image.color = color;
             image.raycastTarget = false;
+        }
+
+        private static void BuildControlEdgeCleanup(Transform panel)
+        {
+            GameObject rootObject = new GameObject(
+                "ControlEdgeCleanup",
+                typeof(RectTransform)
+            );
+            rootObject.transform.SetParent(panel, false);
+            rootObject.transform.SetAsLastSibling();
+
+            RectTransform root = rootObject.GetComponent<RectTransform>();
+            Stretch(root);
+
+            Color rowColor = new Color(0.018f, 0.050f, 0.072f, 1f);
+
+            // Blue audio ON badges: remove the cyan tail on the right
+            // and the thin duplicate edge below each badge.
+            CreateSourceMask(root, "MusicRightTrim", 276f, 29f, 4f, 27f, rowColor);
+            CreateSourceMask(root, "MusicBottomTrim", 234f, 53f, 46f, 3f, rowColor);
+            CreateSourceMask(root, "SfxRightTrim", 276f, 55f, 4f, 27f, rowColor);
+            CreateSourceMask(root, "SfxBottomTrim", 234f, 79f, 46f, 3f, rowColor);
+            CreateSourceMask(root, "VoiceRightTrim", 276f, 81f, 4f, 27f, rowColor);
+            CreateSourceMask(root, "VoiceBottomTrim", 234f, 105f, 46f, 3f, rowColor);
+
+            // Orange toggles and Language: remove only their offset
+            // right and bottom shadows, leaving the main controls untouched.
+            CreateSourceMask(root, "VibrationRightTrim", 276f, 133f, 4f, 30f, rowColor);
+            CreateSourceMask(root, "VibrationBottomTrim", 216f, 159f, 64f, 4f, rowColor);
+            CreateSourceMask(root, "LanguageRightTrim", 276f, 160f, 4f, 32f, rowColor);
+            CreateSourceMask(root, "LanguageBottomTrim", 119f, 187f, 161f, 5f, rowColor);
+            CreateSourceMask(root, "NotificationsRightTrim", 276f, 190f, 4f, 32f, rowColor);
+            CreateSourceMask(root, "NotificationsBottomTrim", 216f, 219f, 64f, 4f, rowColor);
         }
 
         private static void BuildAudioControls(
