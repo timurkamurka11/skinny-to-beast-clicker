@@ -283,10 +283,10 @@ namespace SkinnyToBeast.UI
         {
             // Gameplay controls were visibly up/left from their baked wells.
             // Shift the live layer onto the exact background positions.
-            vibrationToggle = CreateReferenceToggle(panel, "VibrationToggle", 230f, 147f, 57f, 20f,
+            vibrationToggle = CreateReferenceToggle(panel, "VibrationToggle", 235f, 150f, 57f, 20f,
                 new Color(1f, 0.55f, 0.05f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), true);
             languageButton = CreateLanguageControl(panel, 128f, 167f, 151f, 22f, out languageValue);
-            notificationsToggle = CreateReferenceToggle(panel, "NotificationsToggle", 230f, 207f, 57f, 20f,
+            notificationsToggle = CreateReferenceToggle(panel, "NotificationsToggle", 235f, 210f, 57f, 20f,
                 new Color(1f, 0.55f, 0.05f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), true);
         }
 
