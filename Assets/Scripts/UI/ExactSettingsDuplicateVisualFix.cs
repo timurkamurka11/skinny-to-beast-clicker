@@ -112,6 +112,15 @@ namespace SkinnyToBeast.UI
                     control.SetAsLastSibling();
                 }
             }
+
+            // Edge trims must render after the live controls so only the
+            // marked overflow pixels are clipped.
+            Transform edgeCleanup = FindChildRecursive(panel, "ControlEdgeCleanup");
+            if (edgeCleanup != null)
+            {
+                edgeCleanup.gameObject.SetActive(true);
+                edgeCleanup.SetAsLastSibling();
+            }
         }
 
         private static void DisableLegacyBackgroundBuilders()
