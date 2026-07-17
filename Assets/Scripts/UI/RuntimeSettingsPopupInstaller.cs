@@ -264,13 +264,13 @@ namespace SkinnyToBeast.UI
             sfxSlider = CreateReferenceSlider(panel, "SfxSlider", 100f, 62f, 122f, 15f);
             voiceSlider = CreateReferenceSlider(panel, "VoiceSlider", 100f, 88f, 122f, 15f);
 
-            // Calibrated against the baked reference: its badges sit about
-            // two source pixels to the right of the previous live layer.
-            musicToggle = CreateReferenceToggle(panel, "MusicToggle", 240f, 36.5f, 40f, 18f,
+            // Calibrated against the captured device frame so the live badges
+            // fully cover the lower/right edge of the reference layer.
+            musicToggle = CreateReferenceToggle(panel, "MusicToggle", 243f, 38.5f, 40f, 18f,
                 new Color(0.04f, 0.49f, 0.94f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), false);
-            sfxToggle = CreateReferenceToggle(panel, "SfxToggle", 240f, 62.5f, 40f, 18f,
+            sfxToggle = CreateReferenceToggle(panel, "SfxToggle", 243f, 64.5f, 40f, 18f,
                 new Color(0.04f, 0.49f, 0.94f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), false);
-            voiceToggle = CreateReferenceToggle(panel, "VoiceToggle", 240f, 88.5f, 40f, 18f,
+            voiceToggle = CreateReferenceToggle(panel, "VoiceToggle", 243f, 90.5f, 40f, 18f,
                 new Color(0.04f, 0.49f, 0.94f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), false);
         }
 
@@ -283,10 +283,10 @@ namespace SkinnyToBeast.UI
         {
             // Gameplay controls were visibly up/left from their baked wells.
             // Shift the live layer onto the exact background positions.
-            vibrationToggle = CreateReferenceToggle(panel, "VibrationToggle", 225f, 143f, 57f, 20f,
+            vibrationToggle = CreateReferenceToggle(panel, "VibrationToggle", 227f, 145f, 57f, 20f,
                 new Color(1f, 0.55f, 0.05f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), true);
             languageButton = CreateLanguageControl(panel, 128f, 167f, 151f, 22f, out languageValue);
-            notificationsToggle = CreateReferenceToggle(panel, "NotificationsToggle", 225f, 203f, 57f, 20f,
+            notificationsToggle = CreateReferenceToggle(panel, "NotificationsToggle", 227f, 205f, 57f, 20f,
                 new Color(1f, 0.55f, 0.05f, 1f), new Color(0.08f, 0.13f, 0.18f, 1f), true);
         }
 
