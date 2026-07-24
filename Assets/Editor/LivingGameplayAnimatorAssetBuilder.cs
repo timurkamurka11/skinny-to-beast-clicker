@@ -5,38 +5,16 @@ using UnityEngine;
 
 namespace SkinnyToBeast.Editor
 {
-    [InitializeOnLoad]
     internal static class LivingGameplayAnimatorAssetBuilder
     {
-        private const string SessionKey = "SkinnyToBeast.LivingAnimatorBuilt.V1";
         private const string RootFolder = "Assets/Resources/UI/Gameplay/Living/Animations";
         private const string ControllerPath = RootFolder + "/LivingCharacter.controller";
 
-        static LivingGameplayAnimatorAssetBuilder()
-        {
-            EditorApplication.delayCall += EnsureAssetsOnce;
-        }
-
-        [MenuItem("Tools/Skinny to Beast/Rebuild Living Gameplay Animator")]
+        [MenuItem("Tools/Skinny to Beast/Rebuild Legacy Living Gameplay Animator")]
         public static void RebuildFromMenu()
         {
             DeleteGeneratedAssets();
             BuildAssets();
-        }
-
-        private static void EnsureAssetsOnce()
-        {
-            if (EditorApplication.isPlayingOrWillChangePlaymode ||
-                SessionState.GetBool(SessionKey, false))
-            {
-                return;
-            }
-
-            SessionState.SetBool(SessionKey, true);
-            if (AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ControllerPath) == null)
-            {
-                BuildAssets();
-            }
         }
 
         private static void BuildAssets()

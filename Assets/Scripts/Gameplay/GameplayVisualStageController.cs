@@ -12,6 +12,7 @@ namespace SkinnyToBeast.Gameplay
         private static readonly Vector2 DumbbellScenePosition = new Vector2(0f, 330f);
 
         private readonly Sprite[] characterSprites = new Sprite[4];
+        private readonly Texture2D[] directionalWalkSheets = new Texture2D[4];
         private readonly Sprite[] dumbbellSprites = new Sprite[3];
 
         private Sprite roomStageOne;
@@ -22,11 +23,6 @@ namespace SkinnyToBeast.Gameplay
         private Image roomBaseImage;
         private Image roomUpgradeImage;
         private CanvasGroup roomUpgradeGroup;
-        private Image characterImage;
-        private Image characterGhostImage;
-        private CanvasGroup characterGroup;
-        private CanvasGroup characterGhostGroup;
-        private Image bellyImage;
         private Image dumbbellImage;
         private Image dumbbellGhostImage;
         private CanvasGroup dumbbellGroup;
@@ -36,11 +32,13 @@ namespace SkinnyToBeast.Gameplay
         private CanvasGroup proteinGroup;
         private CanvasGroup coachGroup;
 
-        private GameplayAnimationController characterAnimator;
+        private CharacterRigController characterRig;
+        private CharacterFaceController faceController;
+        private CharacterSkinController skinController;
+        private CharacterRoutineController routineController;
         private DumbbellTapAnimator dumbbellAnimator;
         private AmbientAnimationController ambientAnimator;
 
-        private Coroutine characterTransition;
         private Coroutine dumbbellTransition;
         private Coroutine roomTransition;
         private Coroutine proteinTransition;
@@ -54,7 +52,7 @@ namespace SkinnyToBeast.Gameplay
         private bool built;
 
         public Vector2 DumbbellPosition => DumbbellScenePosition;
-        internal GameplayAnimationController CharacterAnimator => characterAnimator;
+        internal CharacterRigController CharacterRig => characterRig;
         internal DumbbellTapAnimator DumbbellAnimator => dumbbellAnimator;
 
         public void Build()
@@ -131,20 +129,21 @@ namespace SkinnyToBeast.Gameplay
 
         public void PlayTap()
         {
-            characterAnimator?.TriggerTap();
+            routineController?.ReactToTap();
             dumbbellAnimator?.TriggerTap();
             ambientAnimator?.PulseFromTap();
         }
 
         public void PlayUpgrade()
         {
-            characterAnimator?.TriggerUpgrade();
+            characterRig?.TriggerUpgrade();
+            routineController?.NotifyActivity();
             ambientAnimator?.PulseFromTap();
         }
 
         public void PlayStageChange()
         {
-            characterAnimator?.TriggerStageChange();
+            characterRig?.TriggerStageChange();
             ambientAnimator?.PulseFromTap();
         }
 
@@ -167,6 +166,15 @@ namespace SkinnyToBeast.Gameplay
             {
                 characterSprites[i] = LivingGameplayVisualFactory.LoadSprite(
                     ResourceRoot + $"character_stage_{i + 1:00}");
+                string walkPath =
+                    ResourceRoot + $"Rig/walk_stage_{i + 1:00}";
+                directionalWalkSheets[i] = Resources.Load<Texture2D>(walkPath);
+                if (directionalWalkSheets[i] == null)
+                {
+                    Sprite walkSprite = Resources.Load<Sprite>(walkPath);
+                    directionalWalkSheets[i] =
+                        walkSprite != null ? walkSprite.texture : null;
+                }
             }
 
             for (int i = 0; i < dumbbellSprites.Length; i++)
@@ -234,85 +242,130 @@ namespace SkinnyToBeast.Gameplay
 
         private void BuildCharacter()
         {
+            RectTransform actorLayer =
+                LivingGameplayVisualFactory.CreateStretchRect(transform, "CharacterActors");
+            RoomAnchor[] anchors = BuildRoomAnchors(actorLayer);
+
             RectTransform characterRoot = LivingGameplayVisualFactory.CreateRect(
-                transform,
+                actorLayer,
                 "CharacterRoot",
                 new Vector2(0.5f, 0f),
-                new Vector2(0f, 935f),
+                anchors[1].Position,
                 new Vector2(720f, 1280f));
+            CanvasGroup characterGroup =
+                characterRoot.gameObject.AddComponent<CanvasGroup>();
+            characterGroup.interactable = false;
+            characterGroup.blocksRaycasts = false;
 
-            RectTransform animatorLayer =
-                LivingGameplayVisualFactory.CreateStretchRect(characterRoot, "AnimatorLayer");
-            animatorLayer.gameObject.AddComponent<CanvasGroup>();
-            animatorLayer.gameObject.AddComponent<Animator>();
-
-            characterImage = LivingGameplayVisualFactory.CreateStretchImage(
-                animatorLayer,
-                "Character",
-                characterSprites[0],
-                Color.white);
-            characterImage.preserveAspect = true;
-            characterGroup = characterImage.gameObject.AddComponent<CanvasGroup>();
-
-            characterGhostImage = LivingGameplayVisualFactory.CreateStretchImage(
-                animatorLayer,
-                "CharacterTransitionGhost",
-                characterSprites[0],
-                Color.white);
-            characterGhostImage.preserveAspect = true;
-            characterGhostGroup =
-                characterGhostImage.gameObject.AddComponent<CanvasGroup>();
-            characterGhostGroup.alpha = 0f;
-
-            RectTransform bellyMask = LivingGameplayVisualFactory.CreateRect(
-                animatorLayer,
-                "BellyJiggleMask",
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 95f),
-                new Vector2(525f, 355f));
-            bellyMask.gameObject.AddComponent<RectMask2D>();
-
-            bellyImage = LivingGameplayVisualFactory.CreateImage(
-                bellyMask,
-                "BellyJiggleLayer",
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -95f),
-                new Vector2(720f, 1280f),
-                characterSprites[0],
-                Color.white);
-
-            Color eyelidColor = new Color(0.18f, 0.105f, 0.075f, 0f);
-            Image leftEyelid = LivingGameplayVisualFactory.CreateImage(
-                animatorLayer,
-                "LeftEyelid",
-                new Vector2(0.5f, 0.5f),
-                new Vector2(-36f, 430f),
-                new Vector2(44f, 12f),
-                LivingGameplayVisualFactory.GetRoundedSprite(),
-                eyelidColor);
-            leftEyelid.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -6f);
-
-            Image rightEyelid = LivingGameplayVisualFactory.CreateImage(
-                animatorLayer,
-                "RightEyelid",
-                new Vector2(0.5f, 0.5f),
-                new Vector2(36f, 430f),
-                new Vector2(44f, 12f),
-                LivingGameplayVisualFactory.GetRoundedSprite(),
-                eyelidColor);
-            rightEyelid.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 6f);
-
-            RandomIdleScheduler scheduler =
-                characterRoot.gameObject.AddComponent<RandomIdleScheduler>();
-            characterAnimator =
-                characterRoot.gameObject.AddComponent<GameplayAnimationController>();
-            characterAnimator.Configure(
+            Image shadow = LivingGameplayVisualFactory.CreateImage(
                 characterRoot,
-                animatorLayer,
-                bellyImage.rectTransform,
-                leftEyelid,
-                rightEyelid,
-                scheduler);
+                "CharacterShadow",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -520f),
+                new Vector2(370f, 88f),
+                LivingGameplayVisualFactory.GetSoftCircleSprite(),
+                new Color(0f, 0f, 0f, 0.34f));
+
+            faceController =
+                characterRoot.gameObject.AddComponent<CharacterFaceController>();
+            characterRig =
+                characterRoot.gameObject.AddComponent<CharacterRigController>();
+            characterRig.Build(characterRoot, faceController);
+
+            skinController =
+                characterRoot.gameObject.AddComponent<CharacterSkinController>();
+            skinController.Configure(
+                characterSprites,
+                directionalWalkSheets,
+                characterRig,
+                characterGroup);
+
+            CharacterDepthSorter depthSorter =
+                characterRoot.gameObject.AddComponent<CharacterDepthSorter>();
+            depthSorter.Configure(
+                characterRoot,
+                shadow.rectTransform,
+                850f,
+                1250f);
+
+            routineController =
+                characterRoot.gameObject.AddComponent<CharacterRoutineController>();
+            routineController.Configure(
+                characterRoot,
+                characterRig,
+                faceController,
+                anchors);
+
+            CharacterRigValidator validator =
+                characterRoot.gameObject.AddComponent<CharacterRigValidator>();
+            validator.Configure(characterRig, skinController);
+        }
+
+        private static RoomAnchor[] BuildRoomAnchors(RectTransform actorLayer)
+        {
+            return new[]
+            {
+                CreateRoomAnchor(
+                    actorLayer,
+                    RoomAnchorKind.Center,
+                    new Vector2(0f, 970f),
+                    0.91f,
+                    CharacterFacing.Front,
+                    2.2f,
+                    4.2f),
+                CreateRoomAnchor(
+                    actorLayer,
+                    RoomAnchorKind.Training,
+                    new Vector2(0f, 915f),
+                    1f,
+                    CharacterFacing.Front,
+                    1.8f,
+                    3.2f),
+                CreateRoomAnchor(
+                    actorLayer,
+                    RoomAnchorKind.Sofa,
+                    new Vector2(-312f, 1035f),
+                    0.72f,
+                    CharacterFacing.Front,
+                    2.8f,
+                    5.2f),
+                CreateRoomAnchor(
+                    actorLayer,
+                    RoomAnchorKind.Window,
+                    new Vector2(5f, 1215f),
+                    0.60f,
+                    CharacterFacing.Back,
+                    2.4f,
+                    4.8f),
+                CreateRoomAnchor(
+                    actorLayer,
+                    RoomAnchorKind.Mirror,
+                    new Vector2(325f, 1060f),
+                    0.74f,
+                    CharacterFacing.Front,
+                    2.3f,
+                    4.6f)
+            };
+        }
+
+        private static RoomAnchor CreateRoomAnchor(
+            RectTransform parent,
+            RoomAnchorKind kind,
+            Vector2 position,
+            float scale,
+            CharacterFacing facing,
+            float stayMin,
+            float stayMax)
+        {
+            RectTransform rect = LivingGameplayVisualFactory.CreateRect(
+                parent,
+                $"Anchor.{kind}",
+                new Vector2(0.5f, 0f),
+                position,
+                Vector2.zero);
+            RoomAnchor anchor = rect.gameObject.AddComponent<RoomAnchor>();
+            anchor.Configure(kind, position, scale, facing, stayMin, stayMax);
+            return anchor;
         }
 
         private void BuildDumbbell()
@@ -386,56 +439,13 @@ namespace SkinnyToBeast.Gameplay
         private void ApplyCharacter(int artIndex, bool animate)
         {
             int safeIndex = Mathf.Clamp(artIndex, 0, characterSprites.Length - 1);
-            Sprite next = characterSprites[safeIndex];
-            if (next == null)
+            if (characterSprites[safeIndex] == null || skinController == null)
             {
                 return;
             }
 
-            if (characterTransition != null)
-            {
-                StopCoroutine(characterTransition);
-            }
-
-            if (!animate || characterImage.sprite == null)
-            {
-                characterImage.sprite = next;
-                characterGroup.alpha = 1f;
-                characterGhostGroup.alpha = 0f;
-                bellyImage.sprite = next;
-            }
-            else
-            {
-                characterTransition = StartCoroutine(CharacterTransitionRoutine(next));
-            }
-
+            skinController.ApplySkin(safeIndex, animate);
             currentCharacterArt = safeIndex;
-        }
-
-        private IEnumerator CharacterTransitionRoutine(Sprite next)
-        {
-            characterGhostImage.sprite = characterImage.sprite;
-            characterGhostGroup.alpha = 1f;
-            characterImage.sprite = next;
-            characterGroup.alpha = 0f;
-            bellyImage.sprite = next;
-            characterAnimator?.TriggerStageChange();
-
-            float elapsed = 0f;
-            const float duration = 0.62f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                float eased = Mathf.SmoothStep(0f, 1f, t);
-                characterGhostGroup.alpha = 1f - eased;
-                characterGroup.alpha = eased;
-                yield return null;
-            }
-
-            characterGhostGroup.alpha = 0f;
-            characterGroup.alpha = 1f;
-            characterTransition = null;
         }
 
         private void ApplyDumbbell(int artIndex, bool animate)

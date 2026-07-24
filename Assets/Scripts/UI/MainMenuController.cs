@@ -30,6 +30,7 @@ namespace SkinnyToBeast.UI
         private bool musicEnabled;
         private bool sfxEnabled;
         private bool vibrationEnabled;
+        private bool startInProgress;
 
         private void Awake()
         {
@@ -45,19 +46,57 @@ namespace SkinnyToBeast.UI
 
         public void StartGame()
         {
-            CloseAllPanels();
-
-            if (GameplayWindowController.Show())
+            if (startInProgress)
             {
                 return;
+            }
+
+            CloseAllPanels();
+            startInProgress = true;
+
+            if (GameEntryFlowController.Show(
+                    this,
+                    OpenGameplay,
+                    HandleEntryCompleted))
+            {
+                return;
+            }
+
+            bool opened = OpenGameplay();
+            startInProgress = false;
+            if (!opened)
+            {
+                ShowGameplayMissingMessage();
+            }
+        }
+
+        private bool OpenGameplay()
+        {
+            if (GameplayWindowController.Show())
+            {
+                return true;
             }
 
             if (Application.CanStreamedLevelBeLoaded(gameplaySceneName))
             {
                 SceneManager.LoadScene(gameplaySceneName);
-                return;
+                return true;
             }
 
+            return false;
+        }
+
+        private void HandleEntryCompleted(bool success)
+        {
+            startInProgress = false;
+            if (!success)
+            {
+                ShowGameplayMissingMessage();
+            }
+        }
+
+        private void ShowGameplayMissingMessage()
+        {
             ShowMessage(
                 "GAMEPLAY SCENE MISSING",
                 $"Scene '{gameplaySceneName}' is not available in Build Settings. Rebuild Main and MainMenu through the Tools menu."
