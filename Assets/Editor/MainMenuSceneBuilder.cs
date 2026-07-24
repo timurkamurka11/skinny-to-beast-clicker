@@ -83,6 +83,8 @@ namespace SkinnyToBeast.EditorTools
     {
         private const string ScenePath = "Assets/Scenes/MainMenu.unity";
         private const string GameplayScenePath = "Assets/Scenes/Main.unity";
+        private const string GameEntryScenePath =
+            "Assets/Scenes/GameEntry.unity";
         private const string VideoPath = "Assets/Videos/MainMenuLoop.mp4";
         private const string RenderTexturePath = "Assets/Videos/MainMenuRenderTexture.renderTexture";
 
@@ -443,6 +445,7 @@ namespace SkinnyToBeast.EditorTools
         {
             List<EditorBuildSettingsScene> scenes = new List<EditorBuildSettingsScene>();
             AddBuildSceneIfExists(scenes, ScenePath);
+            AddBuildSceneIfExists(scenes, GameEntryScenePath);
             AddBuildSceneIfExists(scenes, GameplayScenePath);
             EditorBuildSettings.scenes = scenes.ToArray();
         }

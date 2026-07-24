@@ -3,6 +3,41 @@ using UnityEngine;
 
 namespace SkinnyToBeast.Gameplay
 {
+    public enum CharacterSkinSlot
+    {
+        Body,
+        Head,
+        HairBack,
+        HairFront,
+        Top,
+        Bottom,
+        Shoes,
+        Face,
+        Accessory
+    }
+
+    [Serializable]
+    public struct CharacterSkinSlotSelection
+    {
+        [SerializeField] private CharacterSkinSlot slot;
+        [SerializeField] private string itemId;
+        [SerializeField] private bool visible;
+
+        public CharacterSkinSlot Slot => slot;
+        public string ItemId => itemId;
+        public bool Visible => visible && !string.IsNullOrWhiteSpace(itemId);
+
+        public CharacterSkinSlotSelection(
+            CharacterSkinSlot targetSlot,
+            string selectedItemId,
+            bool shouldShow = true)
+        {
+            slot = targetSlot;
+            itemId = selectedItemId;
+            visible = shouldShow;
+        }
+    }
+
     [Serializable]
     public sealed class CharacterSkinDefinition
     {
@@ -13,6 +48,7 @@ namespace SkinnyToBeast.Gameplay
         [SerializeField] private CharacterDirectionalFrame[] directionalFrames;
         [SerializeField] private CharacterRigProfile rigProfile;
         [SerializeField] private CharacterFaceStyle faceStyle;
+        [SerializeField] private CharacterSkinSlotSelection[] slots;
 
         public string Id => id;
         public int ArtIndex => artIndex;
@@ -20,7 +56,11 @@ namespace SkinnyToBeast.Gameplay
         public Texture2D DirectionalWalkSheet => directionalWalkSheet;
         public CharacterRigProfile RigProfile => rigProfile;
         public CharacterFaceStyle FaceStyle => faceStyle;
-        public bool IsValid => frontSprite != null && rigProfile != null;
+        public CharacterSkinSlotSelection[] Slots => slots;
+        public bool IsValid =>
+            frontSprite != null &&
+            rigProfile != null &&
+            HasVisibleSlot(CharacterSkinSlot.Body);
 
         public CharacterDirectionalFrame GetDirectionalFrame(
             bool backFacing,
@@ -48,7 +88,62 @@ namespace SkinnyToBeast.Gameplay
                 directionalFrames =
                     CharacterDirectionalFrame.CreateForStage(safeIndex),
                 rigProfile = CharacterRigProfile.Create(safeIndex),
-                faceStyle = CharacterFaceStyle.Create(safeIndex)
+                faceStyle = CharacterFaceStyle.Create(safeIndex),
+                slots = CreateDefaultSlots(safeIndex)
+            };
+        }
+
+        public bool HasVisibleSlot(CharacterSkinSlot slot)
+        {
+            if (slots == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                if (slots[i].Slot == slot && slots[i].Visible)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static CharacterSkinSlotSelection[] CreateDefaultSlots(int stage)
+        {
+            string prefix = $"stage_{stage + 1:00}";
+            return new[]
+            {
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Body,
+                    $"{prefix}.body"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Head,
+                    $"{prefix}.head"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.HairBack,
+                    $"{prefix}.hair_back"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.HairFront,
+                    $"{prefix}.hair_front"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Top,
+                    $"{prefix}.top"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Bottom,
+                    $"{prefix}.bottom"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Shoes,
+                    $"{prefix}.shoes"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Face,
+                    $"{prefix}.face"),
+                new CharacterSkinSlotSelection(
+                    CharacterSkinSlot.Accessory,
+                    string.Empty,
+                    false)
             };
         }
 
@@ -163,6 +258,7 @@ namespace SkinnyToBeast.Gameplay
 
         [Header("Visible source regions")]
         public CharacterRigCrop torso;
+        public CharacterRigCrop abdomen;
         public CharacterRigCrop pelvisArt;
         public CharacterRigCrop headArt;
         public CharacterRigCrop leftUpperArm;
@@ -239,16 +335,23 @@ namespace SkinnyToBeast.Gameplay
             float torsoTop = stage >= 3 ? 0.765f : 0.755f;
             float torsoBottom = stage >= 2 ? 0.37f : 0.345f;
             float torsoWaist = stage >= 3 ? 0.31f : 0.275f;
+            float torsoSplit = stage >= 2 ? 0.545f : 0.535f;
             profile.torso = PolygonCrop(
                 profile.chest,
                 new Vector2(shoulderX + 0.04f, torsoTop + 0.035f),
                 new Vector2(1f - shoulderX - 0.04f, torsoTop + 0.035f),
                 new Vector2(1f - shoulderX + 0.11f, torsoTop - 0.035f),
                 new Vector2(1f - torsoLeft, 0.665f),
-                new Vector2(1f - torsoWaist, torsoBottom),
-                new Vector2(torsoWaist, torsoBottom),
+                new Vector2(1f - torsoWaist - 0.015f, torsoSplit),
+                new Vector2(torsoWaist + 0.015f, torsoSplit),
                 new Vector2(torsoLeft, 0.665f),
                 new Vector2(shoulderX - 0.11f, torsoTop - 0.035f));
+            profile.abdomen = PolygonCrop(
+                profile.spine,
+                new Vector2(torsoWaist + 0.01f, torsoSplit + 0.015f),
+                new Vector2(1f - torsoWaist - 0.01f, torsoSplit + 0.015f),
+                new Vector2(1f - torsoWaist, torsoBottom),
+                new Vector2(torsoWaist, torsoBottom));
             profile.pelvisArt = PolygonCrop(
                 profile.pelvis,
                 new Vector2(0.245f, 0.43f),
@@ -497,7 +600,7 @@ namespace SkinnyToBeast.Gameplay
                 defaultExpression = stage switch
                 {
                     0 => CharacterExpression.Tired,
-                    1 => CharacterExpression.Neutral,
+                    1 => CharacterExpression.Relaxed,
                     2 => CharacterExpression.Focused,
                     _ => CharacterExpression.Happy
                 }

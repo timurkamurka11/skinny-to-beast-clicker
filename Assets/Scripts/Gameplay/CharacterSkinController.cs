@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SkinnyToBeast.Gameplay
@@ -6,6 +7,8 @@ namespace SkinnyToBeast.Gameplay
     [DisallowMultipleComponent]
     public sealed class CharacterSkinController : MonoBehaviour
     {
+        private readonly Dictionary<CharacterSkinSlot, string> activeSlots = new();
+
         private CharacterSkinDefinition[] definitions;
         private CharacterRigController rigController;
         private CanvasGroup characterGroup;
@@ -14,7 +17,10 @@ namespace SkinnyToBeast.Gameplay
         private bool configured;
 
         public int CurrentArtIndex => currentArtIndex;
-        public int ActiveBaseSkinCount => currentArtIndex >= 0 ? 1 : 0;
+        public int DefinitionCount => definitions != null ? definitions.Length : 0;
+        public int ActiveBaseSkinCount =>
+            activeSlots.ContainsKey(CharacterSkinSlot.Body) ? 1 : 0;
+        public int ActiveSlotCount => activeSlots.Count;
         public CharacterSkinDefinition CurrentDefinition =>
             definitions != null &&
             currentArtIndex >= 0 &&
@@ -48,7 +54,13 @@ namespace SkinnyToBeast.Gameplay
             configured = definitions.Length > 0 && rigController != null;
             if (configured)
             {
-                ApplyImmediate(0);
+                // Keep the actor hidden until GameplayVisualStageController
+                // resolves the saved body stage. Showing stage 1 here first
+                // caused the old body to flash for one rendered frame.
+                activeSlots.Clear();
+                currentArtIndex = -1;
+                rigController.ClearSkin();
+                SetAlpha(0f);
             }
         }
 
@@ -84,8 +96,6 @@ namespace SkinnyToBeast.Gameplay
 
         private IEnumerator SwapSkinRoutine(int nextIndex)
         {
-            rigController.TriggerStageChange();
-
             float elapsed = 0f;
             const float hideDuration = 0.11f;
             float from = characterGroup != null ? characterGroup.alpha : 1f;
@@ -99,6 +109,13 @@ namespace SkinnyToBeast.Gameplay
 
             SetAlpha(0f);
             ApplyDefinition(nextIndex);
+            if (currentArtIndex == nextIndex)
+            {
+                // SynchronizeAnimationState deliberately clears every previous
+                // action. Start the transformation only after that reset so the
+                // newly installed skin, rather than the outgoing one, receives it.
+                rigController.TriggerStageChange();
+            }
 
             elapsed = 0f;
             const float showDuration = 0.34f;
@@ -130,10 +147,86 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            // One rig receives one texture. No stage GameObject is enabled beside it,
-            // so an old body can never remain under the new body.
+            // CharacterSkinController is the only writer for visual slots.
+            // Clear every old renderer and logical selection before publishing
+            // the new stage as one atomic visible state.
+            SetAlpha(0f);
+            rigController.ClearSkin();
+            activeSlots.Clear();
+
+            CharacterSkinSlotSelection[] nextSlots = definition.Slots;
+            if (nextSlots != null)
+            {
+                for (int i = 0; i < nextSlots.Length; i++)
+                {
+                    CharacterSkinSlotSelection selection = nextSlots[i];
+                    if (!selection.Visible)
+                    {
+                        continue;
+                    }
+
+                    if (activeSlots.ContainsKey(selection.Slot))
+                    {
+                        Debug.LogError(
+                            $"Skin '{definition.Id}' contains more than one " +
+                            $"active item in slot {selection.Slot}.",
+                            this);
+                        activeSlots.Clear();
+                        currentArtIndex = -1;
+                        return;
+                    }
+
+                    activeSlots.Add(selection.Slot, selection.ItemId);
+                }
+            }
+
+            if (!activeSlots.ContainsKey(CharacterSkinSlot.Body))
+            {
+                Debug.LogError(
+                    $"Skin '{definition.Id}' has no active Body slot.",
+                    this);
+                activeSlots.Clear();
+                currentArtIndex = -1;
+                return;
+            }
+
             rigController.ApplySkin(definition);
+            rigController.SynchronizeAnimationState();
             currentArtIndex = nextIndex;
+        }
+
+        public bool TryGetActiveItem(
+            CharacterSkinSlot slot,
+            out string itemId)
+        {
+            return activeSlots.TryGetValue(slot, out itemId);
+        }
+
+        public int GetActiveCount(CharacterSkinSlot slot)
+        {
+            return activeSlots.ContainsKey(slot) ? 1 : 0;
+        }
+
+        public bool ValidateSlotExclusivity(out string error)
+        {
+            foreach (KeyValuePair<CharacterSkinSlot, string> entry in activeSlots)
+            {
+                if (string.IsNullOrWhiteSpace(entry.Value))
+                {
+                    error = $"Slot {entry.Key} contains an empty item id.";
+                    return false;
+                }
+            }
+
+            if (currentArtIndex >= 0 &&
+                !activeSlots.ContainsKey(CharacterSkinSlot.Body))
+            {
+                error = "A selected skin has no active Body slot.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         private void EnsureVisibleState()

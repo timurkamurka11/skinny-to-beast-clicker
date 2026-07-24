@@ -14,12 +14,21 @@ namespace SkinnyToBeast.Gameplay
         private CharacterFaceController faceController;
         private RoomAnchor currentAnchor;
         private RoomAnchor trainingAnchor;
+        private RoomAnchor walkingTarget;
+        private RoomAnchor interruptedAnchor;
+        private CharacterRoutineAction interruptedAction;
+        private CharacterRoutineAction currentAction;
         private Coroutine routineLoop;
         private Coroutine tapRoutine;
         private int queuedTapReactions;
+        private float lastTapAt = -10f;
+        private bool interruptedWhileWalking;
+        private bool resumingInterruptedBehavior;
+        private bool isWalking;
         private bool configured;
 
         public RoomAnchor CurrentAnchor => currentAnchor;
+        public bool IsWalking => isWalking;
 
         public void Configure(
             RectTransform root,
@@ -67,7 +76,7 @@ namespace SkinnyToBeast.Gameplay
                          anchors.Count > 0;
             if (configured && isActiveAndEnabled)
             {
-                StartRoutineLoop(8f);
+                StartRoutineLoop(Random.Range(10f, 15f));
             }
         }
 
@@ -79,15 +88,39 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            queuedTapReactions = Mathf.Min(2, queuedTapReactions + 1);
+            lastTapAt = Time.unscaledTime;
+            queuedTapReactions = Mathf.Min(6, queuedTapReactions + 1);
+            if (tapRoutine != null && resumingInterruptedBehavior)
+            {
+                // A new burst is allowed to interrupt the walk/action that was
+                // restoring the previous routine. Capture that restoration as
+                // the new resume target and reuse the single tap coroutine.
+                StopCoroutine(tapRoutine);
+                tapRoutine = null;
+                resumingInterruptedBehavior = false;
+            }
+
+            if (tapRoutine == null)
+            {
+                interruptedWhileWalking = isWalking;
+                interruptedAnchor =
+                    isWalking && walkingTarget != null
+                        ? walkingTarget
+                        : currentAnchor;
+                interruptedAction = currentAction;
+            }
+
             StopRoutineLoop();
+            walkingTarget = null;
             rigController.CancelAction();
+            currentAction = CharacterRoutineAction.None;
 
             float distance = trainingAnchor != null
                 ? Vector2.Distance(characterRoot.anchoredPosition, trainingAnchor.Position)
                 : 0f;
             if (distance <= 55f)
             {
+                isWalking = false;
                 rigController.StopLocomotion(CharacterFacing.Front);
                 rigController.TriggerTap();
                 queuedTapReactions = Mathf.Max(0, queuedTapReactions - 1);
@@ -113,14 +146,17 @@ namespace SkinnyToBeast.Gameplay
             }
 
             StopRoutineLoop();
-            StartRoutineLoop(Random.Range(6f, 10f));
+            walkingTarget = null;
+            isWalking = false;
+            rigController.StopLocomotion(rigController.Facing);
+            StartRoutineLoop(Random.Range(10f, 15f));
         }
 
         private void OnEnable()
         {
             if (configured && routineLoop == null && tapRoutine == null)
             {
-                StartRoutineLoop(8f);
+                StartRoutineLoop(Random.Range(10f, 15f));
             }
         }
 
@@ -134,6 +170,12 @@ namespace SkinnyToBeast.Gameplay
             }
 
             queuedTapReactions = 0;
+            walkingTarget = null;
+            interruptedWhileWalking = false;
+            resumingInterruptedBehavior = false;
+            isWalking = false;
+            currentAction = CharacterRoutineAction.None;
+            rigController?.StopLocomotion(CharacterFacing.Front);
         }
 
         private void StartRoutineLoop(float initialDelay)
@@ -183,7 +225,7 @@ namespace SkinnyToBeast.Gameplay
                     }
                 }
 
-                yield return new WaitForSecondsRealtime(Random.Range(8f, 16f));
+                yield return new WaitForSecondsRealtime(Random.Range(10f, 25f));
             }
         }
 
@@ -199,27 +241,79 @@ namespace SkinnyToBeast.Gameplay
             }
 
             rigController.StopLocomotion(CharacterFacing.Front);
-            int reactions = Mathf.Clamp(queuedTapReactions, 1, 2);
+            int reactions = Mathf.Max(1, queuedTapReactions);
             queuedTapReactions = 0;
             for (int i = 0; i < reactions; i++)
             {
                 rigController.TriggerTap();
                 if (i + 1 < reactions)
                 {
-                    yield return new WaitForSecondsRealtime(0.13f);
+                    yield return new WaitForSecondsRealtime(0.11f);
                 }
             }
 
-            yield return new WaitForSecondsRealtime(2.2f);
-            tapRoutine = null;
-            StartRoutineLoop(Random.Range(5f, 9f));
+            yield return WaitForTapBurstToEnd();
+            yield return ResumeInterruptedBehavior();
         }
 
         private IEnumerator ResumeAfterTap()
         {
-            yield return new WaitForSecondsRealtime(2.2f);
+            yield return WaitForTapBurstToEnd();
+            yield return ResumeInterruptedBehavior();
+        }
+
+        private IEnumerator WaitForTapBurstToEnd()
+        {
+            while (Time.unscaledTime - lastTapAt < 0.72f)
+            {
+                yield return null;
+            }
+        }
+
+        private IEnumerator ResumeInterruptedBehavior()
+        {
+            resumingInterruptedBehavior = true;
+            RoomAnchor resumeAnchor = interruptedAnchor;
+            CharacterRoutineAction resumeAction = interruptedAction;
+            bool resumeWalk = interruptedWhileWalking;
+            interruptedAnchor = null;
+            interruptedAction = CharacterRoutineAction.None;
+            interruptedWhileWalking = false;
+
+            if (resumeAnchor != null &&
+                resumeAnchor != trainingAnchor &&
+                Vector2.Distance(
+                    characterRoot.anchoredPosition,
+                    resumeAnchor.Position) > 20f)
+            {
+                float distance = Vector2.Distance(
+                    characterRoot.anchoredPosition,
+                    resumeAnchor.Position);
+                float travelTime = Mathf.Clamp(distance / 520f, 0.55f, 1.55f);
+                yield return WalkTo(resumeAnchor, travelTime);
+            }
+
+            bool resumeAnchorAction =
+                resumeWalk ||
+                resumeAction == CharacterRoutineAction.SitDown ||
+                resumeAction == CharacterRoutineAction.SitLoop ||
+                resumeAction == CharacterRoutineAction.StandUp ||
+                resumeAction == CharacterRoutineAction.Sit;
+            if (resumeAnchorAction && resumeAnchor != null)
+            {
+                yield return PlayAnchorAction(resumeAnchor);
+            }
+            else if (resumeAction != CharacterRoutineAction.None)
+            {
+                currentAction = resumeAction;
+                rigController.PlayAction(resumeAction, 1.15f);
+                yield return new WaitForSecondsRealtime(1.15f);
+                currentAction = CharacterRoutineAction.None;
+            }
+
+            resumingInterruptedBehavior = false;
             tapRoutine = null;
-            StartRoutineLoop(Random.Range(5f, 9f));
+            StartRoutineLoop(Random.Range(10f, 16f));
         }
 
         private IEnumerator WalkTo(RoomAnchor destination, float duration)
@@ -235,6 +329,8 @@ namespace SkinnyToBeast.Gameplay
             Vector3 endScale = Vector3.one * destination.CharacterScale;
             Vector2 direction = endPosition - startPosition;
             float elapsed = 0f;
+            walkingTarget = destination;
+            isWalking = true;
             rigController.SetLocomotion(direction, 1f);
 
             while (elapsed < duration)
@@ -242,9 +338,8 @@ namespace SkinnyToBeast.Gameplay
                 elapsed += Time.unscaledDeltaTime;
                 float t = Mathf.Clamp01(elapsed / Mathf.Max(0.01f, duration));
                 float eased = Mathf.SmoothStep(0f, 1f, t);
-                Vector2 position = Vector2.Lerp(startPosition, endPosition, eased);
-                position.y += Mathf.Sin(t * Mathf.PI) * 18f;
-                characterRoot.anchoredPosition = position;
+                characterRoot.anchoredPosition =
+                    Vector2.Lerp(startPosition, endPosition, eased);
                 characterRoot.localScale = Vector3.Lerp(startScale, endScale, eased);
                 rigController.SetLocomotion(direction, 1f);
                 yield return null;
@@ -253,6 +348,8 @@ namespace SkinnyToBeast.Gameplay
             characterRoot.anchoredPosition = endPosition;
             characterRoot.localScale = endScale;
             currentAnchor = destination;
+            walkingTarget = null;
+            isWalking = false;
             rigController.StopLocomotion(destination.RestingFacing);
         }
 
@@ -260,10 +357,27 @@ namespace SkinnyToBeast.Gameplay
         {
             CharacterRoutineAction action = ResolveAction(anchor.Kind);
             float duration = Random.Range(anchor.MinimumStay, anchor.MaximumStay);
-            if (action == CharacterRoutineAction.Sit)
+            if (anchor.Kind == RoomAnchorKind.Sofa)
             {
-                duration += Random.Range(7f, 11f);
+                currentAction = CharacterRoutineAction.SitDown;
+                rigController.PlayAction(CharacterRoutineAction.SitDown, 0.72f);
+                yield return new WaitForSecondsRealtime(0.72f);
+
+                currentAction = CharacterRoutineAction.SitLoop;
+                float sitDuration = Random.Range(7f, 12f);
+                rigController.PlayAction(
+                    CharacterRoutineAction.SitLoop,
+                    sitDuration);
+                yield return new WaitForSecondsRealtime(sitDuration);
+
+                currentAction = CharacterRoutineAction.StandUp;
+                rigController.PlayAction(CharacterRoutineAction.StandUp, 0.68f);
+                yield return new WaitForSecondsRealtime(0.68f);
+                currentAction = CharacterRoutineAction.None;
+                yield break;
             }
+
+            currentAction = action;
             rigController.PlayAction(action, duration);
 
             if (action == CharacterRoutineAction.LookAround)
@@ -278,8 +392,19 @@ namespace SkinnyToBeast.Gameplay
             {
                 faceController?.SetExpression(CharacterExpression.Yawn, duration);
             }
+            else if (action == CharacterRoutineAction.AdjustClothes)
+            {
+                faceController?.LookAt(new Vector2(0f, -0.7f), duration * 0.65f);
+            }
+            else if (action == CharacterRoutineAction.WarmShoulders)
+            {
+                faceController?.SetExpression(
+                    CharacterExpression.Focused,
+                    duration);
+            }
 
             yield return new WaitForSecondsRealtime(duration);
+            currentAction = CharacterRoutineAction.None;
         }
 
         private RoomAnchor SelectNextAnchor()
@@ -311,15 +436,25 @@ namespace SkinnyToBeast.Gameplay
         {
             return kind switch
             {
-                RoomAnchorKind.Sofa => CharacterRoutineAction.Sit,
+                RoomAnchorKind.Sofa => CharacterRoutineAction.SitDown,
                 RoomAnchorKind.Window => CharacterRoutineAction.LookAround,
-                RoomAnchorKind.Mirror => CharacterRoutineAction.Flex,
-                RoomAnchorKind.Center => Random.value < 0.5f
-                    ? CharacterRoutineAction.Stretch
-                    : CharacterRoutineAction.Yawn,
-                _ => Random.value < 0.5f
-                    ? CharacterRoutineAction.Scratch
-                    : CharacterRoutineAction.ShiftWeight
+                RoomAnchorKind.Mirror => Random.value < 0.62f
+                    ? CharacterRoutineAction.Flex
+                    : CharacterRoutineAction.AdjustClothes,
+                RoomAnchorKind.Center => Random.Range(0, 4) switch
+                {
+                    0 => CharacterRoutineAction.Stretch,
+                    1 => CharacterRoutineAction.Yawn,
+                    2 => CharacterRoutineAction.AdjustClothes,
+                    _ => CharacterRoutineAction.WarmShoulders
+                },
+                _ => Random.Range(0, 4) switch
+                {
+                    0 => CharacterRoutineAction.Scratch,
+                    1 => CharacterRoutineAction.ShiftWeight,
+                    2 => CharacterRoutineAction.AdjustClothes,
+                    _ => CharacterRoutineAction.WarmShoulders
+                }
             };
         }
     }

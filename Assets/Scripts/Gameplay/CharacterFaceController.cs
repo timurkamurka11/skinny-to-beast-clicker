@@ -6,9 +6,21 @@ namespace SkinnyToBeast.Gameplay
     public enum CharacterExpression
     {
         Neutral,
+        Relaxed,
         Tired,
         Focused,
         Happy,
+        Strain,
+        Yawn
+    }
+
+    public enum CharacterMouthShape
+    {
+        Neutral,
+        Relaxed,
+        Frown,
+        Focused,
+        Smile,
         Strain,
         Yawn
     }
@@ -29,6 +41,9 @@ namespace SkinnyToBeast.Gameplay
         private Image mouthOpen;
         private Image leftSmileCorner;
         private Image rightSmileCorner;
+        private Image leftCheek;
+        private Image rightCheek;
+        private Image sweatDrop;
 
         private CharacterFaceStyle style;
         private CharacterExpression baseExpression;
@@ -42,6 +57,8 @@ namespace SkinnyToBeast.Gameplay
         private bool doubleBlink;
         private bool built;
         private bool visible = true;
+
+        public CharacterMouthShape CurrentMouthShape { get; private set; }
 
         public void Build(RectTransform headBone)
         {
@@ -104,6 +121,21 @@ namespace SkinnyToBeast.Gameplay
                 "Mouth.Corner.R",
                 new Vector2(28f, -24f),
                 new Vector2(22f, 6f));
+            leftCheek = CreateOval(
+                faceRoot,
+                "Cheek.L",
+                new Vector2(-56f, -7f),
+                new Vector2(25f, 13f));
+            rightCheek = CreateOval(
+                faceRoot,
+                "Cheek.R",
+                new Vector2(56f, -7f),
+                new Vector2(25f, 13f));
+            sweatDrop = CreateOval(
+                faceRoot,
+                "SweatDrop",
+                new Vector2(72f, 42f),
+                new Vector2(12f, 25f));
 
             ScheduleBlink();
             built = true;
@@ -141,6 +173,9 @@ namespace SkinnyToBeast.Gameplay
             SetColor(mouthOpen, style.mouth);
             SetColor(leftSmileCorner, style.mouth);
             SetColor(rightSmileCorner, style.mouth);
+            SetColor(leftCheek, new Color(0.96f, 0.29f, 0.22f, 0f));
+            SetColor(rightCheek, new Color(0.96f, 0.29f, 0.22f, 0f));
+            SetColor(sweatDrop, new Color(0.55f, 0.87f, 1f, 0f));
 
             leftEye.rectTransform.anchoredPosition = new Vector2(-style.eyeSeparation, style.eyeY);
             rightEye.rectTransform.anchoredPosition = new Vector2(style.eyeSeparation, style.eyeY);
@@ -264,36 +299,52 @@ namespace SkinnyToBeast.Gameplay
             float mouthRotation = 0f;
             Vector2 openSize = new Vector2(34f, 4f);
             float cornerAlpha = 0f;
+            float cheekAlpha = 0f;
+            float sweatAlpha = 0f;
+            CurrentMouthShape = CharacterMouthShape.Neutral;
 
             switch (expression)
             {
+                case CharacterExpression.Relaxed:
+                    CurrentMouthShape = CharacterMouthShape.Relaxed;
+                    mouthSize = new Vector2(52f, 6f);
+                    cornerAlpha = 0.28f;
+                    break;
                 case CharacterExpression.Tired:
+                    CurrentMouthShape = CharacterMouthShape.Frown;
                     leftBrowRotation = -11f;
                     rightBrowRotation = 11f;
                     browY -= 4f;
                     mouthRotation = -2f;
                     break;
                 case CharacterExpression.Focused:
+                    CurrentMouthShape = CharacterMouthShape.Focused;
                     leftBrowRotation = 12f;
                     rightBrowRotation = -12f;
                     browY -= 2f;
                     mouthSize = new Vector2(48f, 8f);
                     break;
                 case CharacterExpression.Happy:
+                    CurrentMouthShape = CharacterMouthShape.Smile;
                     leftBrowRotation = -4f;
                     rightBrowRotation = 4f;
                     mouthSize = new Vector2(54f, 8f);
                     mouthRotation = 2f;
                     cornerAlpha = 1f;
+                    cheekAlpha = 0.24f;
                     break;
                 case CharacterExpression.Strain:
+                    CurrentMouthShape = CharacterMouthShape.Strain;
                     leftBrowRotation = 17f;
                     rightBrowRotation = -17f;
                     browY -= 5f;
                     mouthSize = new Vector2(43f, 10f);
                     openSize = new Vector2(29f, 13f);
+                    cheekAlpha = 0.1f;
+                    sweatAlpha = 0.92f;
                     break;
                 case CharacterExpression.Yawn:
+                    CurrentMouthShape = CharacterMouthShape.Yawn;
                     leftBrowRotation = -7f;
                     rightBrowRotation = 7f;
                     browY -= 3f;
@@ -315,9 +366,15 @@ namespace SkinnyToBeast.Gameplay
                 mouthOpen.rectTransform.sizeDelta,
                 openSize,
                 blend);
-            SetAlpha(mouthOpen, Mathf.InverseLerp(5f, 14f, openSize.y));
-            SetAlpha(leftSmileCorner, cornerAlpha);
-            SetAlpha(rightSmileCorner, cornerAlpha);
+            SetAlphaSmooth(
+                mouthOpen,
+                Mathf.InverseLerp(5f, 14f, openSize.y),
+                blend);
+            SetAlphaSmooth(leftSmileCorner, cornerAlpha, blend);
+            SetAlphaSmooth(rightSmileCorner, cornerAlpha, blend);
+            SetAlphaSmooth(leftCheek, cheekAlpha, blend);
+            SetAlphaSmooth(rightCheek, cheekAlpha, blend);
+            SetAlphaSmooth(sweatDrop, sweatAlpha, blend);
             SetRotation(leftSmileCorner.rectTransform, -32f, blend);
             SetRotation(rightSmileCorner.rectTransform, 32f, blend);
         }
@@ -366,6 +423,24 @@ namespace SkinnyToBeast.Gameplay
             {
                 image.color = color;
             }
+        }
+
+        private static void SetAlphaSmooth(
+            Graphic graphic,
+            float targetAlpha,
+            float blend)
+        {
+            if (graphic == null)
+            {
+                return;
+            }
+
+            Color color = graphic.color;
+            color.a = Mathf.Lerp(
+                color.a,
+                Mathf.Clamp01(targetAlpha),
+                Mathf.Clamp01(blend));
+            graphic.color = color;
         }
 
         private static void SetAlpha(Image image, float alpha)

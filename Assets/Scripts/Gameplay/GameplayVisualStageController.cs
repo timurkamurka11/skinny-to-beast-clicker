@@ -9,6 +9,8 @@ namespace SkinnyToBeast.Gameplay
     public sealed class GameplayVisualStageController : MonoBehaviour
     {
         private const string ResourceRoot = "UI/Gameplay/Living/";
+        private const string CharacterRigPrefabPath =
+            "UI/Gameplay/Living/CharacterRig2D";
         private static readonly Vector2 DumbbellScenePosition = new Vector2(0f, 330f);
 
         private readonly Sprite[] characterSprites = new Sprite[4];
@@ -36,6 +38,7 @@ namespace SkinnyToBeast.Gameplay
         private CharacterFaceController faceController;
         private CharacterSkinController skinController;
         private CharacterRoutineController routineController;
+        private CharacterRigValidator rigValidator;
         private DumbbellTapAnimator dumbbellAnimator;
         private AmbientAnimationController ambientAnimator;
 
@@ -250,14 +253,12 @@ namespace SkinnyToBeast.Gameplay
                 LivingGameplayVisualFactory.CreateStretchRect(transform, "CharacterActors");
             RoomAnchor[] anchors = BuildRoomAnchors(actorLayer);
 
-            RectTransform characterRoot = LivingGameplayVisualFactory.CreateRect(
+            RectTransform characterRoot = CreateCharacterRoot(
                 actorLayer,
-                "CharacterRoot",
-                new Vector2(0.5f, 0f),
-                anchors[1].Position,
-                new Vector2(720f, 1280f));
+                anchors[1].Position);
             CanvasGroup characterGroup =
-                characterRoot.gameObject.AddComponent<CanvasGroup>();
+                GetOrAddComponent<CanvasGroup>(characterRoot.gameObject);
+            characterGroup.alpha = 0f;
             characterGroup.interactable = false;
             characterGroup.blocksRaycasts = false;
 
@@ -271,13 +272,16 @@ namespace SkinnyToBeast.Gameplay
                 new Color(0f, 0f, 0f, 0.34f));
 
             faceController =
-                characterRoot.gameObject.AddComponent<CharacterFaceController>();
+                GetOrAddComponent<CharacterFaceController>(
+                    characterRoot.gameObject);
             characterRig =
-                characterRoot.gameObject.AddComponent<CharacterRigController>();
+                GetOrAddComponent<CharacterRigController>(
+                    characterRoot.gameObject);
             characterRig.Build(characterRoot, faceController);
 
             skinController =
-                characterRoot.gameObject.AddComponent<CharacterSkinController>();
+                GetOrAddComponent<CharacterSkinController>(
+                    characterRoot.gameObject);
             skinController.Configure(
                 characterSprites,
                 directionalWalkSheets,
@@ -285,7 +289,8 @@ namespace SkinnyToBeast.Gameplay
                 characterGroup);
 
             CharacterDepthSorter depthSorter =
-                characterRoot.gameObject.AddComponent<CharacterDepthSorter>();
+                GetOrAddComponent<CharacterDepthSorter>(
+                    characterRoot.gameObject);
             depthSorter.Configure(
                 characterRoot,
                 shadow.rectTransform,
@@ -293,16 +298,65 @@ namespace SkinnyToBeast.Gameplay
                 1250f);
 
             routineController =
-                characterRoot.gameObject.AddComponent<CharacterRoutineController>();
+                GetOrAddComponent<CharacterRoutineController>(
+                    characterRoot.gameObject);
             routineController.Configure(
                 characterRoot,
                 characterRig,
                 faceController,
                 anchors);
 
-            CharacterRigValidator validator =
-                characterRoot.gameObject.AddComponent<CharacterRigValidator>();
-            validator.Configure(characterRig, skinController);
+            rigValidator =
+                GetOrAddComponent<CharacterRigValidator>(
+                    characterRoot.gameObject);
+            rigValidator.Configure(characterRig, skinController);
+        }
+
+        private static RectTransform CreateCharacterRoot(
+            RectTransform actorLayer,
+            Vector2 initialPosition)
+        {
+            GameObject prefab = Resources.Load<GameObject>(
+                CharacterRigPrefabPath);
+            RectTransform root = null;
+            if (prefab != null)
+            {
+                GameObject instance = Instantiate(prefab, actorLayer, false);
+                root = instance.GetComponent<RectTransform>();
+                if (root == null)
+                {
+                    Destroy(instance);
+                }
+            }
+
+            if (root == null)
+            {
+                root = LivingGameplayVisualFactory.CreateRect(
+                    actorLayer,
+                    "CharacterRoot",
+                    new Vector2(0.5f, 0f),
+                    initialPosition,
+                    new Vector2(720f, 1280f));
+            }
+
+            root.name = "CharacterRoot";
+            root.anchorMin = new Vector2(0.5f, 0f);
+            root.anchorMax = new Vector2(0.5f, 0f);
+            root.pivot = new Vector2(0.5f, 0.5f);
+            root.anchoredPosition = initialPosition;
+            root.sizeDelta = new Vector2(720f, 1280f);
+            root.localScale = Vector3.one;
+            root.localRotation = Quaternion.identity;
+            return root;
+        }
+
+        private static T GetOrAddComponent<T>(GameObject target)
+            where T : Component
+        {
+            T component = target.GetComponent<T>();
+            return component != null
+                ? component
+                : target.AddComponent<T>();
         }
 
         private static RoomAnchor[] BuildRoomAnchors(RectTransform actorLayer)
@@ -449,6 +503,7 @@ namespace SkinnyToBeast.Gameplay
             }
 
             skinController.ApplySkin(safeIndex, animate);
+            rigValidator?.ValidateNow(false);
             currentCharacterArt = safeIndex;
         }
 

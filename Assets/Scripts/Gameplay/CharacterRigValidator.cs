@@ -8,14 +8,17 @@ namespace SkinnyToBeast.Gameplay
     {
         private static readonly string[] RequiredBones =
         {
+            "Bone.Root",
             "Bone.Pelvis",
             "Bone.Spine",
             "Bone.Chest",
             "Bone.Neck",
             "Bone.Head",
+            "Bone.Shoulder.L",
             "Bone.UpperArm.L",
             "Bone.Forearm.L",
             "Bone.Hand.L",
+            "Bone.Shoulder.R",
             "Bone.UpperArm.R",
             "Bone.Forearm.R",
             "Bone.Hand.R",
@@ -80,10 +83,30 @@ namespace SkinnyToBeast.Gameplay
             {
                 errors.AppendLine("Skin controller is missing.");
             }
-            else if (skinController.ActiveBaseSkinCount > 1)
+            else
             {
-                errors.AppendLine(
-                    $"More than one base skin is active ({skinController.ActiveBaseSkinCount}).");
+                if (skinController.ActiveBaseSkinCount > 1)
+                {
+                    errors.AppendLine(
+                        $"More than one base skin is active ({skinController.ActiveBaseSkinCount}).");
+                }
+
+                if (!skinController.ValidateSlotExclusivity(
+                        out string slotError))
+                {
+                    errors.AppendLine(slotError);
+                }
+
+                foreach (CharacterSkinSlot slot in
+                         System.Enum.GetValues(typeof(CharacterSkinSlot)))
+                {
+                    int active = skinController.GetActiveCount(slot);
+                    if (active > 1)
+                    {
+                        errors.AppendLine(
+                            $"Slot {slot} contains {active} active items.");
+                    }
+                }
             }
 
             if (errors.Length > 0)
@@ -107,6 +130,38 @@ namespace SkinnyToBeast.Gameplay
             }
 
             return true;
+        }
+
+        [ContextMenu("Run 50 Skin Swaps")]
+        private void RunFiftySkinSwaps()
+        {
+            if (skinController == null || skinController.DefinitionCount <= 0)
+            {
+                Debug.LogError("Cannot run skin swap test: no skins configured.", this);
+                return;
+            }
+
+            int original = Mathf.Max(0, skinController.CurrentArtIndex);
+            for (int i = 0; i < 50; i++)
+            {
+                skinController.ApplySkin(
+                    (original + i + 1) % skinController.DefinitionCount,
+                    false);
+                if (!ValidateNow(false))
+                {
+                    Debug.LogError(
+                        $"Skin swap stress test failed on iteration {i + 1}.",
+                        this);
+                    skinController.ApplySkin(original, false);
+                    return;
+                }
+            }
+
+            skinController.ApplySkin(original, false);
+            Debug.Log(
+                "Skin swap stress test passed: 50 swaps, one Body item " +
+                "and no duplicate visual slot remained active.",
+                this);
         }
     }
 }

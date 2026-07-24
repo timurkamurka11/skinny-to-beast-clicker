@@ -66,7 +66,7 @@ namespace SkinnyToBeast.UI
             }
         }
 
-        private bool OpenGameplay()
+        private static bool OpenGameplay()
         {
             return GameplayWindowController.Show();
         }

@@ -5,16 +5,194 @@ using UnityEngine;
 
 namespace SkinnyToBeast.Editor
 {
+    [InitializeOnLoad]
     internal static class LivingGameplayAnimatorAssetBuilder
     {
+        private const string SessionKey =
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch2";
         private const string RootFolder = "Assets/Resources/UI/Gameplay/Living/Animations";
         private const string ControllerPath = RootFolder + "/LivingCharacter.controller";
 
-        [MenuItem("Tools/Skinny to Beast/Rebuild Legacy Living Gameplay Animator")]
+        static LivingGameplayAnimatorAssetBuilder()
+        {
+            EditorApplication.delayCall -= EnsureAssetsOnce;
+            EditorApplication.delayCall += EnsureAssetsOnce;
+        }
+
+        [MenuItem("Tools/Skinny to Beast/Rebuild Patch 2 Character Animator")]
         public static void RebuildFromMenu()
         {
             DeleteGeneratedAssets();
             BuildAssets();
+        }
+
+        private static void EnsureAssetsOnce()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                return;
+            }
+
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                EditorApplication.delayCall -= EnsureAssetsOnce;
+                EditorApplication.delayCall += EnsureAssetsOnce;
+                return;
+            }
+
+            if (SessionState.GetBool(SessionKey, false))
+            {
+                return;
+            }
+
+            SessionState.SetBool(SessionKey, true);
+            try
+            {
+                AnimatorController controller =
+                    AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                        ControllerPath);
+                if (NeedsPatchTwoRebuild(controller))
+                {
+                    DeleteGeneratedAssets();
+                    BuildAssets();
+                }
+            }
+            catch (Exception exception)
+            {
+                SessionState.SetBool(SessionKey, false);
+                Debug.LogError(
+                    $"Could not generate Patch 2 character Animator: {exception}");
+            }
+        }
+
+        private static bool NeedsPatchTwoRebuild(
+            AnimatorController controller)
+        {
+            if (controller == null || controller.layers.Length != 4)
+            {
+                return true;
+            }
+
+            string[] required =
+            {
+                "Base",
+                "UpperBody",
+                "Face",
+                "FullBodyAction"
+            };
+            for (int i = 0; i < required.Length; i++)
+            {
+                if (controller.layers[i].name != required[i])
+                {
+                    return true;
+                }
+            }
+
+            return
+                !ContainsStates(
+                    controller.layers[0].stateMachine,
+                    "Idle_Breathe",
+                    "Idle_ShiftWeight",
+                    "Walk_Front",
+                    "Walk_Side",
+                    "Walk_Back",
+                    "SitLoop") ||
+                !ContainsStates(
+                    controller.layers[1].stateMachine,
+                    "UpperBody_Idle",
+                    "Idle_Scratch",
+                    "Idle_Yawn",
+                    "Idle_Stretch",
+                    "Idle_Flex",
+                    "Idle_AdjustClothes",
+                    "Idle_WarmShoulders") ||
+                !ContainsStates(
+                    controller.layers[2].stateMachine,
+                    "Face_Idle",
+                    "Face_Blink",
+                    "Face_Look",
+                    "Face_Expression") ||
+                !ContainsStates(
+                    controller.layers[3].stateMachine,
+                    "FullBody_Idle",
+                    "SitDown",
+                    "StandUp",
+                    "TapLift_A",
+                    "TapLift_B",
+                    "TapLift_C",
+                    "StageChange") ||
+                !ContainsParameters(
+                    controller,
+                    "Speed",
+                    "Facing",
+                    "Sitting");
+        }
+
+        private static bool ContainsStates(
+            AnimatorStateMachine machine,
+            params string[] names)
+        {
+            if (machine == null)
+            {
+                return false;
+            }
+
+            ChildAnimatorState[] states = machine.states;
+            for (int requiredIndex = 0;
+                 requiredIndex < names.Length;
+                 requiredIndex++)
+            {
+                bool found = false;
+                for (int stateIndex = 0;
+                     stateIndex < states.Length;
+                     stateIndex++)
+                {
+                    if (states[stateIndex].state != null &&
+                        states[stateIndex].state.name == names[requiredIndex])
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool ContainsParameters(
+            AnimatorController controller,
+            params string[] names)
+        {
+            AnimatorControllerParameter[] parameters = controller.parameters;
+            for (int requiredIndex = 0;
+                 requiredIndex < names.Length;
+                 requiredIndex++)
+            {
+                bool found = false;
+                for (int parameterIndex = 0;
+                     parameterIndex < parameters.Length;
+                     parameterIndex++)
+                {
+                    if (parameters[parameterIndex].name ==
+                        names[requiredIndex])
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static void BuildAssets()
@@ -22,13 +200,98 @@ namespace SkinnyToBeast.Editor
             EnsureFolder("Assets/Resources/UI/Gameplay/Living");
             EnsureFolder(RootFolder);
 
-            AnimationClip idle = CreateIdleClip();
-            AnimationClip tapA = CreateTapAClip();
-            AnimationClip tapB = CreateTapBClip();
-            AnimationClip rareLook = CreateRareLookClip();
-            AnimationClip rareScratch = CreateRareScratchClip();
-            AnimationClip upgrade = CreateUpgradeClip();
-            AnimationClip stageChange = CreateStageChangeClip();
+            AnimationClip idle = CreateMarkerClip(
+                "Idle_Breathe",
+                2.4f,
+                true);
+            AnimationClip tapA = CreateMarkerClip(
+                "TapReact_A",
+                0.28f,
+                false);
+            AnimationClip tapB = CreateMarkerClip(
+                "TapReact_B",
+                0.34f,
+                false);
+            AnimationClip rareLook = CreateMarkerClip(
+                "Idle_LookDown",
+                1.15f,
+                false);
+            AnimationClip rareScratch = CreateMarkerClip(
+                "Idle_Scratch",
+                1.4f,
+                false);
+            AnimationClip upgrade = CreateMarkerClip(
+                "UpgradeReact",
+                0.9f,
+                false);
+            AnimationClip stageChange = CreateMarkerClip(
+                "StageChange",
+                1.1f,
+                false);
+            AnimationClip idleShift = CreateMarkerClip(
+                "Idle_ShiftWeight",
+                1.8f,
+                true);
+            AnimationClip idleLook = CreateMarkerClip(
+                "Idle_LookAround",
+                1.4f,
+                false);
+            AnimationClip idleYawn = CreateMarkerClip(
+                "Idle_Yawn",
+                1.8f,
+                false);
+            AnimationClip idleStretch = CreateMarkerClip(
+                "Idle_Stretch",
+                1.55f,
+                false);
+            AnimationClip idleFlex = CreateMarkerClip(
+                "Idle_Flex",
+                1.35f,
+                false);
+            AnimationClip adjustClothes = CreateMarkerClip(
+                "Idle_AdjustClothes",
+                1.25f,
+                false);
+            AnimationClip warmShoulders = CreateMarkerClip(
+                "Idle_WarmShoulders",
+                1.35f,
+                false);
+            AnimationClip walkFront = CreateMarkerClip(
+                "Walk_Front",
+                0.78f,
+                true);
+            AnimationClip walkSide = CreateMarkerClip(
+                "Walk_Side",
+                0.78f,
+                true);
+            AnimationClip walkBack = CreateMarkerClip(
+                "Walk_Back",
+                0.78f,
+                true);
+            AnimationClip sitDown = CreateMarkerClip(
+                "SitDown",
+                0.72f,
+                false);
+            AnimationClip sitLoop = CreateMarkerClip(
+                "SitLoop",
+                1.7f,
+                true);
+            AnimationClip standUp = CreateMarkerClip(
+                "StandUp",
+                0.68f,
+                false);
+            AnimationClip tapLiftA = CreateMarkerClip(
+                "TapLift_A",
+                0.52f,
+                false);
+            AnimationClip tapLiftB = CreateMarkerClip(
+                "TapLift_B",
+                0.52f,
+                false);
+            AnimationClip tapLiftC = CreateMarkerClip(
+                "TapLift_C",
+                0.52f,
+                false);
 
             AnimatorController controller =
                 AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
@@ -38,11 +301,20 @@ namespace SkinnyToBeast.Editor
             controller.AddParameter("RareScratch", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Upgrade", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("StageChange", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
+            controller.AddParameter("Facing", AnimatorControllerParameterType.Int);
+            controller.AddParameter("Sitting", AnimatorControllerParameterType.Bool);
 
             AnimatorStateMachine machine = controller.layers[0].stateMachine;
-            machine.name = "Living Character";
+            RenameBaseLayer(controller);
+            machine.name = "Base";
             AnimatorState idleState = AddState(machine, "Idle_Breathe", idle, new Vector3(260f, 70f));
             machine.defaultState = idleState;
+            AddState(machine, "Idle_ShiftWeight", idleShift, new Vector3(260f, 190f));
+            AddState(machine, "Walk_Front", walkFront, new Vector3(20f, 300f));
+            AddState(machine, "Walk_Side", walkSide, new Vector3(260f, 300f));
+            AddState(machine, "Walk_Back", walkBack, new Vector3(500f, 300f));
+            AddState(machine, "SitLoop", sitLoop, new Vector3(740f, 300f));
 
             AddTriggeredState(
                 machine,
@@ -53,6 +325,48 @@ namespace SkinnyToBeast.Editor
                 new Vector3(520f, -20f),
                 0.02f,
                 true);
+
+            AnimatorStateMachine upperBody =
+                AddLayer(controller, "UpperBody", 1f);
+            AnimatorState upperIdle = AddState(
+                upperBody,
+                "UpperBody_Idle",
+                CreateMarkerClip("UpperBody_Idle", 1f, true),
+                new Vector3(250f, 60f));
+            upperBody.defaultState = upperIdle;
+            AddState(upperBody, "Idle_Scratch", rareScratch, new Vector3(20f, 180f));
+            AddState(upperBody, "Idle_Yawn", idleYawn, new Vector3(180f, 180f));
+            AddState(upperBody, "Idle_Stretch", idleStretch, new Vector3(340f, 180f));
+            AddState(upperBody, "Idle_Flex", idleFlex, new Vector3(500f, 180f));
+            AddState(upperBody, "Idle_AdjustClothes", adjustClothes, new Vector3(660f, 180f));
+            AddState(upperBody, "Idle_WarmShoulders", warmShoulders, new Vector3(820f, 180f));
+
+            AnimatorStateMachine face =
+                AddLayer(controller, "Face", 1f);
+            AnimatorState faceIdle = AddState(
+                face,
+                "Face_Idle",
+                CreateMarkerClip("Face_Idle", 1f, true),
+                new Vector3(250f, 60f));
+            face.defaultState = faceIdle;
+            AddState(face, "Face_Blink", CreateMarkerClip("Face_Blink", 0.12f, false), new Vector3(80f, 190f));
+            AddState(face, "Face_Look", idleLook, new Vector3(250f, 190f));
+            AddState(face, "Face_Expression", CreateMarkerClip("Face_Expression", 0.5f, false), new Vector3(420f, 190f));
+
+            AnimatorStateMachine fullBody =
+                AddLayer(controller, "FullBodyAction", 1f);
+            AnimatorState fullIdle = AddState(
+                fullBody,
+                "FullBody_Idle",
+                CreateMarkerClip("FullBody_Idle", 1f, true),
+                new Vector3(250f, 60f));
+            fullBody.defaultState = fullIdle;
+            AddState(fullBody, "SitDown", sitDown, new Vector3(20f, 190f));
+            AddState(fullBody, "StandUp", standUp, new Vector3(180f, 190f));
+            AddState(fullBody, "TapLift_A", tapLiftA, new Vector3(340f, 190f));
+            AddState(fullBody, "TapLift_B", tapLiftB, new Vector3(500f, 190f));
+            AddState(fullBody, "TapLift_C", tapLiftC, new Vector3(660f, 190f));
+            AddState(fullBody, "StageChange", stageChange, new Vector3(820f, 190f));
             AddTriggeredState(
                 machine,
                 idleState,
@@ -103,8 +417,43 @@ namespace SkinnyToBeast.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Living gameplay Animator generated: Idle, Blink scheduler, Tap A/B, " +
-                "rare idle, Upgrade and StageChange states are ready.");
+                "Patch 2 character Animator generated with Base, UpperBody, " +
+                "Face and FullBodyAction layers.");
+        }
+
+        private static AnimationClip CreateMarkerClip(
+            string name,
+            float duration,
+            bool loop)
+        {
+            AnimationClip clip = CreateClipAsset(name, duration, loop);
+            SetCurve(
+                clip,
+                "localPosition.z",
+                Curve(0f, 0f, duration, 0f));
+            return clip;
+        }
+
+        private static void RenameBaseLayer(AnimatorController controller)
+        {
+            AnimatorControllerLayer[] layers = controller.layers;
+            layers[0].name = "Base";
+            layers[0].defaultWeight = 1f;
+            controller.layers = layers;
+        }
+
+        private static AnimatorStateMachine AddLayer(
+            AnimatorController controller,
+            string name,
+            float weight)
+        {
+            controller.AddLayer(name);
+            AnimatorControllerLayer[] layers = controller.layers;
+            AnimatorControllerLayer layer = layers[layers.Length - 1];
+            layer.defaultWeight = weight;
+            layers[layers.Length - 1] = layer;
+            controller.layers = layers;
+            return layer.stateMachine;
         }
 
         private static AnimationClip CreateIdleClip()

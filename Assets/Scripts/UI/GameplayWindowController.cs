@@ -138,10 +138,20 @@ namespace SkinnyToBeast.UI
 
         private static Canvas FindOrCreateCanvas()
         {
-            Canvas found = UnityEngine.Object.FindFirstObjectByType<Canvas>();
-            if (found != null)
+            Canvas[] canvases = UnityEngine.Object.FindObjectsByType<Canvas>(
+                FindObjectsInactive.Exclude,
+                FindObjectsSortMode.None);
+            for (int i = 0; i < canvases.Length; i++)
             {
-                return found;
+                Canvas candidate = canvases[i];
+                if (candidate == null ||
+                    candidate.GetComponent<GameEntryFlowController>() != null ||
+                    candidate.gameObject.name == "GameEntryScreen")
+                {
+                    continue;
+                }
+
+                return candidate;
             }
 
             GameObject canvasObject = new GameObject(
@@ -179,7 +189,9 @@ namespace SkinnyToBeast.UI
 #else
             eventSystemObject.AddComponent<StandaloneInputModule>();
 #endif
-            UnityEngine.Object.DontDestroyOnLoad(eventSystemObject);
+            // Keep input scene-owned. When the player returns to MainMenu its
+            // authored EventSystem replaces this one, avoiding duplicate input
+            // modules after the GameEntry scene has been unloaded.
         }
 
         private void Awake()

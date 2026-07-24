@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 using SkinnyToBeast.Gameplay;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace SkinnyToBeast.UI
@@ -16,6 +18,8 @@ namespace SkinnyToBeast.UI
         private const string WalkSheetRoot =
             "UI/Gameplay/Living/Rig/walk_stage_";
         private const string StrengthKey = "game.player.strength";
+        private const string GameEntrySceneName = "GameEntry";
+        private const string MainMenuSceneName = "MainMenu";
         private const float EntryCharacterSize = 720f;
         private const float DirectionalReferenceSize = 1280f;
 
@@ -32,8 +36,11 @@ namespace SkinnyToBeast.UI
         private TMP_Text statusText;
         private TMP_Text dotsText;
         private CharacterDirectionalFrame[] entryDirectionalFrames;
+        private readonly List<ResourceRequest> gameplayPreloads = new();
         private Func<bool> openGameplay;
         private Action<bool> completion;
+        private AsyncOperation sceneLoadOperation;
+        private bool loadDedicatedScene;
         private bool opening;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -52,15 +59,7 @@ namespace SkinnyToBeast.UI
                 return true;
             }
 
-            Canvas canvas = owner != null
-                ? owner.GetComponentInParent<Canvas>()
-                : null;
-            if (canvas == null)
-            {
-                canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
-            }
-
-            if (canvas == null || gameplayOpener == null)
+            if (owner == null || gameplayOpener == null)
             {
                 return false;
             }
@@ -69,16 +68,24 @@ namespace SkinnyToBeast.UI
                 "GameEntryScreen",
                 typeof(RectTransform),
                 typeof(Canvas),
+                typeof(CanvasScaler),
                 typeof(GraphicRaycaster),
                 typeof(CanvasGroup),
                 typeof(Image));
-            root.transform.SetParent(canvas.transform, false);
             RectTransform rootRect = root.GetComponent<RectTransform>();
             Stretch(rootRect);
 
             Canvas entryCanvas = root.GetComponent<Canvas>();
+            entryCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             entryCanvas.overrideSorting = true;
             entryCanvas.sortingOrder = 16000;
+
+            CanvasScaler scaler = root.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080f, 1920f);
+            scaler.screenMatchMode =
+                CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
 
             Image blocker = root.GetComponent<Image>();
             blocker.color = Color.black;
@@ -88,6 +95,14 @@ namespace SkinnyToBeast.UI
                 root.AddComponent<GameEntryFlowController>();
             controller.openGameplay = gameplayOpener;
             controller.completion = onComplete;
+            controller.loadDedicatedScene =
+                SceneManager.GetActiveScene().name != GameEntrySceneName &&
+                Application.CanStreamedLevelBeLoaded(GameEntrySceneName);
+            if (controller.loadDedicatedScene)
+            {
+                UnityEngine.Object.DontDestroyOnLoad(root);
+            }
+
             instance = controller;
 
             try
@@ -168,6 +183,7 @@ namespace SkinnyToBeast.UI
             characterShadowImage.raycastTarget = false;
 
             int artIndex = ResolveSavedArtIndex();
+            BeginGameplayPreload(artIndex);
             string walkPath = WalkSheetRoot + $"{artIndex + 1:00}";
             Texture2D walkSheet = Resources.Load<Texture2D>(walkPath);
             if (walkSheet == null)
@@ -284,6 +300,18 @@ namespace SkinnyToBeast.UI
                 yield return null;
             }
 
+            statusText.text = "LOADING SAVED BODY";
+            yield return WaitForGameplayPreload();
+            BeginSceneLoad();
+            if (sceneLoadOperation != null)
+            {
+                statusText.text = "LOADING THE ROOM";
+                while (sceneLoadOperation.progress < 0.9f)
+                {
+                    yield return null;
+                }
+            }
+
             // Cover the entry scene before building the room. This hides any
             // one-frame layout/import work and replaces the old cropped-door
             // trick that could expose a solid blue rectangle.
@@ -292,6 +320,19 @@ namespace SkinnyToBeast.UI
                 0f,
                 1f,
                 0.2f);
+
+            if (sceneLoadOperation != null)
+            {
+                sceneLoadOperation.allowSceneActivation = true;
+                while (!sceneLoadOperation.isDone)
+                {
+                    yield return null;
+                }
+
+                // Let the new scene create its root objects before constructing
+                // the gameplay canvas above it.
+                yield return null;
+            }
 
             bool opened = false;
             try
@@ -313,8 +354,14 @@ namespace SkinnyToBeast.UI
                 statusText.text = "COULD NOT ENTER";
                 dotsText.text = "●  ○  ○";
                 yield return new WaitForSecondsRealtime(0.55f);
-                completion?.Invoke(false);
+                InvokeCompletion(false);
                 yield return FadeGroup(1f, 0f, 0.2f);
+                if (SceneManager.GetActiveScene().name == GameEntrySceneName &&
+                    Application.CanStreamedLevelBeLoaded(MainMenuSceneName))
+                {
+                    SceneManager.LoadScene(MainMenuSceneName);
+                }
+
                 Destroy(gameObject);
                 yield break;
             }
@@ -326,8 +373,69 @@ namespace SkinnyToBeast.UI
             yield return new WaitForEndOfFrame();
             yield return FadeGroup(1f, 0f, 0.42f);
             opening = false;
-            completion?.Invoke(true);
+            InvokeCompletion(true);
             Destroy(gameObject);
+        }
+
+        private void BeginSceneLoad()
+        {
+            if (!loadDedicatedScene || sceneLoadOperation != null)
+            {
+                return;
+            }
+
+            sceneLoadOperation = SceneManager.LoadSceneAsync(
+                GameEntrySceneName,
+                LoadSceneMode.Single);
+            if (sceneLoadOperation != null)
+            {
+                sceneLoadOperation.allowSceneActivation = false;
+            }
+            else
+            {
+                loadDedicatedScene = false;
+            }
+        }
+
+        private void BeginGameplayPreload(int artIndex)
+        {
+            gameplayPreloads.Clear();
+            string stage = $"{Mathf.Clamp(artIndex, 0, 3) + 1:00}";
+            string[] paths =
+            {
+                "UI/Gameplay/Living/room_stage_01",
+                "UI/Gameplay/Living/room_stage_02",
+                $"UI/Gameplay/Living/character_stage_{stage}",
+                $"UI/Gameplay/Living/Rig/walk_stage_{stage}",
+                "UI/Gameplay/Living/dumbbell_stage_01",
+                "UI/Gameplay/Living/dumbbell_stage_02",
+                "UI/Gameplay/Living/dumbbell_stage_03",
+                "UI/Gameplay/Living/prop_protein",
+                "UI/Gameplay/Living/prop_coach"
+            };
+
+            for (int i = 0; i < paths.Length; i++)
+            {
+                gameplayPreloads.Add(
+                    Resources.LoadAsync<UnityEngine.Object>(paths[i]));
+            }
+        }
+
+        private IEnumerator WaitForGameplayPreload()
+        {
+            for (int i = 0; i < gameplayPreloads.Count; i++)
+            {
+                ResourceRequest request = gameplayPreloads[i];
+                if (request == null)
+                {
+                    continue;
+                }
+
+                while (!request.isDone)
+                {
+                    yield return null;
+                }
+            }
         }
 
         private void ApplyEntryWalkFrame(
@@ -428,6 +536,23 @@ namespace SkinnyToBeast.UI
             {
                 opening = false;
             }
+        }
+
+        private void InvokeCompletion(bool success)
+        {
+            if (completion == null)
+            {
+                return;
+            }
+
+            object target = completion.Target;
+            if (target is UnityEngine.Object unityTarget &&
+                unityTarget == null)
+            {
+                return;
+            }
+
+            completion.Invoke(success);
         }
 
         private static RectTransform CreateRect(

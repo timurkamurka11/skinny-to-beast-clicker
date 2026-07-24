@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -21,12 +22,20 @@ namespace SkinnyToBeast.Gameplay
         Yawn,
         Stretch,
         Flex,
+        AdjustClothes,
+        WarmShoulders,
+        SitDown,
+        SitLoop,
+        StandUp,
         Sit
     }
 
     [DisallowMultipleComponent]
     public sealed class CharacterRigController : MonoBehaviour
     {
+        private const string AnimatorResourcePath =
+            "UI/Gameplay/Living/Animations/LivingCharacter";
+
         private sealed class RigPart
         {
             public RigPartGraphic Graphic;
@@ -40,6 +49,8 @@ namespace SkinnyToBeast.Gameplay
             public float chest;
             public float neck;
             public float head;
+            public float leftShoulder;
+            public float rightShoulder;
             public float leftUpperArm;
             public float leftForearm;
             public float leftHand;
@@ -55,6 +66,7 @@ namespace SkinnyToBeast.Gameplay
             public float pelvisY;
             public float pelvisX;
             public Vector2 chestScale;
+            public Vector2 abdomenScale;
         }
 
         private readonly List<RigPartGraphic> frontRenderers = new();
@@ -65,12 +77,16 @@ namespace SkinnyToBeast.Gameplay
         private CanvasGroup skeletonGroup;
         private RawImage directionalImage;
         private CharacterFaceController faceController;
+        private Animator stateAnimator;
 
+        private RectTransform rootBone;
         private RectTransform pelvisBone;
         private RectTransform spineBone;
         private RectTransform chestBone;
         private RectTransform neckBone;
         private RectTransform headBone;
+        private RectTransform leftShoulderBone;
+        private RectTransform rightShoulderBone;
         private RectTransform leftUpperArmBone;
         private RectTransform leftForearmBone;
         private RectTransform leftHandBone;
@@ -85,6 +101,7 @@ namespace SkinnyToBeast.Gameplay
         private RectTransform rightFootBone;
 
         private RigPart torsoPart;
+        private RigPart abdomenPart;
         private RigPart pelvisPart;
         private RigPart headPart;
         private RigPart leftUpperArmPart;
@@ -117,13 +134,23 @@ namespace SkinnyToBeast.Gameplay
         private float tapAge = 10f;
         private float upgradeAge = 10f;
         private float stageChangeAge = 10f;
-        private int tapVariant;
+        private int tapVariant = -1;
+        private Coroutine tapFaceRoutine;
+        private string currentBaseAnimatorState;
+        private bool animatorBound;
         private bool moving;
         private bool built;
 
         public int BoneCount => namedBones.Count;
         public bool IsMoving => moving;
         public CharacterFacing Facing => ResolveFacing();
+        public CharacterRoutineAction ActiveAction => activeAction;
+        public float ActiveActionRemaining =>
+            activeAction == CharacterRoutineAction.None
+                ? 0f
+                : Mathf.Max(0f, actionDuration - actionAge);
+        public int ActiveTapVariant => Mathf.Max(0, tapVariant);
+        public bool IsTapReacting => tapAge < 0.52f;
 
         public void Build(
             RectTransform root,
@@ -136,6 +163,12 @@ namespace SkinnyToBeast.Gameplay
 
             characterRoot = root;
             faceController = face;
+            stateAnimator = root.GetComponent<Animator>();
+            if (stateAnimator == null)
+            {
+                stateAnimator = root.gameObject.AddComponent<Animator>();
+            }
+            TryBindStateAnimator();
 
             skeletonRoot = LivingGameplayVisualFactory.CreateRect(
                 root,
@@ -145,7 +178,8 @@ namespace SkinnyToBeast.Gameplay
                 fullSize);
             skeletonGroup = skeletonRoot.gameObject.AddComponent<CanvasGroup>();
 
-            pelvisBone = CreateBone(skeletonRoot, "Bone.Pelvis");
+            rootBone = CreateBone(skeletonRoot, "Bone.Root");
+            pelvisBone = CreateBone(rootBone, "Bone.Pelvis");
             leftThighBone = CreateBone(pelvisBone, "Bone.Thigh.L");
             leftThighPart = CreatePart(leftThighBone, "Part.Thigh.L");
             leftShinBone = CreateBone(leftThighBone, "Bone.Shin.L");
@@ -161,17 +195,24 @@ namespace SkinnyToBeast.Gameplay
             rightFootPart = CreatePart(rightFootBone, "Part.Foot.R");
 
             spineBone = CreateBone(pelvisBone, "Bone.Spine");
+            abdomenPart = CreatePart(spineBone, "Part.Abdomen");
             chestBone = CreateBone(spineBone, "Bone.Chest");
             torsoPart = CreatePart(chestBone, "Part.Torso");
 
-            leftUpperArmBone = CreateBone(chestBone, "Bone.UpperArm.L");
+            leftShoulderBone = CreateBone(chestBone, "Bone.Shoulder.L");
+            leftUpperArmBone = CreateBone(
+                leftShoulderBone,
+                "Bone.UpperArm.L");
             leftUpperArmPart = CreatePart(leftUpperArmBone, "Part.UpperArm.L");
             leftForearmBone = CreateBone(leftUpperArmBone, "Bone.Forearm.L");
             leftForearmPart = CreatePart(leftForearmBone, "Part.Forearm.L");
             leftHandBone = CreateBone(leftForearmBone, "Bone.Hand.L");
             leftHandPart = CreatePart(leftHandBone, "Part.Hand.L");
 
-            rightUpperArmBone = CreateBone(chestBone, "Bone.UpperArm.R");
+            rightShoulderBone = CreateBone(chestBone, "Bone.Shoulder.R");
+            rightUpperArmBone = CreateBone(
+                rightShoulderBone,
+                "Bone.UpperArm.R");
             rightUpperArmPart = CreatePart(rightUpperArmBone, "Part.UpperArm.R");
             rightForearmBone = CreateBone(rightUpperArmBone, "Bone.Forearm.R");
             rightForearmPart = CreatePart(rightForearmBone, "Part.Forearm.R");
@@ -197,6 +238,7 @@ namespace SkinnyToBeast.Gameplay
             directionalImage.enabled = false;
 
             currentPose.chestScale = Vector2.one;
+            currentPose.abdomenScale = Vector2.one;
             built = true;
         }
 
@@ -208,6 +250,7 @@ namespace SkinnyToBeast.Gameplay
             }
 
             Sprite sprite = definition.FrontSprite;
+            TryBindStateAnimator();
             Texture texture = sprite.texture;
             currentFrontTexture = texture;
             sourceUv = new Rect(
@@ -232,12 +275,77 @@ namespace SkinnyToBeast.Gameplay
             SetDirectionalVisible(false);
         }
 
+        public void ClearSkin()
+        {
+            if (tapFaceRoutine != null)
+            {
+                StopCoroutine(tapFaceRoutine);
+                tapFaceRoutine = null;
+            }
+
+            foreach (RigPartGraphic renderer in frontRenderers)
+            {
+                if (renderer != null)
+                {
+                    renderer.enabled = false;
+                }
+            }
+
+            currentFrontTexture = null;
+            currentDefinition = null;
+            profile = null;
+            if (directionalImage != null)
+            {
+                directionalImage.enabled = false;
+                directionalImage.texture = null;
+            }
+
+            if (skeletonGroup != null)
+            {
+                skeletonGroup.alpha = 0f;
+            }
+
+            faceController?.SetVisible(false);
+        }
+
+        public void SynchronizeAnimationState()
+        {
+            activeAction = CharacterRoutineAction.None;
+            actionAge = actionDuration;
+            tapAge = 10f;
+            upgradeAge = 10f;
+            stageChangeAge = 10f;
+            currentPose = default;
+            currentPose.chestScale = Vector2.one;
+            currentPose.abdomenScale = Vector2.one;
+            if (rootBone != null)
+            {
+                rootBone.localRotation = Quaternion.identity;
+                rootBone.localScale = Vector3.one;
+            }
+
+            if (skeletonRoot != null)
+            {
+                skeletonRoot.localScale = Vector3.one;
+            }
+
+            faceController?.ResetExpression();
+            CrossFadeState("Idle_Breathe", 0, 0f);
+        }
+
         public void SetLocomotion(Vector2 direction, float speed)
         {
+            bool wasMoving = moving;
             moveDirection = direction.sqrMagnitude > 0.0001f
                 ? direction.normalized
                 : Vector2.zero;
             moving = speed > 0.01f && moveDirection.sqrMagnitude > 0.001f;
+            if (moving && !wasMoving)
+            {
+                walkCycle = 0f;
+            }
+
+            UpdateBaseAnimatorState();
             if (!moving)
             {
                 walkBlend = Mathf.MoveTowards(
@@ -252,11 +360,13 @@ namespace SkinnyToBeast.Gameplay
             moving = false;
             moveDirection = Vector2.zero;
             restingFacing = facing;
+            UpdateBaseAnimatorState();
         }
 
         public void SetRestingFacing(CharacterFacing facing)
         {
             restingFacing = facing;
+            UpdateBaseAnimatorState();
         }
 
         public void PlayAction(CharacterRoutineAction action, float duration)
@@ -270,9 +380,12 @@ namespace SkinnyToBeast.Gameplay
                 CharacterRoutineAction.Yawn => CharacterExpression.Yawn,
                 CharacterRoutineAction.Flex => CharacterExpression.Happy,
                 CharacterRoutineAction.Stretch => CharacterExpression.Focused,
+                CharacterRoutineAction.WarmShoulders => CharacterExpression.Focused,
+                CharacterRoutineAction.AdjustClothes => CharacterExpression.Neutral,
                 _ => CharacterExpression.Neutral
             };
             faceController?.SetExpression(expression, actionDuration);
+            PlayAnimatorAction(action);
         }
 
         public void CancelAction()
@@ -280,15 +393,35 @@ namespace SkinnyToBeast.Gameplay
             activeAction = CharacterRoutineAction.None;
             actionAge = actionDuration;
             faceController?.ResetExpression();
+            CrossFadeState("UpperBody_Idle", 1, 0.1f);
+            CrossFadeState("FullBody_Idle", 3, 0.1f);
         }
 
         public void TriggerTap()
         {
-            tapVariant++;
+            tapVariant = (tapVariant + 1) % 3;
             tapAge = 0f;
             activeAction = CharacterRoutineAction.None;
             faceController?.LookAt(new Vector2(0f, -1f), 0.75f);
-            faceController?.SetExpression(CharacterExpression.Strain, 0.46f);
+            faceController?.SetExpression(CharacterExpression.Strain, 0.52f);
+            CrossFadeState(
+                $"TapLift_{(char)('A' + tapVariant)}",
+                3,
+                0.08f);
+            if (tapFaceRoutine != null)
+            {
+                StopCoroutine(tapFaceRoutine);
+            }
+
+            tapFaceRoutine = StartCoroutine(TapFaceSequence());
+        }
+
+        private IEnumerator TapFaceSequence()
+        {
+            yield return new WaitForSecondsRealtime(0.5f);
+            faceController?.SetExpression(CharacterExpression.Happy, 0.34f);
+            yield return new WaitForSecondsRealtime(0.34f);
+            tapFaceRoutine = null;
         }
 
         public void TriggerUpgrade()
@@ -296,12 +429,14 @@ namespace SkinnyToBeast.Gameplay
             upgradeAge = 0f;
             PlayAction(CharacterRoutineAction.Flex, 0.95f);
             faceController?.SetExpression(CharacterExpression.Happy, 1.15f);
+            CrossFadeState("Idle_Flex", 1, 0.1f);
         }
 
         public void TriggerStageChange()
         {
             stageChangeAge = 0f;
             faceController?.SetExpression(CharacterExpression.Happy, 1.15f);
+            CrossFadeState("StageChange", 3, 0.08f);
         }
 
         public bool HasBone(string boneName)
@@ -345,7 +480,16 @@ namespace SkinnyToBeast.Gameplay
                 delta * (moving ? 6f : 4f));
             if (moving)
             {
-                walkCycle += delta * 5.2f;
+                // One complete two-contact gait lasts about 0.77 seconds.
+                // Keeping the procedural legs and two-frame directional sheets
+                // on the same clock prevents foot cadence from doubling.
+                walkCycle += delta * 2.6f;
+            }
+
+            if (animatorBound)
+            {
+                stateAnimator.SetFloat("Speed", moving ? 1f : 0f);
+                stateAnimator.SetInteger("Facing", (int)ResolveFacing());
             }
 
             bool directional = ShouldUseDirectionalRenderer();
@@ -372,6 +516,8 @@ namespace SkinnyToBeast.Gameplay
                 chest = slowSway * 0.45f,
                 neck = -slowSway * 0.18f,
                 head = slowSway * 0.72f,
+                leftShoulder = breath * 0.45f,
+                rightShoulder = -breath * 0.45f,
                 leftUpperArm = slowSway * 1.6f,
                 rightUpperArm = -slowSway * 1.6f,
                 leftForearm = 0f,
@@ -386,12 +532,17 @@ namespace SkinnyToBeast.Gameplay
                 rightFoot = 0f,
                 pelvisY = breath * 2.5f,
                 pelvisX = slowSway * 1.6f,
-                chestScale = new Vector2(1f - breath * 0.004f, 1f + breath * 0.012f)
+                chestScale = new Vector2(
+                    1f - breath * 0.004f,
+                    1f + breath * 0.012f),
+                abdomenScale = new Vector2(
+                    1f + breath * 0.009f,
+                    1f + breath * 0.005f)
             };
 
             if (walkBlend > 0.001f && !ShouldUseDirectionalRenderer())
             {
-                float phase = walkCycle * Mathf.PI * 2f;
+                float phase = walkCycle * Mathf.PI;
                 float stride = Mathf.Sin(phase) * 17f * walkBlend;
                 float liftLeft = Mathf.Max(0f, Mathf.Sin(phase)) * 19f * walkBlend;
                 float liftRight = Mathf.Max(0f, -Mathf.Sin(phase)) * 19f * walkBlend;
@@ -412,9 +563,16 @@ namespace SkinnyToBeast.Gameplay
                 actionAge < actionDuration)
             {
                 float t = Mathf.Clamp01(actionAge / actionDuration);
-                float envelope = activeAction == CharacterRoutineAction.Sit
-                    ? CalculateHeldEnvelope(t)
-                    : Mathf.Sin(t * Mathf.PI);
+                float envelope = activeAction switch
+                {
+                    CharacterRoutineAction.Sit => CalculateHeldEnvelope(t),
+                    CharacterRoutineAction.SitDown =>
+                        Mathf.SmoothStep(0f, 1f, t),
+                    CharacterRoutineAction.SitLoop => 1f,
+                    CharacterRoutineAction.StandUp =>
+                        Mathf.SmoothStep(1f, 0f, t),
+                    _ => Mathf.Sin(t * Mathf.PI)
+                };
                 float repeat = Mathf.Sin(t * Mathf.PI * 4f);
                 ApplyActionPose(ref pose, activeAction, envelope, repeat);
             }
@@ -423,25 +581,41 @@ namespace SkinnyToBeast.Gameplay
                 activeAction = CharacterRoutineAction.None;
             }
 
-            if (tapAge < 0.48f)
+            if (tapAge < 0.52f)
             {
-                float t = tapAge / 0.48f;
+                float t = tapAge / 0.52f;
                 float punch = Mathf.Sin(t * Mathf.PI);
-                bool left = tapVariant % 2 == 0;
                 pose.pelvisY += punch * 11f;
-                pose.spine += (left ? -1f : 1f) * punch * 4f;
-                pose.chest += (left ? 1f : -1f) * punch * 6f;
-                if (left)
+                switch (tapVariant)
                 {
-                    pose.leftUpperArm -= punch * 38f;
-                    pose.leftForearm -= punch * 92f;
-                    pose.leftHand += punch * 20f;
-                }
-                else
-                {
-                    pose.rightUpperArm += punch * 38f;
-                    pose.rightForearm += punch * 92f;
-                    pose.rightHand -= punch * 20f;
+                    case 0:
+                        pose.spine -= punch * 4f;
+                        pose.chest += punch * 6f;
+                        pose.leftShoulder -= punch * 8f;
+                        pose.leftUpperArm -= punch * 38f;
+                        pose.leftForearm -= punch * 92f;
+                        pose.leftHand += punch * 20f;
+                        break;
+                    case 1:
+                        pose.spine += punch * 4f;
+                        pose.chest -= punch * 6f;
+                        pose.rightShoulder += punch * 8f;
+                        pose.rightUpperArm += punch * 38f;
+                        pose.rightForearm += punch * 92f;
+                        pose.rightHand -= punch * 20f;
+                        break;
+                    default:
+                        pose.pelvisY -= punch * 8f;
+                        pose.spine += Mathf.Sin(t * Mathf.PI * 2f) * 3f;
+                        pose.leftShoulder -= punch * 11f;
+                        pose.rightShoulder += punch * 11f;
+                        pose.leftUpperArm -= punch * 52f;
+                        pose.rightUpperArm += punch * 52f;
+                        pose.leftForearm -= punch * 106f;
+                        pose.rightForearm += punch * 106f;
+                        pose.leftHand += punch * 18f;
+                        pose.rightHand -= punch * 18f;
+                        break;
                 }
 
                 pose.chestScale += new Vector2(punch * 0.025f, -punch * 0.018f);
@@ -455,6 +629,20 @@ namespace SkinnyToBeast.Gameplay
                 pose.leftForearm -= pulse * 78f;
                 pose.rightForearm += pulse * 78f;
                 pose.chestScale += Vector2.one * pulse * 0.035f;
+            }
+
+            if (!moving &&
+                activeAction != CharacterRoutineAction.SitDown &&
+                activeAction != CharacterRoutineAction.SitLoop &&
+                activeAction != CharacterRoutineAction.StandUp &&
+                activeAction != CharacterRoutineAction.Sit)
+            {
+                // Keep the global foot angle planted while the pelvis and legs
+                // perform breathing and weight-shift poses.
+                pose.leftFoot =
+                    -(pose.pelvis + pose.leftThigh + pose.leftShin);
+                pose.rightFoot =
+                    -(pose.pelvis + pose.rightThigh + pose.rightShin);
             }
 
             return pose;
@@ -507,17 +695,50 @@ namespace SkinnyToBeast.Gameplay
                     pose.rightHand -= 17f * envelope;
                     pose.chestScale += Vector2.one * 0.025f * envelope;
                     break;
+                case CharacterRoutineAction.AdjustClothes:
+                    pose.leftUpperArm += 38f * envelope;
+                    pose.rightUpperArm -= 38f * envelope;
+                    pose.leftForearm -= 84f * envelope + repeat * 5f;
+                    pose.rightForearm += 84f * envelope - repeat * 5f;
+                    pose.leftHand += 13f * envelope;
+                    pose.rightHand -= 13f * envelope;
+                    pose.head += repeat * 1.2f * envelope;
+                    break;
+                case CharacterRoutineAction.WarmShoulders:
+                    pose.leftShoulder += repeat * 13f * envelope;
+                    pose.rightShoulder -= repeat * 13f * envelope;
+                    pose.leftUpperArm -= repeat * 8f * envelope;
+                    pose.rightUpperArm += repeat * 8f * envelope;
+                    pose.chest -= repeat * 2.2f * envelope;
+                    break;
+                case CharacterRoutineAction.SitDown:
+                    ApplySitPose(ref pose, envelope);
+                    break;
+                case CharacterRoutineAction.SitLoop:
+                    ApplySitPose(ref pose, 1f);
+                    pose.spine += repeat * 1.4f;
+                    pose.head -= repeat * 1.1f;
+                    break;
+                case CharacterRoutineAction.StandUp:
+                    ApplySitPose(ref pose, envelope);
+                    break;
                 case CharacterRoutineAction.Sit:
-                    pose.pelvisY -= 105f * envelope;
-                    pose.spine -= 5f * envelope;
-                    pose.leftThigh -= 58f * envelope;
-                    pose.rightThigh += 58f * envelope;
-                    pose.leftShin += 78f * envelope;
-                    pose.rightShin -= 78f * envelope;
-                    pose.leftUpperArm += 10f * envelope;
-                    pose.rightUpperArm -= 10f * envelope;
+                    ApplySitPose(ref pose, envelope);
                     break;
             }
+        }
+
+        private static void ApplySitPose(ref PoseFrame pose, float amount)
+        {
+            float held = Mathf.Clamp01(amount);
+            pose.pelvisY -= 105f * held;
+            pose.spine -= 5f * held;
+            pose.leftThigh -= 58f * held;
+            pose.rightThigh += 58f * held;
+            pose.leftShin += 78f * held;
+            pose.rightShin -= 78f * held;
+            pose.leftUpperArm += 10f * held;
+            pose.rightUpperArm -= 10f * held;
         }
 
         private void ApplyPose(PoseFrame pose)
@@ -529,6 +750,8 @@ namespace SkinnyToBeast.Gameplay
             SetRotation(chestBone, pose.chest);
             SetRotation(neckBone, pose.neck);
             SetRotation(headBone, pose.head);
+            SetRotation(leftShoulderBone, pose.leftShoulder);
+            SetRotation(rightShoulderBone, pose.rightShoulder);
             SetRotation(leftUpperArmBone, pose.leftUpperArm);
             SetRotation(leftForearmBone, pose.leftForearm);
             SetRotation(leftHandBone, pose.leftHand);
@@ -544,6 +767,10 @@ namespace SkinnyToBeast.Gameplay
             chestBone.localScale = new Vector3(
                 Mathf.Max(0.85f, pose.chestScale.x),
                 Mathf.Max(0.85f, pose.chestScale.y),
+                1f);
+            abdomenPart.Graphic.rectTransform.localScale = new Vector3(
+                Mathf.Max(0.85f, pose.abdomenScale.x),
+                Mathf.Max(0.85f, pose.abdomenScale.y),
                 1f);
 
             float stagePulse = 0f;
@@ -639,16 +866,19 @@ namespace SkinnyToBeast.Gameplay
 
         private void ApplyProfile(CharacterRigProfile next)
         {
+            SetBonePosition(rootBone, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
             SetBonePosition(pelvisBone, next.pelvis, new Vector2(0.5f, 0.5f));
             SetBonePosition(spineBone, next.spine, next.pelvis);
             SetBonePosition(chestBone, next.chest, next.spine);
             SetBonePosition(neckBone, next.neck, next.chest);
             SetBonePosition(headBone, next.head, next.neck);
 
-            SetBonePosition(leftUpperArmBone, next.leftShoulder, next.chest);
+            SetBonePosition(leftShoulderBone, next.leftShoulder, next.chest);
+            SetBonePosition(leftUpperArmBone, next.leftShoulder, next.leftShoulder);
             SetBonePosition(leftForearmBone, next.leftElbow, next.leftShoulder);
             SetBonePosition(leftHandBone, next.leftWrist, next.leftElbow);
-            SetBonePosition(rightUpperArmBone, next.rightShoulder, next.chest);
+            SetBonePosition(rightShoulderBone, next.rightShoulder, next.chest);
+            SetBonePosition(rightUpperArmBone, next.rightShoulder, next.rightShoulder);
             SetBonePosition(rightForearmBone, next.rightElbow, next.rightShoulder);
             SetBonePosition(rightHandBone, next.rightWrist, next.rightElbow);
 
@@ -661,6 +891,7 @@ namespace SkinnyToBeast.Gameplay
             basePelvisPosition = pelvisBone.anchoredPosition;
 
             ApplyPart(torsoPart, next.torso);
+            ApplyPart(abdomenPart, next.abdomen);
             ApplyPart(pelvisPart, next.pelvisArt);
             ApplyPart(headPart, next.headArt);
             ApplyPart(leftUpperArmPart, next.leftUpperArm);
@@ -738,6 +969,8 @@ namespace SkinnyToBeast.Gameplay
             current.chest = Mathf.LerpAngle(current.chest, target.chest, blend);
             current.neck = Mathf.LerpAngle(current.neck, target.neck, blend);
             current.head = Mathf.LerpAngle(current.head, target.head, blend);
+            current.leftShoulder = Mathf.LerpAngle(current.leftShoulder, target.leftShoulder, blend);
+            current.rightShoulder = Mathf.LerpAngle(current.rightShoulder, target.rightShoulder, blend);
             current.leftUpperArm = Mathf.LerpAngle(current.leftUpperArm, target.leftUpperArm, blend);
             current.leftForearm = Mathf.LerpAngle(current.leftForearm, target.leftForearm, blend);
             current.leftHand = Mathf.LerpAngle(current.leftHand, target.leftHand, blend);
@@ -753,6 +986,10 @@ namespace SkinnyToBeast.Gameplay
             current.pelvisY = Mathf.Lerp(current.pelvisY, target.pelvisY, blend);
             current.pelvisX = Mathf.Lerp(current.pelvisX, target.pelvisX, blend);
             current.chestScale = Vector2.Lerp(current.chestScale, target.chestScale, blend);
+            current.abdomenScale = Vector2.Lerp(
+                current.abdomenScale,
+                target.abdomenScale,
+                blend);
         }
 
         private static float CalculateHeldEnvelope(float normalizedTime)
@@ -778,6 +1015,128 @@ namespace SkinnyToBeast.Gameplay
         private static void SetRotation(RectTransform rect, float degrees)
         {
             rect.localRotation = Quaternion.Euler(0f, 0f, degrees);
+        }
+
+        private void TryBindStateAnimator()
+        {
+            if (stateAnimator == null || animatorBound)
+            {
+                return;
+            }
+
+            RuntimeAnimatorController controller =
+                Resources.Load<RuntimeAnimatorController>(
+                    AnimatorResourcePath);
+            if (controller == null)
+            {
+                return;
+            }
+
+            stateAnimator.runtimeAnimatorController = controller;
+            stateAnimator.applyRootMotion = false;
+            stateAnimator.updateMode = AnimatorUpdateMode.UnscaledTime;
+            stateAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animatorBound = true;
+            currentBaseAnimatorState = string.Empty;
+        }
+
+        private void UpdateBaseAnimatorState()
+        {
+            if (!animatorBound)
+            {
+                TryBindStateAnimator();
+            }
+
+            string next;
+            if (!moving)
+            {
+                next = "Idle_Breathe";
+            }
+            else
+            {
+                CharacterFacing facing = ResolveFacing();
+                next = facing switch
+                {
+                    CharacterFacing.Back => "Walk_Back",
+                    CharacterFacing.SideLeft => "Walk_Side",
+                    CharacterFacing.SideRight => "Walk_Side",
+                    _ => "Walk_Front"
+                };
+            }
+
+            if (next == currentBaseAnimatorState)
+            {
+                return;
+            }
+
+            currentBaseAnimatorState = next;
+            CrossFadeState(next, 0, 0.12f);
+        }
+
+        private void PlayAnimatorAction(CharacterRoutineAction action)
+        {
+            switch (action)
+            {
+                case CharacterRoutineAction.ShiftWeight:
+                    CrossFadeState("Idle_ShiftWeight", 0, 0.12f);
+                    break;
+                case CharacterRoutineAction.LookAround:
+                    CrossFadeState("Face_Look", 2, 0.1f);
+                    break;
+                case CharacterRoutineAction.Scratch:
+                    CrossFadeState("Idle_Scratch", 1, 0.12f);
+                    break;
+                case CharacterRoutineAction.Yawn:
+                    CrossFadeState("Idle_Yawn", 1, 0.12f);
+                    break;
+                case CharacterRoutineAction.Stretch:
+                    CrossFadeState("Idle_Stretch", 1, 0.12f);
+                    break;
+                case CharacterRoutineAction.Flex:
+                    CrossFadeState("Idle_Flex", 1, 0.12f);
+                    break;
+                case CharacterRoutineAction.AdjustClothes:
+                    CrossFadeState("Idle_AdjustClothes", 1, 0.12f);
+                    break;
+                case CharacterRoutineAction.WarmShoulders:
+                    CrossFadeState("Idle_WarmShoulders", 1, 0.12f);
+                    break;
+                case CharacterRoutineAction.SitDown:
+                    CrossFadeState("SitDown", 3, 0.12f);
+                    break;
+                case CharacterRoutineAction.SitLoop:
+                    CrossFadeState("SitLoop", 0, 0.12f);
+                    break;
+                case CharacterRoutineAction.StandUp:
+                    CrossFadeState("StandUp", 3, 0.12f);
+                    break;
+            }
+        }
+
+        private void CrossFadeState(
+            string stateName,
+            int layer,
+            float duration)
+        {
+            if (!animatorBound || stateAnimator == null ||
+                stateAnimator.runtimeAnimatorController == null ||
+                layer < 0 ||
+                layer >= stateAnimator.layerCount)
+            {
+                return;
+            }
+
+            int hash = Animator.StringToHash(stateName);
+            if (!stateAnimator.HasState(layer, hash))
+            {
+                hash = Animator.StringToHash(
+                    $"{stateAnimator.GetLayerName(layer)}.{stateName}");
+            }
+
+            if (stateAnimator.HasState(layer, hash))
+            {
+                stateAnimator.CrossFade(hash, duration, layer);
+            }
         }
     }
 }
