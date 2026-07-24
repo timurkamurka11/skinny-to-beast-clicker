@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using SkinnyToBeast.Economy;
+using SkinnyToBeast.Gameplay;
 using SkinnyToBeast.Player;
 using SkinnyToBeast.Training;
 using SkinnyToBeast.Utils;
@@ -25,18 +26,14 @@ namespace SkinnyToBeast.UI
     {
         private const string RootName = "GameplayWindow";
         private const string MainMenuSceneName = "MainMenu";
-        private const string BackgroundResourcePath = "UI/Gameplay/starter_home_gym";
 
         private static readonly Color DeepBlue = new Color(0.035f, 0.13f, 0.23f, 0.96f);
-        private static readonly Color ElectricBlue = new Color(0.05f, 0.55f, 1f, 1f);
         private static readonly Color Orange = new Color(1f, 0.53f, 0.035f, 1f);
         private static readonly Color Gold = new Color(1f, 0.78f, 0.12f, 1f);
         private static readonly Color Muted = new Color(0.66f, 0.73f, 0.82f, 1f);
 
         private static GameplayWindowController instance;
         private static Sprite roundedSprite;
-        private static Sprite ringSprite;
-        private static Sprite backgroundSprite;
 
         private readonly Dictionary<string, TMP_Text> upgradeLabels = new();
         private readonly Dictionary<string, Button> upgradeButtons = new();
@@ -55,20 +52,18 @@ namespace SkinnyToBeast.UI
         private TMP_Text tapGainText;
         private TMP_Text toastText;
         private RectTransform progressFillRect;
-        private RectTransform pulsePrimaryRect;
-        private RectTransform pulseSecondaryRect;
-        private Image pulsePrimaryImage;
-        private Image pulseSecondaryImage;
         private GameObject upgradeSheet;
         private CanvasGroup toastGroup;
-        private Transform effectsLayer;
         private AudioSource tapAudioSource;
         private AudioClip tapAudioClip;
         private Coroutine toastRoutine;
+        private GameplayVisualStageController visualStageController;
+        private TapFeedbackController tapFeedbackController;
 
         private float tapPunch;
         private float lastTapTime = -10f;
         private int tapChain;
+        private int lastVisualBodyStage = -1;
         private bool isClosing;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -76,8 +71,6 @@ namespace SkinnyToBeast.UI
         {
             instance = null;
             roundedSprite = null;
-            ringSprite = null;
-            backgroundSprite = null;
         }
 
         public static bool Show()
@@ -208,68 +201,27 @@ namespace SkinnyToBeast.UI
             Image blocker = CreateStretchImage(transform, "InputBlocker", Color.black);
             blocker.raycastTarget = true;
 
-            BuildBackground(transform);
+            RectTransform livingScene =
+                CreateStretchRect(transform, "LivingGameplayScene");
+            visualStageController =
+                livingScene.gameObject.AddComponent<GameplayVisualStageController>();
+            visualStageController.Build();
+
+            RectTransform effectsRect = CreateStretchRect(transform, "TapEffects");
+            tapFeedbackController =
+                effectsRect.gameObject.AddComponent<TapFeedbackController>();
+            tapFeedbackController.Build(
+                effectsRect,
+                visualStageController.DumbbellPosition);
 
             RectTransform safeRoot = CreateStretchRect(transform, "SafeArea");
             safeRoot.gameObject.AddComponent<SafeAreaFitter>();
-
-            effectsLayer = CreateStretchRect(transform, "TapEffects");
 
             BuildTopHud(safeRoot);
             BuildTapArea(safeRoot);
             BuildBottomNavigation(safeRoot);
             BuildToast(safeRoot);
             BuildUpgradeSheet(safeRoot);
-        }
-
-        private static void BuildBackground(Transform parent)
-        {
-            GameObject backgroundObject = new GameObject(
-                "StarterRoomBackground",
-                typeof(RectTransform),
-                typeof(Image),
-                typeof(AspectRatioFitter));
-            backgroundObject.transform.SetParent(parent, false);
-
-            RectTransform rect = backgroundObject.GetComponent<RectTransform>();
-            Stretch(rect);
-
-            Image image = backgroundObject.GetComponent<Image>();
-            image.raycastTarget = false;
-            image.color = Color.white;
-
-            if (backgroundSprite == null)
-            {
-                backgroundSprite = Resources.Load<Sprite>(BackgroundResourcePath);
-                if (backgroundSprite == null)
-                {
-                    Texture2D texture = Resources.Load<Texture2D>(BackgroundResourcePath);
-                    if (texture != null)
-                    {
-                        backgroundSprite = Sprite.Create(
-                            texture,
-                            new Rect(0f, 0f, texture.width, texture.height),
-                            new Vector2(0.5f, 0.5f),
-                            100f);
-                        backgroundSprite.name = "StarterHomeGymRuntimeSprite";
-                    }
-                }
-            }
-
-            if (backgroundSprite != null)
-            {
-                image.sprite = backgroundSprite;
-            }
-            else
-            {
-                image.color = new Color(0.12f, 0.09f, 0.08f, 1f);
-                Debug.LogError(
-                    $"Gameplay background is missing at Resources/{BackgroundResourcePath}.");
-            }
-
-            AspectRatioFitter fitter = backgroundObject.GetComponent<AspectRatioFitter>();
-            fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-            fitter.aspectRatio = 9f / 16f;
         }
 
         private void BuildTopHud(RectTransform safeRoot)
@@ -382,28 +334,6 @@ namespace SkinnyToBeast.UI
 
         private void BuildTapArea(RectTransform safeRoot)
         {
-            pulseSecondaryRect = CreateRect(
-                safeRoot,
-                "DumbbellPulseOuter",
-                new Vector2(0.5f, 0f),
-                new Vector2(0f, 295f),
-                new Vector2(820f, 280f));
-            pulseSecondaryImage = pulseSecondaryRect.gameObject.AddComponent<Image>();
-            pulseSecondaryImage.sprite = GetRingSprite();
-            pulseSecondaryImage.color = new Color(ElectricBlue.r, ElectricBlue.g, ElectricBlue.b, 0.18f);
-            pulseSecondaryImage.raycastTarget = false;
-
-            pulsePrimaryRect = CreateRect(
-                safeRoot,
-                "DumbbellPulseInner",
-                new Vector2(0.5f, 0f),
-                new Vector2(0f, 295f),
-                new Vector2(680f, 225f));
-            pulsePrimaryImage = pulsePrimaryRect.gameObject.AddComponent<Image>();
-            pulsePrimaryImage.sprite = GetRingSprite();
-            pulsePrimaryImage.color = new Color(Orange.r, Orange.g, Orange.b, 0.32f);
-            pulsePrimaryImage.raycastTarget = false;
-
             tapHintText = CreateText(
                 safeRoot,
                 "TapHint",
@@ -430,8 +360,8 @@ namespace SkinnyToBeast.UI
                 safeRoot,
                 "DumbbellTapZone",
                 new Vector2(0.5f, 0f),
-                new Vector2(0f, 345f),
-                new Vector2(1000f, 520f));
+                new Vector2(0f, 330f),
+                new Vector2(930f, 490f));
             Image tapZoneImage = tapZoneRect.gameObject.AddComponent<Image>();
             tapZoneImage.color = new Color(1f, 1f, 1f, 0.001f);
             tapZoneImage.raycastTarget = true;
@@ -643,52 +573,14 @@ namespace SkinnyToBeast.UI
             tapPunch = 1f;
 
             string gain = $"+{FormatGain(gainedStrength)} POWER";
-            SpawnFloatingGain(gain);
+            visualStageController?.PlayTap();
+            tapFeedbackController?.EmitTap(gain, tapChain);
             PlayTapSound();
+            HapticsService.Tap();
 
             if (playerStats.BodyStageIndex > previousStage)
             {
                 ShowToast($"NEW BODY STAGE: {playerStats.BodyStageName.ToUpperInvariant()}");
-            }
-        }
-
-        private void SpawnFloatingGain(string value)
-        {
-            TMP_Text floating = CreateText(
-                effectsLayer,
-                "FloatingPower",
-                value,
-                35f,
-                new Vector2(UnityEngine.Random.Range(-155f, 155f), 455f),
-                new Vector2(420f, 60f),
-                Gold,
-                new Vector2(0.5f, 0f));
-            floating.outlineColor = new Color32(15, 20, 32, 255);
-            floating.outlineWidth = 0.22f;
-            StartCoroutine(AnimateFloatingGain(floating));
-        }
-
-        private static IEnumerator AnimateFloatingGain(TMP_Text floating)
-        {
-            RectTransform rect = floating.rectTransform;
-            Vector2 start = rect.anchoredPosition;
-            float duration = 0.72f;
-            float elapsed = 0f;
-
-            while (elapsed < duration && floating != null)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                float eased = 1f - (1f - t) * (1f - t);
-                rect.anchoredPosition = start + Vector2.up * (115f * eased);
-                rect.localScale = Vector3.one * Mathf.Lerp(0.72f, 1.16f, Mathf.Sin(t * Mathf.PI));
-                floating.alpha = 1f - t;
-                yield return null;
-            }
-
-            if (floating != null)
-            {
-                Destroy(floating.gameObject);
             }
         }
 
@@ -734,6 +626,9 @@ namespace SkinnyToBeast.UI
 
             ShowToast($"{upgrade.displayName.ToUpperInvariant()} UPGRADED TO LV.{upgrade.level}");
             UiSoundPlayer.PlayConfirm();
+            visualStageController?.PlayUpgrade();
+            tapFeedbackController?.EmitUpgrade(GetUpgradeEffectPosition(id));
+            HapticsService.Upgrade();
             Refresh();
         }
 
@@ -766,6 +661,20 @@ namespace SkinnyToBeast.UI
             tapGainText.text =
                 $"+{FormatGain(tapTrainingController.StrengthGainedPerTap)} POWER PER TAP";
 
+            bool animateVisualChange = lastVisualBodyStage >= 0;
+            visualStageController?.Sync(
+                playerStats.BodyStageIndex,
+                upgradeManager,
+                animateVisualChange);
+
+            if (lastVisualBodyStage >= 0 &&
+                playerStats.BodyStageIndex > lastVisualBodyStage)
+            {
+                tapFeedbackController?.EmitStageChange();
+                HapticsService.StageChange();
+            }
+
+            lastVisualBodyStage = playerStats.BodyStageIndex;
             RefreshUpgradeCards();
         }
 
@@ -815,31 +724,6 @@ namespace SkinnyToBeast.UI
         private void Update()
         {
             float time = Time.unscaledTime;
-            float primaryWave = (Mathf.Sin(time * 4.2f) + 1f) * 0.5f;
-            float secondaryWave = (Mathf.Sin(time * 3.1f + 1.7f) + 1f) * 0.5f;
-
-            if (pulsePrimaryRect != null)
-            {
-                float scale = 0.96f + primaryWave * 0.10f + tapPunch * 0.08f;
-                pulsePrimaryRect.localScale = Vector3.one * scale;
-                pulsePrimaryImage.color = new Color(
-                    Orange.r,
-                    Orange.g,
-                    Orange.b,
-                    0.18f + (1f - primaryWave) * 0.22f + tapPunch * 0.18f);
-            }
-
-            if (pulseSecondaryRect != null)
-            {
-                float scale = 0.97f + secondaryWave * 0.13f + tapPunch * 0.04f;
-                pulseSecondaryRect.localScale = Vector3.one * scale;
-                pulseSecondaryImage.color = new Color(
-                    ElectricBlue.r,
-                    ElectricBlue.g,
-                    ElectricBlue.b,
-                    0.10f + (1f - secondaryWave) * 0.16f);
-            }
-
             tapPunch = Mathf.MoveTowards(tapPunch, 0f, Time.unscaledDeltaTime * 5.8f);
 
             if (tapHintText != null)
@@ -974,7 +858,20 @@ namespace SkinnyToBeast.UI
 
             float settingVolume = Mathf.Clamp01(
                 PlayerPrefs.GetFloat("settings.sfx.volume", 0.8f));
+            tapAudioSource.pitch = UnityEngine.Random.Range(0.94f, 1.08f);
             tapAudioSource.PlayOneShot(tapAudioClip, 0.24f * settingVolume);
+        }
+
+        private static Vector2 GetUpgradeEffectPosition(string id)
+        {
+            return id switch
+            {
+                "dumbbells" => new Vector2(0f, 330f),
+                "protein" => new Vector2(372f, 690f),
+                "coach" => new Vector2(-370f, 985f),
+                "better_gym" => new Vector2(0f, 1030f),
+                _ => new Vector2(0f, 760f)
+            };
         }
 
         private void PauseMenuVideo()
@@ -1243,51 +1140,6 @@ namespace SkinnyToBeast.UI
                 new Vector4(20f, 20f, 20f, 20f));
             roundedSprite.name = "GameplayRoundedSprite";
             return roundedSprite;
-        }
-
-        private static Sprite GetRingSprite()
-        {
-            if (ringSprite != null)
-            {
-                return ringSprite;
-            }
-
-            const int size = 128;
-            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
-            {
-                name = "GameplayPulseRing",
-                filterMode = FilterMode.Bilinear,
-                wrapMode = TextureWrapMode.Clamp
-            };
-
-            Color32[] pixels = new Color32[size * size];
-            float center = (size - 1) * 0.5f;
-
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float normalizedX = (x - center) / center;
-                    float normalizedY = (y - center) / center;
-                    float distance = Mathf.Sqrt(
-                        normalizedX * normalizedX + normalizedY * normalizedY);
-                    float outer = 1f - Mathf.SmoothStep(0.93f, 1.0f, distance);
-                    float inner = Mathf.SmoothStep(0.82f, 0.90f, distance);
-                    float alpha = Mathf.Clamp01(outer * inner);
-                    pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
-                }
-            }
-
-            texture.SetPixels32(pixels);
-            texture.Apply(false, true);
-
-            ringSprite = Sprite.Create(
-                texture,
-                new Rect(0f, 0f, size, size),
-                new Vector2(0.5f, 0.5f),
-                100f);
-            ringSprite.name = "GameplayPulseRingSprite";
-            return ringSprite;
         }
 
         private static void Stretch(RectTransform rect)
