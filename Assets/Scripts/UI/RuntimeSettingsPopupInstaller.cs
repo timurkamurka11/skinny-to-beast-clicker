@@ -107,7 +107,9 @@ namespace SkinnyToBeast.UI
             panelImage.sprite = panelSprite;
             panelImage.preserveAspect = true;
             panelImage.raycastTarget = true;
-            panelImage.color = Color.white;
+            panelImage.color = panelSprite != null
+                ? Color.white
+                : new Color(1f, 1f, 1f, 0.001f);
 
             // The reference JPG contains a decorative preview of the controls.
             // Cover those baked pixels first, then draw one live interactive set above.

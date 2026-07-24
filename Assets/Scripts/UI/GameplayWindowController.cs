@@ -65,6 +65,7 @@ namespace SkinnyToBeast.UI
         private int tapChain;
         private int lastVisualBodyStage = -1;
         private bool isClosing;
+        private bool initialized;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
@@ -79,9 +80,15 @@ namespace SkinnyToBeast.UI
             {
                 if (instance != null)
                 {
-                    instance.gameObject.SetActive(true);
-                    instance.transform.SetAsLastSibling();
-                    return true;
+                    if (instance.initialized)
+                    {
+                        instance.gameObject.SetActive(true);
+                        instance.transform.SetAsLastSibling();
+                        return true;
+                    }
+
+                    UnityEngine.Object.Destroy(instance.gameObject);
+                    instance = null;
                 }
 
                 Canvas parentCanvas = FindOrCreateCanvas();
@@ -105,7 +112,20 @@ namespace SkinnyToBeast.UI
                 overlayCanvas.overrideSorting = true;
                 overlayCanvas.sortingOrder = 15000;
 
-                instance = root.AddComponent<GameplayWindowController>();
+                GameplayWindowController controller =
+                    root.AddComponent<GameplayWindowController>();
+                if (controller == null || !controller.initialized)
+                {
+                    if (instance == controller)
+                    {
+                        instance = null;
+                    }
+
+                    UnityEngine.Object.Destroy(root);
+                    return false;
+                }
+
+                instance = controller;
                 root.transform.SetAsLastSibling();
                 return true;
             }
@@ -171,16 +191,28 @@ namespace SkinnyToBeast.UI
             }
 
             instance = this;
-            EnsureEventSystem();
-            PauseMenuVideo();
-            CreateGameState();
-            BuildWindow();
+            initialized = false;
 
-            playerStats.StatsChanged += Refresh;
-            upgradeManager.UpgradesChanged += Refresh;
+            try
+            {
+                EnsureEventSystem();
+                PauseMenuVideo();
+                CreateGameState();
+                BuildWindow();
 
-            CreateTapAudio();
-            Refresh();
+                playerStats.StatsChanged += Refresh;
+                upgradeManager.UpgradesChanged += Refresh;
+
+                CreateTapAudio();
+                Refresh();
+                initialized = true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError(
+                    $"Gameplay room initialization failed: {exception}",
+                    this);
+            }
         }
 
         private void CreateGameState()
@@ -206,6 +238,11 @@ namespace SkinnyToBeast.UI
             visualStageController =
                 livingScene.gameObject.AddComponent<GameplayVisualStageController>();
             visualStageController.Build();
+            if (!visualStageController.IsReady)
+            {
+                throw new InvalidOperationException(
+                    "The living gameplay room or its background asset is not ready.");
+            }
 
             RectTransform effectsRect = CreateStretchRect(transform, "TapEffects");
             tapFeedbackController =

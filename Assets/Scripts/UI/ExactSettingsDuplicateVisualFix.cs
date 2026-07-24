@@ -106,9 +106,21 @@ namespace SkinnyToBeast.UI
             if (panelImage != null)
             {
                 referenceSprite ??= EmbeddedSettingsAssets.CreatePanelSprite();
-                panelImage.sprite = referenceSprite;
-                panelImage.preserveAspect = true;
-                panelImage.color = Color.white;
+                if (referenceSprite != null)
+                {
+                    panelImage.sprite = referenceSprite;
+                    panelImage.preserveAspect = true;
+                    panelImage.color = Color.white;
+                }
+                else
+                {
+                    // Keep the procedural hard-fix visible while Unity finishes
+                    // importing the exact JPG instead of drawing a white panel.
+                    panelImage.sprite = null;
+                    panelImage.color =
+                        new Color(1f, 1f, 1f, 0.001f);
+                }
+
                 panelImage.raycastTarget = true;
             }
 

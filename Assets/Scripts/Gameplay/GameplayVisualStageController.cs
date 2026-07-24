@@ -52,6 +52,10 @@ namespace SkinnyToBeast.Gameplay
         private bool built;
 
         public Vector2 DumbbellPosition => DumbbellScenePosition;
+        public bool IsReady =>
+            built &&
+            roomBaseImage != null &&
+            roomBaseImage.sprite != null;
         internal CharacterRigController CharacterRig => characterRig;
         internal DumbbellTapAnimator DumbbellAnimator => dumbbellAnimator;
 

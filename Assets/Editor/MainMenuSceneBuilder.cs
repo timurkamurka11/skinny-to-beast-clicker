@@ -16,6 +16,69 @@ using UnityEngine.Video;
 
 namespace SkinnyToBeast.EditorTools
 {
+    [InitializeOnLoad]
+    internal static class SettingsReferenceAssetImportGuard
+    {
+        private const string ReferencePath =
+            "Assets/Resources/UI/Settings/settings_ref.jpg";
+
+        static SettingsReferenceAssetImportGuard()
+        {
+            EditorApplication.delayCall -= EnsureCorrectImport;
+            EditorApplication.delayCall += EnsureCorrectImport;
+        }
+
+        private static void EnsureCorrectImport()
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                EditorApplication.delayCall -= EnsureCorrectImport;
+                EditorApplication.delayCall += EnsureCorrectImport;
+                return;
+            }
+
+            TextureImporter importer =
+                AssetImporter.GetAtPath(ReferencePath) as TextureImporter;
+            if (importer == null)
+            {
+                return;
+            }
+
+            bool changed =
+                importer.textureType != TextureImporterType.Sprite ||
+                importer.spriteImportMode != SpriteImportMode.Single ||
+                importer.mipmapEnabled ||
+                importer.sRGBTexture == false ||
+                importer.alphaIsTransparency ||
+                importer.npotScale != TextureImporterNPOTScale.None ||
+                importer.maxTextureSize != 2048 ||
+                importer.filterMode != FilterMode.Bilinear ||
+                importer.wrapMode != TextureWrapMode.Clamp;
+
+            if (!changed)
+            {
+                return;
+            }
+
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.spritePixelsPerUnit = 100f;
+            importer.mipmapEnabled = false;
+            importer.sRGBTexture = true;
+            importer.alphaIsTransparency = false;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.maxTextureSize = 2048;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.SaveAndReimport();
+
+            Debug.Log(
+                "Settings reference image importer repaired: Sprite (Single), " +
+                "no mipmaps, clamp wrapping."
+            );
+        }
+    }
+
     public static class MainMenuSceneBuilder
     {
         private const string ScenePath = "Assets/Scenes/MainMenu.unity";

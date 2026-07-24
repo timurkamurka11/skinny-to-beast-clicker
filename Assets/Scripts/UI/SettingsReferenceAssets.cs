@@ -15,24 +15,49 @@ namespace SkinnyToBeast.UI
     internal static class SettingsReferenceAssets
     {
         private const string PanelResourcePath = "UI/Settings/settings_ref";
+        private static Sprite cachedPanelSprite;
+        private static bool missingPanelLogged;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetRuntimeCache()
+        {
+            cachedPanelSprite = null;
+            missingPanelLogged = false;
+        }
 
         public static Sprite CreatePanelSprite()
         {
+            if (cachedPanelSprite != null)
+            {
+                return cachedPanelSprite;
+            }
+
             // Unity may import an image in Resources as either a Sprite or a
             // Texture2D depending on its TextureImporter settings.
             Sprite importedSprite = Resources.Load<Sprite>(PanelResourcePath);
             if (importedSprite != null)
             {
-                return importedSprite;
+                cachedPanelSprite = importedSprite;
+                missingPanelLogged = false;
+                return cachedPanelSprite;
             }
 
             Texture2D texture = Resources.Load<Texture2D>(PanelResourcePath);
             if (texture == null)
             {
-                Debug.LogError(
-                    "Settings reference image could not be loaded as a Sprite or Texture2D. Expected: " +
-                    "Assets/Resources/UI/Settings/settings_ref.jpg"
-                );
+                // An editor import guard fixes the source importer before play.
+                // Keep this warning single-shot so a bad local .meta file can
+                // never flood the Console every frame and stall START.
+                if (!missingPanelLogged)
+                {
+                    Debug.LogWarning(
+                        "Settings reference image is not available yet. " +
+                        "The procedural settings background will be used until " +
+                        "Assets/Resources/UI/Settings/settings_ref.jpg finishes importing."
+                    );
+                    missingPanelLogged = true;
+                }
+
                 return null;
             }
 
@@ -46,7 +71,9 @@ namespace SkinnyToBeast.UI
             );
             sprite.name = "SettingsReferencePanelSprite";
             sprite.hideFlags = HideFlags.HideAndDontSave;
-            return sprite;
+            cachedPanelSprite = sprite;
+            missingPanelLogged = false;
+            return cachedPanelSprite;
         }
 
         public static AudioClip LoadSound(UiSoundId id)

@@ -22,11 +22,13 @@ namespace SkinnyToBeast.UI
         private static GameEntryFlowController instance;
 
         private CanvasGroup rootGroup;
-        private RawImage doorImage;
+        private RectTransform backgroundRect;
         private RawImage walkingCharacter;
         private RectTransform walkingCharacterRect;
         private RectTransform characterShadow;
-        private Image portalLight;
+        private Image characterShadowImage;
+        private Image doorwayGlow;
+        private Image transitionCurtain;
         private TMP_Text statusText;
         private TMP_Text dotsText;
         private CharacterDirectionalFrame[] entryDirectionalFrames;
@@ -86,9 +88,22 @@ namespace SkinnyToBeast.UI
                 root.AddComponent<GameEntryFlowController>();
             controller.openGameplay = gameplayOpener;
             controller.completion = onComplete;
-            controller.Build(rootRect);
             instance = controller;
-            return true;
+
+            try
+            {
+                controller.Build(rootRect);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError(
+                    $"Could not build game entry screen: {exception}",
+                    controller);
+                instance = null;
+                UnityEngine.Object.Destroy(root);
+                return false;
+            }
         }
 
         private void Build(RectTransform root)
@@ -117,7 +132,8 @@ namespace SkinnyToBeast.UI
                 root,
                 "EntryBackground",
                 backgroundSprite,
-                Color.white);
+                backgroundSprite != null ? Color.white : Color.black);
+            backgroundRect = background.rectTransform;
             AspectRatioFitter backgroundFitter =
                 background.gameObject.AddComponent<AspectRatioFitter>();
             backgroundFitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
@@ -130,48 +146,26 @@ namespace SkinnyToBeast.UI
                 new Color(0f, 0f, 0f, 0.13f));
             vignette.raycastTarget = false;
 
-            portalLight = CreateImage(
-                root,
-                "DoorLight",
-                new Vector2(0f, 95f),
-                new Vector2(548f, 1055f),
-                LivingGameplayVisualFactory.GetRoundedSprite(),
-                new Color(0.04f, 0.32f, 0.72f, 0f));
-
-            RectTransform glowRect = CreateRect(
+            doorwayGlow = CreateImage(
                 root,
                 "DoorGlow",
                 new Vector2(0f, 90f),
-                new Vector2(670f, 1160f));
-            Image glow = glowRect.gameObject.AddComponent<Image>();
-            glow.sprite = LivingGameplayVisualFactory.GetSoftCircleSprite();
-            glow.color = new Color(0.05f, 0.48f, 1f, 0f);
-            glow.raycastTarget = false;
-            glow.transform.SetSiblingIndex(portalLight.transform.GetSiblingIndex());
-
-            Texture doorTexture = backgroundSprite != null
-                ? backgroundSprite.texture
-                : null;
-            RectTransform doorRect = CreateRect(
-                root,
-                "OpeningDoor",
-                new Vector2(0f, 95f),
-                new Vector2(548f, 1055f));
-            doorImage = doorRect.gameObject.AddComponent<RawImage>();
-            doorImage.texture = doorTexture;
-            doorImage.uvRect = new Rect(0.255f, 0.255f, 0.49f, 0.57f);
-            doorImage.color = Color.white;
-            doorImage.raycastTarget = false;
+                new Vector2(620f, 1120f),
+                LivingGameplayVisualFactory.GetSoftCircleSprite(),
+                new Color(0.12f, 0.55f, 1f, 0f));
 
             characterShadow = CreateRect(
                 root,
                 "EntryCharacterShadow",
                 new Vector2(0f, -560f),
                 new Vector2(330f, 92f));
-            Image shadowImage = characterShadow.gameObject.AddComponent<Image>();
-            shadowImage.sprite = LivingGameplayVisualFactory.GetSoftCircleSprite();
-            shadowImage.color = new Color(0f, 0f, 0f, 0.38f);
-            shadowImage.raycastTarget = false;
+            characterShadowImage =
+                characterShadow.gameObject.AddComponent<Image>();
+            characterShadowImage.sprite =
+                LivingGameplayVisualFactory.GetSoftCircleSprite();
+            characterShadowImage.color =
+                new Color(0f, 0f, 0f, 0.38f);
+            characterShadowImage.raycastTarget = false;
 
             int artIndex = ResolveSavedArtIndex();
             string walkPath = WalkSheetRoot + $"{artIndex + 1:00}";
@@ -192,6 +186,7 @@ namespace SkinnyToBeast.UI
             walkingCharacter.texture = walkSheet;
             walkingCharacter.color = Color.white;
             walkingCharacter.raycastTarget = false;
+            walkingCharacter.enabled = walkSheet != null;
             ApplyEntryWalkFrame(0, 1.05f, new Vector2(0f, -260f));
 
             RectTransform statusPanel = CreateRect(
@@ -222,10 +217,17 @@ namespace SkinnyToBeast.UI
                 new Vector2(360f, 40f),
                 new Color(0.15f, 0.61f, 1f, 1f));
 
-            StartCoroutine(EntryRoutine(glow));
+            transitionCurtain = CreateStretchImage(
+                root,
+                "RoomTransitionCurtain",
+                null,
+                new Color(0f, 0f, 0f, 0f));
+            transitionCurtain.transform.SetAsLastSibling();
+
+            StartCoroutine(EntryRoutine());
         }
 
-        private IEnumerator EntryRoutine(Image glow)
+        private IEnumerator EntryRoutine()
         {
             opening = true;
             yield return FadeGroup(0f, 1f, 0.22f);
@@ -261,33 +263,36 @@ namespace SkinnyToBeast.UI
             }
 
             dotsText.text = "●  ●  ●";
-            statusText.text = "OPENING THE DOOR";
-            yield return new WaitForSecondsRealtime(0.13f);
+            statusText.text = "PREPARING THE ROOM";
+            yield return new WaitForSecondsRealtime(0.1f);
 
             elapsed = 0f;
-            const float openDuration = 0.56f;
-            Vector2 doorStart = doorImage.rectTransform.anchoredPosition;
-            while (elapsed < openDuration)
+            const float approachDuration = 0.42f;
+            while (elapsed < approachDuration)
             {
                 elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / openDuration);
-                float eased = 1f - Mathf.Pow(1f - t, 3f);
+                float t = Mathf.Clamp01(elapsed / approachDuration);
+                float eased = Mathf.SmoothStep(0f, 1f, t);
 
-                SetAlpha(portalLight, eased);
-                SetAlpha(glow, eased * 0.72f);
-                doorImage.rectTransform.anchoredPosition =
-                    doorStart + new Vector2(eased * 565f, 0f);
-                doorImage.rectTransform.localRotation =
-                    Quaternion.Euler(0f, 0f, -eased * 3.5f);
+                SetAlpha(doorwayGlow, eased * 0.32f);
+                backgroundRect.localScale =
+                    Vector3.one * Mathf.Lerp(1f, 1.045f, eased);
                 walkingCharacter.color = WithAlpha(
                     walkingCharacter.color,
                     1f - eased);
+                SetAlpha(characterShadowImage, 0.38f * (1f - eased));
                 yield return null;
             }
 
-            // The gameplay window is prepared behind this opaque entry screen.
-            // It cannot flash an old body stage because its skin is synchronized
-            // before this screen fades away.
+            // Cover the entry scene before building the room. This hides any
+            // one-frame layout/import work and replaces the old cropped-door
+            // trick that could expose a solid blue rectangle.
+            yield return FadeGraphic(
+                transitionCurtain,
+                0f,
+                1f,
+                0.2f);
+
             bool opened = false;
             try
             {
@@ -300,6 +305,11 @@ namespace SkinnyToBeast.UI
 
             if (!opened)
             {
+                yield return FadeGraphic(
+                    transitionCurtain,
+                    1f,
+                    0f,
+                    0.2f);
                 statusText.text = "COULD NOT ENTER";
                 dotsText.text = "●  ○  ○";
                 yield return new WaitForSecondsRealtime(0.55f);
@@ -309,10 +319,13 @@ namespace SkinnyToBeast.UI
                 yield break;
             }
 
-            statusText.text = "READY";
+            // Give the newly-created room one complete UI layout/render cycle,
+            // then reveal it through the black transition curtain.
             yield return null;
-            yield return new WaitForSecondsRealtime(0.12f);
-            yield return FadeGroup(1f, 0f, 0.34f);
+            Canvas.ForceUpdateCanvases();
+            yield return new WaitForEndOfFrame();
+            yield return FadeGroup(1f, 0f, 0.42f);
+            opening = false;
             completion?.Invoke(true);
             Destroy(gameObject);
         }
@@ -358,6 +371,33 @@ namespace SkinnyToBeast.UI
             }
 
             rootGroup.alpha = to;
+        }
+
+        private static IEnumerator FadeGraphic(
+            Graphic graphic,
+            float from,
+            float to,
+            float duration)
+        {
+            if (graphic == null)
+            {
+                yield break;
+            }
+
+            float elapsed = 0f;
+            SetAlpha(graphic, from);
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(
+                    elapsed / Mathf.Max(0.01f, duration));
+                SetAlpha(
+                    graphic,
+                    Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, t)));
+                yield return null;
+            }
+
+            SetAlpha(graphic, to);
         }
 
         private static int ResolveSavedArtIndex()

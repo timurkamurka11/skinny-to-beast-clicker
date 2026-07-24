@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace SkinnyToBeast.UI
 {
@@ -9,9 +8,6 @@ namespace SkinnyToBeast.UI
         private const string MusicKey = "settings.music";
         private const string SfxKey = "settings.sfx";
         private const string VibrationKey = "settings.vibration";
-
-        [Header("Scene Names")]
-        [SerializeField] private string gameplaySceneName = "Main";
 
         [Header("Animated Popups")]
         [SerializeField] private PopupPanelAnimator settingsPanel;
@@ -72,18 +68,7 @@ namespace SkinnyToBeast.UI
 
         private bool OpenGameplay()
         {
-            if (GameplayWindowController.Show())
-            {
-                return true;
-            }
-
-            if (Application.CanStreamedLevelBeLoaded(gameplaySceneName))
-            {
-                SceneManager.LoadScene(gameplaySceneName);
-                return true;
-            }
-
-            return false;
+            return GameplayWindowController.Show();
         }
 
         private void HandleEntryCompleted(bool success)
@@ -98,8 +83,8 @@ namespace SkinnyToBeast.UI
         private void ShowGameplayMissingMessage()
         {
             ShowMessage(
-                "GAMEPLAY SCENE MISSING",
-                $"Scene '{gameplaySceneName}' is not available in Build Settings. Rebuild Main and MainMenu through the Tools menu."
+                "ROOM COULD NOT OPEN",
+                "The living gameplay room could not be initialized. Check the first red Console error after pressing START."
             );
         }
 
