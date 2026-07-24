@@ -407,7 +407,6 @@ namespace SkinnyToBeast.Editor
                 AssetDatabase.DeleteAsset(RootFolder);
             }
 
-            SessionState.SetBool(SessionKey, false);
             AssetDatabase.Refresh();
         }
     }

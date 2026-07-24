@@ -223,7 +223,7 @@ namespace SkinnyToBeast.EditorTools
             text.color = color;
             text.raycastTarget = false;
             text.overflowMode = TextOverflowModes.Overflow;
-            text.enableWordWrapping = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
             text.transform.SetAsLastSibling();
             return text;
         }
@@ -253,7 +253,7 @@ namespace SkinnyToBeast.EditorTools
         {
             Button button = CreateButton(name, parent, label, anchoredPosition, new Vector2(420, 140), new Color(0.13f, 0.46f, 0.23f), 31);
             labelText = button.GetComponentInChildren<TMP_Text>();
-            labelText.enableWordWrapping = true;
+            labelText.textWrappingMode = TextWrappingModes.Normal;
             labelText.overflowMode = TextOverflowModes.Ellipsis;
             return button;
         }

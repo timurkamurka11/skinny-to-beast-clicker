@@ -522,7 +522,7 @@ namespace SkinnyToBeast.UI
                 Vector2.zero,
                 new Vector2(410f, 180f),
                 Color.white);
-            label.enableWordWrapping = true;
+            label.textWrappingMode = TextWrappingModes.Normal;
             label.richText = true;
 
             button.onClick.AddListener(() => TryPurchaseUpgrade(id));
@@ -1081,7 +1081,7 @@ namespace SkinnyToBeast.UI
             text.fontSizeMax = fontSize;
             text.raycastTarget = false;
             text.overflowMode = TextOverflowModes.Ellipsis;
-            text.enableWordWrapping = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
             text.outlineColor = new Color32(8, 12, 20, 225);
             text.outlineWidth = 0.10f;
             return text;
