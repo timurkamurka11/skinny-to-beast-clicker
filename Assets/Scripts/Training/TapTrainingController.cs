@@ -21,6 +21,9 @@ namespace SkinnyToBeast.Training
         public double CoinsPerRep => coinsPerRep;
         public double TapPowerMultiplier => tapPowerMultiplier;
         public double CoinMultiplier => coinMultiplier;
+        public double RepsGainedPerTap => repsPerTap * tapPowerMultiplier;
+        public double StrengthGainedPerTap => RepsGainedPerTap * strengthPerRep;
+        public double CoinsGainedPerTap => RepsGainedPerTap * coinsPerRep * coinMultiplier;
 
         public void SetPlayerStats(PlayerStats stats)
         {
@@ -50,6 +53,12 @@ namespace SkinnyToBeast.Training
         public void AddCoinMultiplier(double amount)
         {
             coinMultiplier += amount;
+        }
+
+        public void ResetMultipliers()
+        {
+            tapPowerMultiplier = 1d;
+            coinMultiplier = 1d;
         }
     }
 }

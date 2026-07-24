@@ -47,6 +47,11 @@ namespace SkinnyToBeast.UI
         {
             CloseAllPanels();
 
+            if (GameplayWindowController.Show())
+            {
+                return;
+            }
+
             if (Application.CanStreamedLevelBeLoaded(gameplaySceneName))
             {
                 SceneManager.LoadScene(gameplaySceneName);
