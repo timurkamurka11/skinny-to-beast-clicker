@@ -37,9 +37,9 @@ namespace SkinnyToBeast.UI
             sfxEnabled = PlayerPrefs.GetInt(SfxKey, 1) == 1;
             vibrationEnabled = PlayerPrefs.GetInt(VibrationKey, 1) == 1;
 
-            settingsPanel?.HideImmediate();
-            shopPanel?.HideImmediate();
-            messagePanel?.HideImmediate();
+            HidePanelImmediate(settingsPanel);
+            HidePanelImmediate(shopPanel);
+            HidePanelImmediate(messagePanel);
             RefreshSettingsLabels();
         }
 
@@ -76,24 +76,24 @@ namespace SkinnyToBeast.UI
 
         public void CloseSettings()
         {
-            settingsPanel?.Hide();
+            HidePanel(settingsPanel);
         }
 
         public void CloseShop()
         {
-            shopPanel?.Hide();
+            HidePanel(shopPanel);
         }
 
         public void CloseMessage()
         {
-            messagePanel?.Hide();
+            HidePanel(messagePanel);
         }
 
         public void CloseAllPanels()
         {
-            settingsPanel?.Hide();
-            shopPanel?.Hide();
-            messagePanel?.Hide();
+            HidePanel(settingsPanel);
+            HidePanel(shopPanel);
+            HidePanel(messagePanel);
         }
 
         public void ToggleMusic()
@@ -186,20 +186,40 @@ namespace SkinnyToBeast.UI
 
             if (settingsPanel != panel)
             {
-                settingsPanel?.Hide();
+                HidePanel(settingsPanel);
             }
 
             if (shopPanel != panel)
             {
-                shopPanel?.Hide();
+                HidePanel(shopPanel);
             }
 
             if (messagePanel != panel)
             {
-                messagePanel?.Hide();
+                HidePanel(messagePanel);
             }
 
             panel.Show();
+        }
+
+        private static void HidePanel(PopupPanelAnimator panel)
+        {
+            // Unity keeps a managed reference after the native object is destroyed.
+            // A null-conditional call (panel?.Hide()) only checks the managed
+            // reference and therefore throws MissingReferenceException. The
+            // explicit Unity null comparison correctly treats it as destroyed.
+            if (panel != null)
+            {
+                panel.Hide();
+            }
+        }
+
+        private static void HidePanelImmediate(PopupPanelAnimator panel)
+        {
+            if (panel != null)
+            {
+                panel.HideImmediate();
+            }
         }
 
         private void RefreshSettingsLabels()
