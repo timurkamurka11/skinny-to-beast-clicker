@@ -18,11 +18,19 @@ namespace SkinnyToBeast.UI
 
         public static Sprite CreatePanelSprite()
         {
+            // Unity may import an image in Resources as either a Sprite or a
+            // Texture2D depending on its TextureImporter settings.
+            Sprite importedSprite = Resources.Load<Sprite>(PanelResourcePath);
+            if (importedSprite != null)
+            {
+                return importedSprite;
+            }
+
             Texture2D texture = Resources.Load<Texture2D>(PanelResourcePath);
             if (texture == null)
             {
                 Debug.LogError(
-                    "Settings reference image is missing. Expected: " +
+                    "Settings reference image could not be loaded as a Sprite or Texture2D. Expected: " +
                     "Assets/Resources/UI/Settings/settings_ref.jpg"
                 );
                 return null;
