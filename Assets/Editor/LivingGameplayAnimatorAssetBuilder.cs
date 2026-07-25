@@ -16,6 +16,9 @@ namespace SkinnyToBeast.Editor
             "Assets/Resources/UI/Gameplay/Living/Animations";
         private const string ControllerPath =
             RootFolder + "/LivingCharacter.controller";
+        private const ImportAssetOptions FolderSyncOptions =
+            ImportAssetOptions.ForceSynchronousImport |
+            ImportAssetOptions.ForceUpdate;
 
         private const string Root =
             "VisualRoot/Skeleton/Bone.Root";
@@ -1109,34 +1112,44 @@ namespace SkinnyToBeast.Editor
                     nameof(path));
             }
 
-            string[] parts = path.Split('/');
-            string current = parts[0];
-            for (int i = 1; i < parts.Length; i++)
+            string normalizedPath =
+                path.TrimEnd('/').Replace('\\', '/');
+            string absolutePath =
+                ToAbsoluteAssetPath(normalizedPath);
+            bool existsOnDisk = Directory.Exists(absolutePath);
+            bool existsInAssetDatabase =
+                AssetDatabase.IsValidFolder(normalizedPath);
+            if (existsOnDisk && existsInAssetDatabase)
             {
-                string next = $"{current}/{parts[i]}";
-                string absoluteNext = ToAbsoluteAssetPath(next);
-                if (!AssetDatabase.IsValidFolder(next))
-                {
-                    string guid =
-                        AssetDatabase.CreateFolder(current, parts[i]);
-                    if (string.IsNullOrEmpty(guid) ||
-                        !AssetDatabase.IsValidFolder(next))
-                    {
-                        Directory.CreateDirectory(absoluteNext);
-                        AssetDatabase.Refresh(
-                            ImportAssetOptions.ForceSynchronousImport);
-                    }
-                }
+                return;
+            }
 
-                if (!AssetDatabase.IsValidFolder(next) ||
-                    !Directory.Exists(absoluteNext))
-                {
-                    throw new DirectoryNotFoundException(
-                        "Could not create required Unity asset folder: " +
-                        next);
-                }
+            // AssetDatabase can temporarily report a deleted folder as valid
+            // on Windows. The physical directory is therefore the source of
+            // truth during recovery. Creating the final path in one operation
+            // also restores every missing parent before Unity imports it.
+            if (!existsOnDisk)
+            {
+                Directory.CreateDirectory(absolutePath);
+            }
 
-                current = next;
+            if (!Directory.Exists(absolutePath))
+            {
+                throw new DirectoryNotFoundException(
+                    "Could not create required Unity asset folder on disk: " +
+                    normalizedPath);
+            }
+
+            // Refresh whenever either view was stale. This covers both
+            // states: a folder known only to AssetDatabase and a folder known
+            // only to the filesystem.
+            AssetDatabase.Refresh(FolderSyncOptions);
+            if (!AssetDatabase.IsValidFolder(normalizedPath))
+            {
+                throw new DirectoryNotFoundException(
+                    "Unity did not register required asset folder after " +
+                    $"synchronous recovery: {normalizedPath}. " +
+                    $"Disk exists: {Directory.Exists(absolutePath)}.");
             }
         }
 
