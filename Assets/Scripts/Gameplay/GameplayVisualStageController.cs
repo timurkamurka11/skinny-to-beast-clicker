@@ -59,6 +59,9 @@ namespace SkinnyToBeast.Gameplay
             built &&
             roomBaseImage != null &&
             roomBaseImage.sprite != null;
+        public bool HasVisibleCharacter =>
+            skinController != null &&
+            skinController.IsVisualReady;
         internal CharacterRigController CharacterRig => characterRig;
         internal DumbbellTapAnimator DumbbellAnimator => dumbbellAnimator;
 
@@ -97,7 +100,12 @@ namespace SkinnyToBeast.Gameplay
             int roomLevel = GetUpgradeLevel(upgradeManager, "better_gym");
             int dumbbellArt = ResolveDumbbellArt(dumbbellLevel);
 
-            if (characterArt != currentCharacterArt)
+            bool characterTargetMatches =
+                skinController != null &&
+                skinController.TargetArtIndex == characterArt;
+            if (!characterTargetMatches ||
+                (!skinController.IsTransitioning &&
+                 !skinController.IsVisualReady))
             {
                 ApplyCharacter(characterArt, animate && currentCharacterArt >= 0);
             }
@@ -258,7 +266,10 @@ namespace SkinnyToBeast.Gameplay
                 anchors[1].Position);
             CanvasGroup characterGroup =
                 GetOrAddComponent<CanvasGroup>(characterRoot.gameObject);
-            characterGroup.alpha = 0f;
+            // The rig starts with every renderer cleared, so the root itself
+            // does not need to remain transparent while the saved skin is
+            // selected. This also overrides the old hidden prefab default.
+            characterGroup.alpha = 1f;
             characterGroup.interactable = false;
             characterGroup.blocksRaycasts = false;
 
@@ -503,6 +514,24 @@ namespace SkinnyToBeast.Gameplay
             }
 
             skinController.ApplySkin(safeIndex, animate);
+            if (skinController.IsTransitioning &&
+                skinController.TargetArtIndex == safeIndex)
+            {
+                currentCharacterArt = safeIndex;
+                return;
+            }
+
+            if (skinController.CurrentArtIndex != safeIndex ||
+                !skinController.EnsureVisibleSkin())
+            {
+                currentCharacterArt = -1;
+                Debug.LogError(
+                    $"Character stage {safeIndex + 1} was selected but did " +
+                    "not produce a visible rig. The next Sync will retry it.",
+                    this);
+                return;
+            }
+
             rigValidator?.ValidateNow(false);
             currentCharacterArt = safeIndex;
         }

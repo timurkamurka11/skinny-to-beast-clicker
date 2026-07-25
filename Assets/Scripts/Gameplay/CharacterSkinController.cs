@@ -14,13 +14,23 @@ namespace SkinnyToBeast.Gameplay
         private CanvasGroup characterGroup;
         private Coroutine transitionRoutine;
         private int currentArtIndex = -1;
+        private int pendingArtIndex = -1;
         private bool configured;
 
         public int CurrentArtIndex => currentArtIndex;
+        public int TargetArtIndex =>
+            transitionRoutine != null ? pendingArtIndex : currentArtIndex;
+        public bool IsTransitioning => transitionRoutine != null;
         public int DefinitionCount => definitions != null ? definitions.Length : 0;
         public int ActiveBaseSkinCount =>
             activeSlots.ContainsKey(CharacterSkinSlot.Body) ? 1 : 0;
         public int ActiveSlotCount => activeSlots.Count;
+        public bool IsVisualReady =>
+            configured &&
+            currentArtIndex >= 0 &&
+            (characterGroup == null || characterGroup.alpha > 0.999f) &&
+            rigController != null &&
+            rigController.HasVisibleSkin;
         public CharacterSkinDefinition CurrentDefinition =>
             definitions != null &&
             currentArtIndex >= 0 &&
@@ -54,13 +64,16 @@ namespace SkinnyToBeast.Gameplay
             configured = definitions.Length > 0 && rigController != null;
             if (configured)
             {
-                // Keep the actor hidden until GameplayVisualStageController
-                // resolves the saved body stage. Showing stage 1 here first
-                // caused the old body to flash for one rendered frame.
+                // Keep every body renderer empty until
+                // GameplayVisualStageController resolves the saved stage.
+                // Showing stage 1 here first caused an old-body flash.
                 activeSlots.Clear();
                 currentArtIndex = -1;
                 rigController.ClearSkin();
-                SetAlpha(0f);
+                // ClearSkin already disables every body part, so there is no
+                // default stage to flash. Keeping the root group visible avoids
+                // carrying the prefab's hidden alpha into the first room Sync.
+                SetAlpha(1f);
             }
         }
 
@@ -74,6 +87,7 @@ namespace SkinnyToBeast.Gameplay
             int safeIndex = Mathf.Clamp(artIndex, 0, definitions.Length - 1);
             if (safeIndex == currentArtIndex)
             {
+                pendingArtIndex = -1;
                 EnsureVisibleState();
                 return;
             }
@@ -82,6 +96,7 @@ namespace SkinnyToBeast.Gameplay
             {
                 StopCoroutine(transitionRoutine);
                 transitionRoutine = null;
+                pendingArtIndex = -1;
                 EnsureVisibleState();
             }
 
@@ -91,6 +106,7 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
+            pendingArtIndex = safeIndex;
             transitionRoutine = StartCoroutine(SwapSkinRoutine(safeIndex));
         }
 
@@ -130,10 +146,12 @@ namespace SkinnyToBeast.Gameplay
 
             SetAlpha(1f);
             transitionRoutine = null;
+            pendingArtIndex = -1;
         }
 
         private void ApplyImmediate(int nextIndex)
         {
+            pendingArtIndex = -1;
             ApplyDefinition(nextIndex);
             EnsureVisibleState();
         }
@@ -191,8 +209,19 @@ namespace SkinnyToBeast.Gameplay
             }
 
             rigController.ApplySkin(definition);
+            if (!rigController.HasAppliedSkin)
+            {
+                Debug.LogError(
+                    $"Skin '{definition.Id}' could not be installed on the rig.",
+                    this);
+                activeSlots.Clear();
+                currentArtIndex = -1;
+                return;
+            }
+
             rigController.SynchronizeAnimationState();
             currentArtIndex = nextIndex;
+            rigController.EnsureSkinVisible();
         }
 
         public bool TryGetActiveItem(
@@ -232,11 +261,40 @@ namespace SkinnyToBeast.Gameplay
         private void EnsureVisibleState()
         {
             SetAlpha(1f);
+            rigController?.EnsureSkinVisible();
             if (characterGroup != null)
             {
                 characterGroup.interactable = false;
                 characterGroup.blocksRaycasts = false;
             }
+        }
+
+        public bool EnsureVisibleSkin()
+        {
+            if (!configured || currentArtIndex < 0)
+            {
+                return false;
+            }
+
+            EnsureVisibleState();
+            return IsVisualReady;
+        }
+
+        private void LateUpdate()
+        {
+            if (!configured ||
+                currentArtIndex < 0 ||
+                transitionRoutine != null ||
+                IsVisualReady)
+            {
+                return;
+            }
+
+            // Prefab defaults, an Animator write or an interrupted transition
+            // may change UI visibility after ApplySkin. Restore the selected
+            // atomic skin at the end of the frame instead of accepting an
+            // invisible but logically active body.
+            EnsureVisibleState();
         }
 
         private void SetAlpha(float alpha)
@@ -255,6 +313,7 @@ namespace SkinnyToBeast.Gameplay
                 transitionRoutine = null;
             }
 
+            pendingArtIndex = -1;
             EnsureVisibleState();
         }
     }

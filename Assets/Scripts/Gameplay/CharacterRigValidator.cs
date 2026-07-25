@@ -97,6 +97,14 @@ namespace SkinnyToBeast.Gameplay
                     errors.AppendLine(slotError);
                 }
 
+                if (skinController.CurrentArtIndex >= 0 &&
+                    !skinController.IsVisualReady)
+                {
+                    errors.AppendLine(
+                        "The selected skin is logically active but its " +
+                        "CharacterRoot or rig renderers are invisible.");
+                }
+
                 foreach (CharacterSkinSlot slot in
                          System.Enum.GetValues(typeof(CharacterSkinSlot)))
                 {

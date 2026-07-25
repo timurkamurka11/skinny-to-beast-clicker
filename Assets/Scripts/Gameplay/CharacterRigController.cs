@@ -144,6 +144,44 @@ namespace SkinnyToBeast.Gameplay
         public int BoneCount => namedBones.Count;
         public bool IsMoving => moving;
         public CharacterFacing Facing => ResolveFacing();
+        public bool HasAppliedSkin =>
+            built &&
+            currentDefinition != null &&
+            currentFrontTexture != null;
+        public bool HasVisibleSkin
+        {
+            get
+            {
+                if (!HasAppliedSkin)
+                {
+                    return false;
+                }
+
+                if (directionalImage != null && directionalImage.enabled)
+                {
+                    return directionalImage.texture != null &&
+                           directionalImage.color.a > 0.001f;
+                }
+
+                if (skeletonGroup == null || skeletonGroup.alpha <= 0.001f)
+                {
+                    return false;
+                }
+
+                foreach (RigPartGraphic renderer in frontRenderers)
+                {
+                    if (renderer != null &&
+                        renderer.isActiveAndEnabled &&
+                        renderer.SourceTexture == currentFrontTexture &&
+                        renderer.color.a > 0.001f)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
         public CharacterRoutineAction ActiveAction => activeAction;
         public float ActiveActionRemaining =>
             activeAction == CharacterRoutineAction.None
@@ -273,6 +311,7 @@ namespace SkinnyToBeast.Gameplay
             ApplyProfile(profile);
             faceController?.ApplyStyle(definition.FaceStyle, profile);
             SetDirectionalVisible(false);
+            EnsureSkinVisible();
         }
 
         public void ClearSkin()
@@ -306,6 +345,46 @@ namespace SkinnyToBeast.Gameplay
             }
 
             faceController?.SetVisible(false);
+        }
+
+        public bool EnsureSkinVisible()
+        {
+            if (!HasAppliedSkin)
+            {
+                return false;
+            }
+
+            bool hasFrontPart = false;
+            foreach (RigPartGraphic renderer in frontRenderers)
+            {
+                if (renderer == null ||
+                    renderer.SourceTexture != currentFrontTexture)
+                {
+                    continue;
+                }
+
+                renderer.enabled = true;
+                Color color = renderer.color;
+                color.a = 1f;
+                renderer.color = color;
+                renderer.SetVerticesDirty();
+                renderer.SetMaterialDirty();
+                hasFrontPart = true;
+            }
+
+            bool directional = ShouldUseDirectionalRenderer();
+            SetDirectionalVisible(directional);
+            if (directional)
+            {
+                UpdateDirectionalRenderer();
+                return directionalImage != null &&
+                       directionalImage.enabled &&
+                       directionalImage.texture != null;
+            }
+
+            return hasFrontPart &&
+                   skeletonGroup != null &&
+                   skeletonGroup.alpha > 0.001f;
         }
 
         public void SynchronizeAnimationState()
