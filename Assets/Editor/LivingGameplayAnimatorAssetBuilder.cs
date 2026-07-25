@@ -11,7 +11,9 @@ namespace SkinnyToBeast.Editor
     internal static class LivingGameplayAnimatorAssetBuilder
     {
         private const string SessionKey =
-            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.AssetTransactionV3";
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.AssetTransactionV4";
+        private const string ResumePlaySessionKey =
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.ResumePlayV4";
         private const string RootFolder =
             "Assets/Resources/UI/Gameplay/Living/Animations";
         private const string ControllerPath =
@@ -136,8 +138,21 @@ namespace SkinnyToBeast.Editor
 
         static LivingGameplayAnimatorAssetBuilder()
         {
+            if (AssetDatabase.IsAssetImportWorkerProcess())
+            {
+                return;
+            }
+
+            EditorApplication.playModeStateChanged -=
+                OnPlayModeStateChanged;
+            EditorApplication.playModeStateChanged +=
+                OnPlayModeStateChanged;
             EditorApplication.delayCall -= EnsureAssetsOnce;
             EditorApplication.delayCall += EnsureAssetsOnce;
+            if (SessionState.GetBool(ResumePlaySessionKey, false))
+            {
+                QueueEditModeRebuildAndResumePlay();
+            }
         }
 
         [MenuItem("Tools/Skinny to Beast/Rebuild Patch 3 Skeletal Animator")]
@@ -171,6 +186,16 @@ namespace SkinnyToBeast.Editor
                 return;
             }
 
+            if (AssetDatabase.IsAssetImportWorkerProcess() ||
+                EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isCompiling ||
+                EditorApplication.isUpdating)
+            {
+                throw new InvalidOperationException(
+                    "Patch 3 Animator assets can only be rebuilt by the " +
+                    "main Unity Editor while it is idle in Edit Mode.");
+            }
+
             isBuildingAssets = true;
             try
             {
@@ -183,11 +208,44 @@ namespace SkinnyToBeast.Editor
             }
         }
 
-        [InitializeOnEnterPlayMode]
-        private static void EnsureBeforePlayMode(
-            EnterPlayModeOptions options)
+        private static void OnPlayModeStateChanged(
+            PlayModeStateChange state)
         {
-            EnsureCurrentAssets();
+            if (state == PlayModeStateChange.EnteredPlayMode &&
+                SessionState.GetBool(ResumePlaySessionKey, false))
+            {
+                EditorApplication.isPlaying = false;
+                return;
+            }
+
+            if (state == PlayModeStateChange.EnteredEditMode &&
+                SessionState.GetBool(ResumePlaySessionKey, false))
+            {
+                QueueEditModeRebuildAndResumePlay();
+                return;
+            }
+
+            if (state != PlayModeStateChange.ExitingEditMode ||
+                isBuildingAssets)
+            {
+                return;
+            }
+
+            AnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                    ControllerPath);
+            if (!NeedsPatchThreeRebuild(controller))
+            {
+                return;
+            }
+
+            // InitializeOnEnterPlayMode runs inside the transition where
+            // native asset creation is not reliable. Cancel this transition,
+            // finish the transaction in stable Edit Mode, then resume the
+            // Play request automatically after all imports validate.
+            SessionState.SetBool(ResumePlaySessionKey, true);
+            EditorApplication.isPlaying = false;
+            QueueEditModeRebuildAndResumePlay();
         }
 
         private static void EnsureAssetsOnce()
@@ -221,6 +279,84 @@ namespace SkinnyToBeast.Editor
                 Debug.LogError(
                     "Could not generate Patch 3 skeletal Animator: " +
                     exception);
+            }
+        }
+
+        private static void QueueEditModeRebuildAndResumePlay()
+        {
+            EditorApplication.delayCall -=
+                RebuildInEditModeAndResumePlay;
+            EditorApplication.delayCall +=
+                RebuildInEditModeAndResumePlay;
+        }
+
+        private static void RebuildInEditModeAndResumePlay()
+        {
+            if (!SessionState.GetBool(ResumePlaySessionKey, false))
+            {
+                return;
+            }
+
+            if (isBuildingAssets ||
+                EditorApplication.isCompiling ||
+                EditorApplication.isUpdating ||
+                EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                QueueEditModeRebuildAndResumePlay();
+                return;
+            }
+
+            try
+            {
+                EnsureCurrentAssets();
+                AnimatorController controller =
+                    AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                        ControllerPath);
+                if (NeedsPatchThreeRebuild(controller))
+                {
+                    throw new InvalidOperationException(
+                        "Patch 3 Animator remained invalid after its Edit " +
+                        "Mode rebuild.");
+                }
+
+                SessionState.SetBool(SessionKey, true);
+                SessionState.SetBool(ResumePlaySessionKey, false);
+                QueueResumePlay();
+            }
+            catch (Exception exception)
+            {
+                SessionState.SetBool(SessionKey, false);
+                SessionState.SetBool(ResumePlaySessionKey, false);
+                Debug.LogError(
+                    "Could not prepare Patch 3 skeletal Animator before " +
+                    "Play Mode. The Play request was cancelled: " +
+                    exception);
+            }
+        }
+
+        private static void QueueResumePlay()
+        {
+            EditorApplication.delayCall -= ResumePlayAfterRebuild;
+            EditorApplication.delayCall += ResumePlayAfterRebuild;
+        }
+
+        private static void ResumePlayAfterRebuild()
+        {
+            if (EditorApplication.isPlaying)
+            {
+                return;
+            }
+
+            if (EditorApplication.isCompiling ||
+                EditorApplication.isUpdating)
+            {
+                QueueResumePlay();
+                return;
+            }
+
+            if (!EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorApplication.isPlaying = true;
             }
         }
 
@@ -408,6 +544,7 @@ namespace SkinnyToBeast.Editor
         private static void BuildAssets()
         {
             EnsureFolder(RootFolder);
+            PrepareGeneratedClipPaths();
 
             Dictionary<string, AnimationClip> clips = new();
             Add(clips, CreateBaseClip("Idle_Breathe", 2.4f, true));
@@ -447,6 +584,15 @@ namespace SkinnyToBeast.Editor
                     $"Expected {expectedClipCount} generated clips, " +
                     $"created {clips.Count}.");
             }
+
+            // Native assets are imported as one transaction before any state
+            // machine stores references to them. A newly created AnimationClip
+            // can briefly have no AssetDatabase path while Unity 6.3 is
+            // completing a refresh; reloading after the synchronous import
+            // guarantees that every state receives a persistent object.
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(FolderSyncOptions);
+            clips = ReloadPersistedClips();
 
             EnsureFolder(RootFolder);
             ClearGeneratedAssetPath(ControllerPath);
@@ -1032,57 +1178,149 @@ namespace SkinnyToBeast.Editor
                     persistedClip);
                 persistedClip.name = clip.name;
                 EditorUtility.SetDirty(persistedClip);
-                AssetDatabase.SaveAssetIfDirty(persistedClip);
-                string persistedPath =
-                    (AssetDatabase.GetAssetPath(persistedClip) ??
-                     string.Empty)
-                    .Replace('\\', '/');
-                if (string.Equals(
-                        persistedPath,
-                        path,
-                        StringComparison.OrdinalIgnoreCase) &&
-                    File.Exists(absolutePath))
+                if (!File.Exists(absolutePath))
                 {
-                    UnityEngine.Object.DestroyImmediate(clip);
-                    return persistedClip;
+                    throw new IOException(
+                        "The generated AnimationClip was registered in " +
+                        $"AssetDatabase but missing on disk: '{path}'.");
                 }
 
-                // A cached object can outlive its deleted native file. If
-                // saving it did not restore the file, discard that stale
-                // association and create the already completed source clip
-                // as a new native asset below.
-                ClearGeneratedAssetPath(path);
+                UnityEngine.Object.DestroyImmediate(clip);
+                return persistedClip;
             }
 
-            // A non-AnimationClip main object, an orphaned .meta, or a
-            // partially written native file cannot be updated safely. These
-            // paths are generated exclusively by this builder, so clear only
-            // this exact target before creating the replacement.
-            ClearGeneratedAssetPath(path);
+            if (File.Exists(absolutePath) ||
+                File.Exists(absolutePath + ".meta") ||
+                AssetDatabase.LoadMainAssetAtPath(path) != null)
+            {
+                throw new IOException(
+                    "Generated animation path became inconsistent after " +
+                    $"preflight cleanup: '{path}'.");
+            }
 
-            // Build every curve before CreateAsset. LoadAssetAtPath only
-            // exposes objects that are already visible in the Project view,
-            // which is not guaranteed in the same callback that creates the
-            // native asset. GetAssetPath checks the new object's association
-            // immediately; the full load/curve validation happens after the
-            // single synchronous save-and-import at the end of BuildAssets.
+            // Do not inspect GetAssetPath here. Unity 6.3 can return an empty
+            // path until the surrounding refresh is complete. BuildAssets
+            // saves all clips, performs one synchronous import, and reloads
+            // each persistent object before constructing the controller.
             AssetDatabase.CreateAsset(clip, path);
-            string createdPath =
-                (AssetDatabase.GetAssetPath(clip) ?? string.Empty)
-                .Replace('\\', '/');
-            if (!string.Equals(
-                    createdPath,
-                    path,
-                    StringComparison.OrdinalIgnoreCase))
+            EditorUtility.SetDirty(clip);
+            return clip;
+        }
+
+        private static void PrepareGeneratedClipPaths()
+        {
+            foreach (string name in GetGeneratedClipNames())
+            {
+                string path = $"{RootFolder}/{name}.anim";
+                string absolutePath = ToAbsoluteAssetPath(path);
+                UnityEngine.Object mainAsset =
+                    AssetDatabase.LoadMainAssetAtPath(path);
+                if (mainAsset is AnimationClip &&
+                    File.Exists(absolutePath) &&
+                    File.Exists(absolutePath + ".meta"))
+                {
+                    continue;
+                }
+
+                if (mainAsset == null && File.Exists(absolutePath))
+                {
+                    AssetDatabase.ImportAsset(path, FolderSyncOptions);
+                    mainAsset =
+                        AssetDatabase.LoadMainAssetAtPath(path);
+                    if (mainAsset is AnimationClip &&
+                        File.Exists(absolutePath) &&
+                        File.Exists(absolutePath + ".meta"))
+                    {
+                        continue;
+                    }
+                }
+
+                if (mainAsset != null ||
+                    File.Exists(absolutePath) ||
+                    File.Exists(absolutePath + ".meta"))
+                {
+                    ClearGeneratedAssetPath(path);
+                }
+            }
+        }
+
+        private static Dictionary<string, AnimationClip>
+            ReloadPersistedClips()
+        {
+            Dictionary<string, AnimationClip> persisted = new();
+            List<string> failures = new();
+            foreach (string name in GetGeneratedClipNames())
+            {
+                string path = $"{RootFolder}/{name}.anim";
+                string absolutePath = ToAbsoluteAssetPath(path);
+                AnimationClip clip =
+                    AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+                if (clip == null && File.Exists(absolutePath))
+                {
+                    AssetDatabase.ImportAsset(path, FolderSyncOptions);
+                    clip =
+                        AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
+                }
+
+                if (clip == null)
+                {
+                    failures.Add(
+                        $"{name}.anim missing after synchronous import " +
+                        $"(disk={File.Exists(absolutePath)}, " +
+                        $"guid='{AssetDatabase.AssetPathToGUID(path)}')");
+                    continue;
+                }
+
+                string actualPath =
+                    (AssetDatabase.GetAssetPath(clip) ?? string.Empty)
+                    .Replace('\\', '/');
+                if (!string.Equals(
+                        actualPath,
+                        path,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    failures.Add(
+                        $"{name}.anim loaded from unexpected path " +
+                        $"'{actualPath}'");
+                    continue;
+                }
+
+                if (Array.IndexOf(RequiredMotionClips, name) >= 0 &&
+                    !HasRealMotionCurves(clip))
+                {
+                    failures.Add(
+                        $"{name}.anim lost its skeletal curves during " +
+                        "persistence");
+                    continue;
+                }
+
+                persisted.Add(name, clip);
+            }
+
+            int expectedClipCount =
+                RequiredMotionClips.Length + NeutralClips.Length;
+            if (failures.Count > 0 ||
+                persisted.Count != expectedClipCount)
             {
                 throw new InvalidOperationException(
-                    $"Unity did not associate animation clip '{clip.name}' " +
-                    $"with '{path}'. Actual path: '{createdPath}'.");
+                    "Patch 3 AnimationClip transaction failed: " +
+                    string.Join(", ", failures));
             }
 
-            EditorUtility.SetDirty(clip);
-            AssetDatabase.SaveAssetIfDirty(clip);
-            return clip;
+            return persisted;
+        }
+
+        private static IEnumerable<string> GetGeneratedClipNames()
+        {
+            for (int i = 0; i < RequiredMotionClips.Length; i++)
+            {
+                yield return RequiredMotionClips[i];
+            }
+
+            for (int i = 0; i < NeutralClips.Length; i++)
+            {
+                yield return NeutralClips[i];
+            }
         }
 
         private static AnimationClip LoadGeneratedClipForUpdate(
