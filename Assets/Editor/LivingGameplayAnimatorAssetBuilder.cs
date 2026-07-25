@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
@@ -121,6 +122,15 @@ namespace SkinnyToBeast.Editor
             "Face_Expression"
         };
 
+        private static readonly string[] NeutralClips =
+        {
+            "UpperBody_Idle",
+            "Face_Idle",
+            "FullBody_Idle"
+        };
+
+        private static bool isBuildingAssets;
+
         static LivingGameplayAnimatorAssetBuilder()
         {
             EditorApplication.delayCall -= EnsureAssetsOnce;
@@ -130,12 +140,16 @@ namespace SkinnyToBeast.Editor
         [MenuItem("Tools/Skinny to Beast/Rebuild Patch 3 Skeletal Animator")]
         public static void RebuildFromMenu()
         {
-            DeleteGeneratedAssets();
-            BuildAssets();
+            RebuildAssets();
         }
 
         public static void EnsureCurrentAssets()
         {
+            if (isBuildingAssets)
+            {
+                return;
+            }
+
             AnimatorController controller =
                 AssetDatabase.LoadAssetAtPath<AnimatorController>(
                     ControllerPath);
@@ -144,8 +158,28 @@ namespace SkinnyToBeast.Editor
                 return;
             }
 
-            DeleteGeneratedAssets();
-            BuildAssets();
+            RebuildAssets();
+        }
+
+        private static void RebuildAssets()
+        {
+            if (isBuildingAssets)
+            {
+                return;
+            }
+
+            isBuildingAssets = true;
+            try
+            {
+                EnsureFolder(RootFolder);
+                DeleteGeneratedAssets();
+                EnsureFolder(RootFolder);
+                BuildAssets();
+            }
+            finally
+            {
+                isBuildingAssets = false;
+            }
         }
 
         [InitializeOnEnterPlayMode]
@@ -367,7 +401,6 @@ namespace SkinnyToBeast.Editor
 
         private static void BuildAssets()
         {
-            EnsureFolder("Assets/Resources/UI/Gameplay/Living");
             EnsureFolder(RootFolder);
 
             Dictionary<string, AnimationClip> clips = new();
@@ -401,9 +434,17 @@ namespace SkinnyToBeast.Editor
             Add(clips, CreateNeutralClip("Face_Idle", 1f));
             Add(clips, CreateNeutralClip("FullBody_Idle", 1f));
 
+            EnsureFolder(RootFolder);
             AnimatorController controller =
                 AnimatorController.CreateAnimatorControllerAtPath(
                     ControllerPath);
+            if (controller == null)
+            {
+                throw new InvalidOperationException(
+                    "Unity did not create the Patch 3 Animator Controller " +
+                    $"at '{ControllerPath}'.");
+            }
+
             controller.AddParameter(
                 "Speed",
                 AnimatorControllerParameterType.Float);
@@ -480,7 +521,18 @@ namespace SkinnyToBeast.Editor
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            AssetDatabase.Refresh(
+                ImportAssetOptions.ForceSynchronousImport);
+            AnimatorController persistedController =
+                AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                    ControllerPath);
+            if (NeedsPatchThreeRebuild(persistedController))
+            {
+                throw new InvalidOperationException(
+                    "Patch 3 Animator assets were written but failed their " +
+                    "post-build validation.");
+            }
+
             Debug.Log(
                 "Patch 3 Animator generated: four layers and real curves " +
                 "for 20 skeletal bones. No marker-only clips were created.");
@@ -924,6 +976,7 @@ namespace SkinnyToBeast.Editor
                     nameof(duration));
             }
 
+            EnsureFolder(RootFolder);
             string path = $"{RootFolder}/{name}.anim";
             if (AssetDatabase.LoadAssetAtPath<AnimationClip>(path) != null)
             {
@@ -942,6 +995,13 @@ namespace SkinnyToBeast.Editor
                 clip,
                 settings);
             AssetDatabase.CreateAsset(clip, path);
+            if (AssetDatabase.LoadAssetAtPath<AnimationClip>(path) == null)
+            {
+                throw new InvalidOperationException(
+                    $"Unity did not persist animation clip '{name}' at " +
+                    $"'{path}'.");
+            }
+
             return clip;
         }
 
@@ -1041,28 +1101,95 @@ namespace SkinnyToBeast.Editor
 
         private static void EnsureFolder(string path)
         {
+            if (string.IsNullOrWhiteSpace(path) ||
+                !path.StartsWith("Assets/", StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"Unity asset folder must be below Assets: '{path}'.",
+                    nameof(path));
+            }
+
             string[] parts = path.Split('/');
             string current = parts[0];
             for (int i = 1; i < parts.Length; i++)
             {
                 string next = $"{current}/{parts[i]}";
+                string absoluteNext = ToAbsoluteAssetPath(next);
                 if (!AssetDatabase.IsValidFolder(next))
                 {
-                    AssetDatabase.CreateFolder(current, parts[i]);
+                    string guid =
+                        AssetDatabase.CreateFolder(current, parts[i]);
+                    if (string.IsNullOrEmpty(guid) ||
+                        !AssetDatabase.IsValidFolder(next))
+                    {
+                        Directory.CreateDirectory(absoluteNext);
+                        AssetDatabase.Refresh(
+                            ImportAssetOptions.ForceSynchronousImport);
+                    }
+                }
+
+                if (!AssetDatabase.IsValidFolder(next) ||
+                    !Directory.Exists(absoluteNext))
+                {
+                    throw new DirectoryNotFoundException(
+                        "Could not create required Unity asset folder: " +
+                        next);
                 }
 
                 current = next;
             }
         }
 
-        private static void DeleteGeneratedAssets()
+        private static string ToAbsoluteAssetPath(string assetPath)
         {
-            if (AssetDatabase.IsValidFolder(RootFolder))
+            DirectoryInfo projectDirectory =
+                Directory.GetParent(Application.dataPath);
+            if (projectDirectory == null)
             {
-                AssetDatabase.DeleteAsset(RootFolder);
+                throw new DirectoryNotFoundException(
+                    "Could not resolve the Unity project root.");
             }
 
-            AssetDatabase.Refresh();
+            return Path.Combine(
+                projectDirectory.FullName,
+                assetPath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar));
+        }
+
+        private static void DeleteGeneratedAssets()
+        {
+            EnsureFolder(RootFolder);
+            DeleteAssetIfPresent(ControllerPath);
+
+            for (int i = 0; i < RequiredMotionClips.Length; i++)
+            {
+                DeleteAssetIfPresent(
+                    $"{RootFolder}/{RequiredMotionClips[i]}.anim");
+            }
+
+            for (int i = 0; i < NeutralClips.Length; i++)
+            {
+                DeleteAssetIfPresent(
+                    $"{RootFolder}/{NeutralClips[i]}.anim");
+            }
+
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void DeleteAssetIfPresent(string path)
+        {
+            if (AssetDatabase.LoadMainAssetAtPath(path) == null &&
+                !File.Exists(ToAbsoluteAssetPath(path)))
+            {
+                return;
+            }
+
+            if (!AssetDatabase.DeleteAsset(path))
+            {
+                throw new IOException(
+                    $"Unity could not delete generated asset '{path}'.");
+            }
         }
     }
 }

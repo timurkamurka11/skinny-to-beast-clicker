@@ -32,6 +32,7 @@ namespace SkinnyToBeast.Gameplay
         private bool moving;
         private float movementSpeed;
         private bool configured;
+        private bool missingControllerLogged;
 
         public bool IsReady =>
             configured &&
@@ -65,6 +66,7 @@ namespace SkinnyToBeast.Gameplay
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             animator.enabled = true;
 
+            missingControllerLogged = false;
             configured = true;
             TryLoadController();
         }
@@ -85,6 +87,7 @@ namespace SkinnyToBeast.Gameplay
             parameterNames.Clear();
             if (controller != null)
             {
+                missingControllerLogged = false;
                 for (int i = 0; i < animator.layerCount; i++)
                 {
                     layerByName[animator.GetLayerName(i)] = i;
@@ -107,10 +110,16 @@ namespace SkinnyToBeast.Gameplay
             }
             else
             {
-                Debug.LogError(
-                    "LivingCharacter.controller is missing. Open the project " +
-                    "once in Unity so Patch 3 animation assets are generated.",
-                    this);
+                if (!missingControllerLogged)
+                {
+                    missingControllerLogged = true;
+                    Debug.LogError(
+                        "LivingCharacter.controller is missing because " +
+                        "Patch 3 editor asset generation did not finish. " +
+                        "Exit Play Mode and inspect the first editor error.",
+                        this);
+                }
+
                 nextControllerRetryAt =
                     Time.unscaledTime + 1f;
             }
