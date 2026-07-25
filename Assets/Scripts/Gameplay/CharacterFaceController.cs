@@ -36,6 +36,10 @@ namespace SkinnyToBeast.Gameplay
         private CharacterMeshGraphic rightEyelid;
         private CharacterMeshGraphic leftBrow;
         private CharacterMeshGraphic rightBrow;
+        private CharacterMeshGraphic nose;
+        private CharacterMeshGraphic noseShadow;
+        private CharacterMeshGraphic leftUnderEye;
+        private CharacterMeshGraphic rightUnderEye;
         private CharacterMeshGraphic mouthLine;
         private CharacterMeshGraphic mouthOpen;
         private CharacterMeshGraphic leftCheek;
@@ -154,6 +158,43 @@ namespace SkinnyToBeast.Gameplay
                 Color.black,
                 1f);
 
+            nose = CreateMesh(
+                faceRoot,
+                "Nose",
+                CharacterMeshShape.Nose,
+                CharacterVisualRole.Skin,
+                new Vector2(0f, -1f),
+                new Vector2(45f, 50f),
+                Color.white,
+                2f);
+            noseShadow = CreateMesh(
+                faceRoot,
+                "Nose.Shadow",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(9f, -14f),
+                new Vector2(24f, 12f),
+                Color.clear,
+                0f);
+            leftUnderEye = CreateMesh(
+                faceRoot,
+                "UnderEye.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(-36f, 5f),
+                new Vector2(31f, 5f),
+                Color.clear,
+                0f);
+            rightUnderEye = CreateMesh(
+                faceRoot,
+                "UnderEye.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(36f, 5f),
+                new Vector2(31f, 5f),
+                Color.clear,
+                0f);
+
             mouthOpen = CreateMesh(
                 faceRoot,
                 "Mouth.Open",
@@ -228,6 +269,16 @@ namespace SkinnyToBeast.Gameplay
             SetColor(rightEyelid, style.skin);
             SetColor(leftBrow, style.brow);
             SetColor(rightBrow, style.brow);
+            SetColor(nose, style.skin);
+            SetColor(
+                noseShadow,
+                Shade(style.skin, 0.68f, 0.52f));
+            SetColor(
+                leftUnderEye,
+                Shade(style.skin, 0.62f, 0.34f));
+            SetColor(
+                rightUnderEye,
+                Shade(style.skin, 0.62f, 0.34f));
             SetColor(mouthLine, style.mouth);
             SetColor(mouthOpen, style.mouth);
             SetColor(leftCheek, style.cheek);
@@ -246,6 +297,10 @@ namespace SkinnyToBeast.Gameplay
                 new Vector2(-style.eyeSeparation, style.eyeY + 31f);
             rightBrow.rectTransform.anchoredPosition =
                 new Vector2(style.eyeSeparation, style.eyeY + 31f);
+            leftUnderEye.rectTransform.anchoredPosition =
+                new Vector2(-style.eyeSeparation, style.eyeY - 18f);
+            rightUnderEye.rectTransform.anchoredPosition =
+                new Vector2(style.eyeSeparation, style.eyeY - 18f);
 
             ApplyExpression(baseExpression);
             ApplyBlink(0f);
@@ -293,6 +348,18 @@ namespace SkinnyToBeast.Gameplay
             rightEye.gameObject.SetActive(!hideRight);
             rightEyelid.gameObject.SetActive(!hideRight);
             rightBrow.gameObject.SetActive(!hideRight);
+            leftUnderEye.gameObject.SetActive(!hideLeft);
+            rightUnderEye.gameObject.SetActive(!hideRight);
+            nose.rectTransform.anchoredPosition = side
+                ? new Vector2(
+                    facing == CharacterFacing.SideLeft ? -18f : 18f,
+                    -1f)
+                : new Vector2(0f, -1f);
+            noseShadow.rectTransform.anchoredPosition = side
+                ? new Vector2(
+                    facing == CharacterFacing.SideLeft ? -9f : 9f,
+                    -14f)
+                : new Vector2(9f, -14f);
         }
 
         public void LookAt(Vector2 normalizedDirection, float duration)
@@ -563,6 +630,18 @@ namespace SkinnyToBeast.Gameplay
             {
                 graphic.SetFill(color);
             }
+        }
+
+        private static Color Shade(
+            Color source,
+            float brightness,
+            float alpha)
+        {
+            return new Color(
+                Mathf.Clamp01(source.r * brightness),
+                Mathf.Clamp01(source.g * brightness),
+                Mathf.Clamp01(source.b * brightness),
+                Mathf.Clamp01(source.a * alpha));
         }
 
         private static void SetAlpha(

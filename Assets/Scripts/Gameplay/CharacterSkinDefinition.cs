@@ -48,18 +48,21 @@ namespace SkinnyToBeast.Gameplay
     {
         [SerializeField] private string id;
         [SerializeField] private int artIndex;
-        [SerializeField] private CharacterAppearance appearance;
-        [SerializeField] private CharacterFaceStyle faceStyle;
+        [SerializeField] private FatManSkinSet fatManSkinSet;
         [SerializeField] private CharacterSkinSlotSelection[] slots;
 
         public string Id => id;
         public int ArtIndex => artIndex;
-        public CharacterAppearance Appearance => appearance;
-        public CharacterFaceStyle FaceStyle => faceStyle;
+        public FatManSkinSet SkinSet => fatManSkinSet;
+        public CharacterAppearance Appearance =>
+            fatManSkinSet.Appearance;
+        public CharacterFaceStyle FaceStyle =>
+            fatManSkinSet.FaceStyle;
         public CharacterSkinSlotSelection[] Slots => slots;
         public bool IsValid =>
             !string.IsNullOrWhiteSpace(id) &&
-            appearance.IsValid &&
+            fatManSkinSet != null &&
+            fatManSkinSet.IsValid &&
             HasVisibleSlot(CharacterSkinSlot.Body);
 
         public static CharacterSkinDefinition Create(int index)
@@ -67,41 +70,42 @@ namespace SkinnyToBeast.Gameplay
             int safeIndex = Mathf.Clamp(index, 0, 3);
             string stage = $"{safeIndex + 1:00}";
             bool hasAccent = safeIndex >= 2;
+            FatManSkinSet skinSet =
+                FatManSkinSet.Create(safeIndex);
             return new CharacterSkinDefinition
             {
-                id = $"stage_{stage}",
+                id = skinSet.Id,
                 artIndex = safeIndex,
-                appearance = CharacterAppearance.Create(safeIndex),
-                faceStyle = CharacterFaceStyle.Create(safeIndex),
+                fatManSkinSet = skinSet,
                 slots = new[]
                 {
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Body,
-                        $"body_{stage}",
+                        $"fat_man_body_{stage}",
                         true),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Hair,
-                        $"hair_{stage}",
+                        $"fat_man_hair_{stage}",
                         true),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Face,
-                        $"face_{stage}",
+                        $"fat_man_face_{stage}",
                         true),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Top,
-                        $"top_{stage}",
+                        $"fat_man_tank_{stage}",
                         true),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Bottom,
-                        $"bottom_{stage}",
+                        $"fat_man_shorts_{stage}",
                         true),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Shoes,
-                        $"shoes_{stage}",
+                        $"fat_man_shoes_{stage}",
                         true),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.Accessory,
-                        $"wrist_wraps_{stage}",
+                        $"fat_man_wrist_wraps_{stage}",
                         hasAccent),
                     new CharacterSkinSlotSelection(
                         CharacterSkinSlot.HandItem,

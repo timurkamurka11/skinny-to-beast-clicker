@@ -12,16 +12,47 @@ namespace SkinnyToBeast.Gameplay
         Shoe,
         Hair,
         Brow,
-        Mouth
+        Mouth,
+        FatThigh,
+        FatCalf,
+        FatPelvis,
+        FatBelly,
+        FatChest,
+        FatShoulder,
+        FatUpperArm,
+        FatForearm,
+        FatHand,
+        FatNeck,
+        FatHead,
+        DoubleChin,
+        MessyHair,
+        WornShoe,
+        ShirtHem,
+        Neckline,
+        BellyBand,
+        Waistband,
+        Pocket,
+        FabricFold,
+        Stain,
+        Ear,
+        Nose
     }
 
     public enum CharacterVisualRole
     {
         Skin,
+        SkinShadow,
+        SkinHighlight,
         Hair,
         Top,
+        TopShadow,
+        TopHighlight,
+        TopStain,
         Bottom,
+        BottomShadow,
+        BottomDetail,
         Shoe,
+        ShoeDetail,
         Accent,
         EyeWhite,
         Iris,
@@ -218,29 +249,12 @@ namespace SkinnyToBeast.Gameplay
 
         private void BuildBoundary(Rect rect, List<Vector2> points)
         {
-            points.Clear();
-            switch (shape)
-            {
-                case CharacterMeshShape.Torso:
-                    BuildTorso(rect, points);
-                    break;
-                case CharacterMeshShape.Shoe:
-                    BuildShoe(rect, points);
-                    break;
-                case CharacterMeshShape.Hair:
-                    BuildHair(rect, points);
-                    break;
-                case CharacterMeshShape.Brow:
-                case CharacterMeshShape.Mouth:
-                    BuildCapsule(rect, points);
-                    break;
-                case CharacterMeshShape.Ellipse:
-                    BuildEllipse(rect, points, 24);
-                    break;
-                default:
-                    BuildCapsule(rect, points);
-                    break;
-            }
+            CharacterShapeGeometry.BuildBoundary(
+                shape,
+                rect,
+                topWidth,
+                bottomWidth,
+                points);
         }
 
         private static void BuildEllipse(

@@ -1,25 +1,23 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay
 {
     /// <summary>
-    /// Standard uGUI render surface mirrored under every procedural character
-    /// part. CharacterMeshGraphic still owns the exact vector geometry, while
-    /// this surface guarantees that Unity 6 produces visible CanvasRenderer
-    /// output on every supported render pipeline.
+    /// Stable uGUI mirror under every artistic skeletal part. Both child
+    /// surfaces use the exact fat-man silhouette, so Unity's fallback render
+    /// contract can no longer turn the actor back into rounded rectangles.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(RectTransform))]
     [RequireComponent(typeof(CanvasRenderer))]
     internal sealed class CharacterPartSurface : MonoBehaviour
     {
-        private const string OutlineName = "VisibleOutline";
-        private const string FillName = "VisibleFill";
+        private const string OutlineName = "ArtOutline";
+        private const string FillName = "ArtFill";
 
         private RectTransform owner;
-        private Image outlineImage;
-        private Image fillImage;
+        private CharacterSurfaceGraphic outlineSurface;
+        private CharacterSurfaceGraphic fillSurface;
         private CharacterMeshShape shape;
         private Color fillColor = Color.clear;
         private Color outlineColor = Color.clear;
@@ -34,8 +32,8 @@ namespace SkinnyToBeast.Gameplay
             {
                 if (!configured ||
                     !isActiveAndEnabled ||
-                    fillImage == null ||
-                    !fillImage.isActiveAndEnabled ||
+                    fillSurface == null ||
+                    !fillSurface.isActiveAndEnabled ||
                     fillColor.a <= 0.001f ||
                     owner == null ||
                     owner.rect.width <= 0.5f ||
@@ -44,11 +42,10 @@ namespace SkinnyToBeast.Gameplay
                     return false;
                 }
 
-                // The gameplay window intentionally keeps an ancestor
-                // CanvasGroup at alpha zero until validation succeeds. Do not
-                // use inherited alpha here or readiness would deadlock. The
-                // standard Image + CanvasRenderer pair is the render contract.
-                return fillImage.canvasRenderer != null;
+                // An ancestor CanvasGroup intentionally remains transparent
+                // until readiness succeeds, so inherited alpha cannot be used
+                // here. The dedicated vector surface is the render contract.
+                return fillSurface.IsRenderable;
             }
         }
 
@@ -69,12 +66,12 @@ namespace SkinnyToBeast.Gameplay
             topWidth = Mathf.Clamp(topRatio, 0.35f, 1.5f);
             bottomWidth = Mathf.Clamp(bottomRatio, 0.35f, 1.5f);
 
-            EnsureImages();
+            EnsureSurfaces();
             SetSize(size);
             RefreshAppearance();
             configured = owner != null &&
-                         outlineImage != null &&
-                         fillImage != null;
+                         outlineSurface != null &&
+                         fillSurface != null;
         }
 
         public void SetFill(Color fill)
@@ -101,7 +98,9 @@ namespace SkinnyToBeast.Gameplay
             RefreshLayout();
         }
 
-        public void SetWidthProfile(float topRatio, float bottomRatio)
+        public void SetWidthProfile(
+            float topRatio,
+            float bottomRatio)
         {
             topWidth = Mathf.Clamp(topRatio, 0.35f, 1.5f);
             bottomWidth = Mathf.Clamp(bottomRatio, 0.35f, 1.5f);
@@ -110,37 +109,43 @@ namespace SkinnyToBeast.Gameplay
 
         public void ForceRefresh()
         {
-            EnsureImages();
+            EnsureSurfaces();
             RefreshLayout();
             RefreshAppearance();
             configured = owner != null &&
-                         outlineImage != null &&
-                         fillImage != null;
-            outlineImage?.SetAllDirty();
-            fillImage?.SetAllDirty();
+                         outlineSurface != null &&
+                         fillSurface != null;
+            outlineSurface?.SetAllDirty();
+            fillSurface?.SetAllDirty();
         }
 
-        private void EnsureImages()
+        private void EnsureSurfaces()
         {
             if (owner == null)
             {
                 owner = transform as RectTransform;
             }
 
-            if (outlineImage == null)
+            DisableLegacyPrimitive("VisibleOutline");
+            DisableLegacyPrimitive("VisibleFill");
+
+            if (outlineSurface == null)
             {
-                outlineImage = GetOrCreateImage(OutlineName);
+                outlineSurface =
+                    GetOrCreateSurface(OutlineName);
             }
 
-            if (fillImage == null)
+            if (fillSurface == null)
             {
-                fillImage = GetOrCreateImage(FillName);
+                fillSurface =
+                    GetOrCreateSurface(FillName);
             }
 
             ApplyShape();
         }
 
-        private Image GetOrCreateImage(string objectName)
+        private CharacterSurfaceGraphic GetOrCreateSurface(
+            string objectName)
         {
             Transform existing = transform.Find(objectName);
             GameObject target;
@@ -163,7 +168,8 @@ namespace SkinnyToBeast.Gameplay
                 }
             }
 
-            RectTransform rect = target.GetComponent<RectTransform>();
+            RectTransform rect =
+                target.GetComponent<RectTransform>();
             if (rect == null)
             {
                 throw new MissingComponentException(
@@ -178,53 +184,53 @@ namespace SkinnyToBeast.Gameplay
             rect.localRotation = Quaternion.identity;
             rect.localScale = Vector3.one;
 
-            Image image = target.GetComponent<Image>();
-            if (image == null)
+            CharacterSurfaceGraphic surface =
+                target.GetComponent<CharacterSurfaceGraphic>();
+            if (surface == null)
             {
-                image = target.AddComponent<Image>();
+                surface =
+                    target.AddComponent<CharacterSurfaceGraphic>();
             }
 
-            image.raycastTarget = false;
-            image.maskable = false;
-            image.preserveAspect = false;
-            image.canvasRenderer.cullTransparentMesh = false;
-            return image;
+            surface.raycastTarget = false;
+            surface.maskable = false;
+            surface.canvasRenderer.cullTransparentMesh = false;
+            return surface;
         }
 
         private void ApplyShape()
         {
-            if (outlineImage == null || fillImage == null)
+            if (outlineSurface == null ||
+                fillSurface == null)
             {
                 return;
             }
 
-            bool rounded =
-                shape == CharacterMeshShape.Torso ||
-                shape == CharacterMeshShape.Shoe ||
-                shape == CharacterMeshShape.Brow ||
-                shape == CharacterMeshShape.Mouth;
-            Sprite sprite = rounded
-                ? LivingGameplayVisualFactory.GetRoundedSprite()
-                : LivingGameplayVisualFactory.GetSoftCircleSprite();
-            Image.Type type =
-                rounded ? Image.Type.Sliced : Image.Type.Simple;
-
-            outlineImage.sprite = sprite;
-            fillImage.sprite = sprite;
-            outlineImage.type = type;
-            fillImage.type = type;
+            Color visibleOutline = outlineColor;
+            visibleOutline.a *= fillColor.a;
+            outlineSurface.Configure(
+                shape,
+                visibleOutline,
+                topWidth,
+                bottomWidth);
+            fillSurface.Configure(
+                shape,
+                fillColor,
+                topWidth,
+                bottomWidth);
         }
 
         private void RefreshLayout()
         {
             if (owner == null ||
-                outlineImage == null ||
-                fillImage == null)
+                outlineSurface == null ||
+                fillSurface == null)
             {
                 return;
             }
 
-            RectTransform outlineRect = outlineImage.rectTransform;
+            RectTransform outlineRect =
+                outlineSurface.rectTransform;
             outlineRect.anchorMin = Vector2.zero;
             outlineRect.anchorMax = Vector2.one;
             outlineRect.offsetMin = Vector2.zero;
@@ -244,37 +250,52 @@ namespace SkinnyToBeast.Gameplay
                 0f,
                 minimumDimension * 0.18f);
 
-            RectTransform fillRect = fillImage.rectTransform;
+            RectTransform fillRect = fillSurface.rectTransform;
             fillRect.anchorMin = Vector2.zero;
             fillRect.anchorMax = Vector2.one;
             fillRect.offsetMin = new Vector2(inset, inset);
             fillRect.offsetMax = new Vector2(-inset, -inset);
-
-            float widthProfile =
-                Mathf.Clamp((topWidth + bottomWidth) * 0.5f, 0.62f, 1.22f);
-            outlineRect.localScale =
-                new Vector3(widthProfile, 1f, 1f);
-            fillRect.localScale =
-                new Vector3(widthProfile, 1f, 1f);
+            outlineRect.localScale = Vector3.one;
+            fillRect.localScale = Vector3.one;
+            ApplyShape();
         }
 
         private void RefreshAppearance()
         {
-            if (outlineImage == null || fillImage == null)
+            if (outlineSurface == null ||
+                fillSurface == null)
             {
                 return;
             }
 
-            Color visibleOutline = outlineColor;
-            visibleOutline.a *= fillColor.a;
-            outlineImage.color = visibleOutline;
-            fillImage.color = fillColor;
-
+            ApplyShape();
             bool visible = fillColor.a > 0.001f;
-            outlineImage.enabled = visible;
-            fillImage.enabled = visible;
-            outlineImage.canvasRenderer.cullTransparentMesh = false;
-            fillImage.canvasRenderer.cullTransparentMesh = false;
+            outlineSurface.enabled = visible;
+            fillSurface.enabled = visible;
+            outlineSurface.canvasRenderer.cullTransparentMesh = false;
+            fillSurface.canvasRenderer.cullTransparentMesh = false;
+        }
+
+        private void DisableLegacyPrimitive(string objectName)
+        {
+            Transform existing = transform.Find(objectName);
+            if (existing == null)
+            {
+                return;
+            }
+
+            Component[] components =
+                existing.GetComponents<Component>();
+            for (int i = 0; i < components.Length; i++)
+            {
+                Component component = components[i];
+                if (component != null &&
+                    component.GetType().Name == "Image" &&
+                    component is Behaviour behaviour)
+                {
+                    behaviour.enabled = false;
+                }
+            }
         }
     }
 }

@@ -153,19 +153,20 @@ namespace SkinnyToBeast.Editor
             ValidateOrThrow();
         }
 
-        [MenuItem("Tools/Skinny to Beast/Validate Patch 3 Architecture")]
+        [MenuItem("Tools/Skinny to Beast/Validate Patch 3.1 Fat Man Skin")]
         private static void ValidateFromMenu()
         {
             ValidateOrThrow();
             Debug.Log(
-                "Patch 3 architecture guard passed: no frame-based " +
-                "character path and every required clip has real curves.");
+                "Patch 3.1 guard passed: the shared fat-man cutout rig, " +
+                "soft-body bones and every required clip are valid.");
         }
 
         private static void ValidateOrThrow()
         {
             ValidateForbiddenRuntimeTokens();
             ValidateCanvasRendererContract();
+            ValidateFatManSkinContract();
             ValidateCharacterPrefabAndAssets();
             EnsureAnimatorAssets();
             ValidateMotionClips();
@@ -222,16 +223,23 @@ namespace SkinnyToBeast.Editor
                 "Assets/Scripts/Gameplay/CharacterRigController.cs";
             const string facePath =
                 "Assets/Scripts/Gameplay/CharacterFaceController.cs";
+            const string stableGraphicPath =
+                "Assets/Scripts/Gameplay/CharacterSurfaceGraphic.cs";
 
             string meshSource = File.ReadAllText(meshPath);
             string surfaceSource = File.ReadAllText(surfacePath);
             string rigSource = File.ReadAllText(rigPath);
             string faceSource = File.ReadAllText(facePath);
+            string stableGraphicSource =
+                File.ReadAllText(stableGraphicPath);
 
             if (!meshSource.Contains(
                     "[RequireComponent(typeof(CanvasRenderer))]",
                     StringComparison.Ordinal) ||
                 !surfaceSource.Contains(
+                    "[RequireComponent(typeof(CanvasRenderer))]",
+                    StringComparison.Ordinal) ||
+                !stableGraphicSource.Contains(
                     "[RequireComponent(typeof(CanvasRenderer))]",
                     StringComparison.Ordinal))
             {
@@ -271,7 +279,10 @@ namespace SkinnyToBeast.Editor
             }
 
             if (!surfaceSource.Contains(
-                    "GetOrCreateImage",
+                    "GetOrCreateSurface",
+                    StringComparison.Ordinal) ||
+                !surfaceSource.Contains(
+                    "CharacterSurfaceGraphic",
                     StringComparison.Ordinal) ||
                 !surfaceSource.Contains(
                     "target.AddComponent<CanvasRenderer>()",
@@ -280,6 +291,75 @@ namespace SkinnyToBeast.Editor
                 throw new BuildFailedException(
                     "The stable character surface cannot repair a partial " +
                     "uGUI render hierarchy.");
+            }
+        }
+
+        private static void ValidateFatManSkinContract()
+        {
+            string[] requiredFiles =
+            {
+                "Assets/Scripts/Gameplay/FatManSkinSet.cs",
+                "Assets/Scripts/Gameplay/CharacterArtPart.cs",
+                "Assets/Scripts/Gameplay/CharacterSoftBodyController.cs",
+                "Assets/Scripts/Gameplay/CharacterShapeGeometry.cs",
+                "Assets/Scripts/Gameplay/CharacterSurfaceGraphic.cs"
+            };
+            for (int i = 0; i < requiredFiles.Length; i++)
+            {
+                if (!File.Exists(requiredFiles[i]))
+                {
+                    throw new BuildFailedException(
+                        $"Patch 3.1 source is missing: {requiredFiles[i]}");
+                }
+            }
+
+            string rigSource = File.ReadAllText(
+                "Assets/Scripts/Gameplay/CharacterRigController.cs");
+            string skinSource = File.ReadAllText(
+                "Assets/Scripts/Gameplay/CharacterSkinDefinition.cs");
+            string appearanceSource = File.ReadAllText(
+                "Assets/Scripts/Gameplay/CharacterSkeletonDefinition.cs");
+
+            string[] requiredRigTokens =
+            {
+                "CharacterMeshShape.FatBelly",
+                "CharacterMeshShape.FatChest",
+                "CharacterMeshShape.FatHead",
+                "CharacterMeshShape.MessyHair",
+                "\"Bone.Belly\"",
+                "\"Bone.ShirtHem\"",
+                "\"Bone.ChestSoft\"",
+                "\"Bone.ChinSoft\"",
+                "ValidateFatManArtCoverage"
+            };
+            for (int i = 0; i < requiredRigTokens.Length; i++)
+            {
+                if (!rigSource.Contains(
+                        requiredRigTokens[i],
+                        StringComparison.Ordinal))
+                {
+                    throw new BuildFailedException(
+                        "The runtime rig is missing required fat-man token: " +
+                        requiredRigTokens[i]);
+                }
+            }
+
+            if (!skinSource.Contains(
+                    "FatManSkinSet.Create",
+                    StringComparison.Ordinal) ||
+                !skinSource.Contains(
+                    "fat_man_body_",
+                    StringComparison.Ordinal) ||
+                !appearanceSource.Contains(
+                    "public float softness",
+                    StringComparison.Ordinal) ||
+                !appearanceSource.Contains(
+                    "public float bellyDrop",
+                    StringComparison.Ordinal))
+            {
+                throw new BuildFailedException(
+                    "Fat-man stages, slots or soft-body appearance data are " +
+                    "not connected atomically.");
             }
         }
 

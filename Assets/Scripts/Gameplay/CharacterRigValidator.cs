@@ -11,9 +11,13 @@ namespace SkinnyToBeast.Gameplay
             "Bone.Root",
             "Bone.Pelvis",
             "Bone.Spine",
+            "Bone.Belly",
+            "Bone.ShirtHem",
             "Bone.Chest",
+            "Bone.ChestSoft",
             "Bone.Neck",
             "Bone.Head",
+            "Bone.ChinSoft",
             "Bone.Shoulder.L",
             "Bone.UpperArm.L",
             "Bone.Forearm.L",
@@ -73,10 +77,10 @@ namespace SkinnyToBeast.Gameplay
                         "The mesh rig unexpectedly samples a character texture.");
                 }
 
-                if (rigController.GetVisibleGraphicCount() < 18)
+                if (rigController.GetVisibleGraphicCount() < 22)
                 {
                     errors.AppendLine(
-                        "Fewer than 18 independent skeletal parts have a " +
+                        "Fewer than 22 independent skeletal parts have a " +
                         "live uGUI render surface.");
                 }
 
@@ -84,6 +88,12 @@ namespace SkinnyToBeast.Gameplay
                         out string rendererError))
                 {
                     errors.AppendLine(rendererError);
+                }
+
+                if (!rigController.ValidateFatManArtCoverage(
+                        out string fatManError))
+                {
+                    errors.AppendLine(fatManError);
                 }
 
                 if (!rigController.AnimatorReady)
@@ -171,7 +181,8 @@ namespace SkinnyToBeast.Gameplay
                 Debug.Log(
                     $"Character rig is valid: {rigController.BoneCount} " +
                     $"bones, {rigController.GetVisibleGraphicCount()} " +
-                    "vector mesh parts, zero character textures.",
+                    $"visible artistic parts, {rigController.SoftBoneCount} " +
+                    "soft-body bones, zero character textures.",
                     this);
             }
 
@@ -238,7 +249,7 @@ namespace SkinnyToBeast.Gameplay
             return passed;
         }
 
-        [ContextMenu("Validate Patch 3 Character Rig")]
+        [ContextMenu("Validate Patch 3.1 Fat Man Rig")]
         private void ValidateFromContextMenu()
         {
             ValidateNow(true);

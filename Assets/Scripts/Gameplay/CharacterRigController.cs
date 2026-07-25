@@ -34,6 +34,7 @@ namespace SkinnyToBeast.Gameplay
         private readonly Dictionary<string, RectTransform> namedBones = new();
         private readonly Dictionary<string, CharacterMeshGraphic> namedParts = new();
         private readonly List<CharacterMeshGraphic> meshRenderers = new();
+        private readonly List<CharacterArtPart> artParts = new();
 
         private CharacterSkeletonDefinition skeletonDefinition;
         private CharacterSkinDefinition currentDefinition;
@@ -41,6 +42,7 @@ namespace SkinnyToBeast.Gameplay
         private CharacterAnimationDriver animationDriver;
         private CharacterViewController viewController;
         private CharacterIKController ikController;
+        private CharacterSoftBodyController softBodyController;
         private Animator animator;
 
         private RectTransform characterRoot;
@@ -50,8 +52,12 @@ namespace SkinnyToBeast.Gameplay
         private RectTransform pelvisBone;
         private RectTransform spineBone;
         private RectTransform chestBone;
+        private RectTransform bellyBone;
+        private RectTransform shirtHemBone;
+        private RectTransform chestSoftBone;
         private RectTransform neckBone;
         private RectTransform headBone;
+        private RectTransform chinSoftBone;
         private RectTransform leftShoulderBone;
         private RectTransform rightShoulderBone;
         private RectTransform leftUpperArmBone;
@@ -77,6 +83,15 @@ namespace SkinnyToBeast.Gameplay
 
         public int BoneCount => namedBones.Count;
         public int MeshPartCount => meshRenderers.Count;
+        public int ArtPartCount => artParts.Count;
+        public int SoftBoneCount =>
+            softBodyController != null
+                ? softBodyController.SoftBoneCount
+                : 0;
+        public float SoftBodyMotionMagnitude =>
+            softBodyController != null
+                ? softBodyController.MotionMagnitude
+                : 0f;
         public bool IsMoving => moving;
         public CharacterFacing Facing => ResolveFacing();
         public CharacterRoutineAction ActiveAction => activeAction;
@@ -159,6 +174,16 @@ namespace SkinnyToBeast.Gameplay
             BuildTorsoAndArms();
             BuildHead();
 
+            softBodyController =
+                GetOrAdd<CharacterSoftBodyController>(
+                    characterRoot.gameObject);
+            softBodyController.Configure(
+                characterRoot,
+                bellyBone,
+                shirtHemBone,
+                chestSoftBone,
+                chinSoftBone);
+
             animator = GetOrAdd<Animator>(characterRoot.gameObject);
             animator.applyRootMotion = false;
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -208,19 +233,43 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 leftThighBone,
                 "Part.Thigh.L",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatThigh,
                 CharacterVisualRole.Bottom,
-                new Vector2(104f, 224f),
+                new Vector2(122f, 232f),
                 new Vector2(0f, 20f),
                 new Vector2(0.5f, 1f));
             CreatePart(
                 rightThighBone,
                 "Part.Thigh.R",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatThigh,
                 CharacterVisualRole.Bottom,
-                new Vector2(104f, 224f),
+                new Vector2(122f, 232f),
                 new Vector2(0f, 20f),
                 new Vector2(0.5f, 1f));
+            CreatePart(
+                leftThighBone,
+                "Detail.ShortsFold.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.BottomShadow,
+                new Vector2(64f, 10f),
+                new Vector2(-10f, -112f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                rightThighBone,
+                "Detail.ShortsFold.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.BottomShadow,
+                new Vector2(64f, 10f),
+                new Vector2(10f, -112f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
 
             leftShinBone = CreateBone(
                 leftThighBone,
@@ -233,19 +282,73 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 leftShinBone,
                 "Part.Shin.L",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatCalf,
                 CharacterVisualRole.Skin,
-                new Vector2(75f, 201f),
+                new Vector2(91f, 208f),
                 new Vector2(0f, 18f),
                 new Vector2(0.5f, 1f));
             CreatePart(
                 rightShinBone,
                 "Part.Shin.R",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatCalf,
                 CharacterVisualRole.Skin,
-                new Vector2(75f, 201f),
+                new Vector2(91f, 208f),
                 new Vector2(0f, 18f),
                 new Vector2(0.5f, 1f));
+            CreatePart(
+                leftShinBone,
+                "Detail.CalfShade.L",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(34f, 101f),
+                new Vector2(-21f, -60f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                rightShinBone,
+                "Detail.CalfShade.R",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(34f, 101f),
+                new Vector2(21f, -60f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                leftShinBone,
+                "Detail.KneeCrease.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(54f, 8f),
+                new Vector2(5f, 4f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                false);
+            CreatePart(
+                rightShinBone,
+                "Detail.KneeCrease.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(54f, 8f),
+                new Vector2(-5f, 4f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                false);
 
             leftFootBone = CreateBone(
                 leftShinBone,
@@ -258,9 +361,9 @@ namespace SkinnyToBeast.Gameplay
             CharacterMeshGraphic leftShoe = CreatePart(
                 leftFootBone,
                 "Part.Foot.L",
-                CharacterMeshShape.Shoe,
+                CharacterMeshShape.WornShoe,
                 CharacterVisualRole.Shoe,
-                new Vector2(132f, 67f),
+                new Vector2(145f, 72f),
                 new Vector2(-18f, -31f),
                 new Vector2(0.5f, 0.5f));
             leftShoe.rectTransform.localScale =
@@ -268,11 +371,35 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 rightFootBone,
                 "Part.Foot.R",
-                CharacterMeshShape.Shoe,
+                CharacterMeshShape.WornShoe,
                 CharacterVisualRole.Shoe,
-                new Vector2(132f, 67f),
+                new Vector2(145f, 72f),
                 new Vector2(18f, -31f),
                 new Vector2(0.5f, 0.5f));
+            CreatePart(
+                leftFootBone,
+                "Detail.ShoeSole.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.ShoeDetail,
+                new Vector2(118f, 11f),
+                new Vector2(-14f, -54f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                rightFootBone,
+                "Detail.ShoeSole.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.ShoeDetail,
+                new Vector2(118f, 11f),
+                new Vector2(14f, -54f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
         }
 
         private void BuildTorsoAndArms()
@@ -280,43 +407,285 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 pelvisBone,
                 "Part.Pelvis",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatPelvis,
                 CharacterVisualRole.Bottom,
-                new Vector2(245f, 151f),
+                new Vector2(270f, 158f),
                 new Vector2(0f, -20f),
                 new Vector2(0.5f, 0.5f));
+            CreatePart(
+                pelvisBone,
+                "Detail.Waistband",
+                CharacterMeshShape.Waistband,
+                CharacterVisualRole.BottomShadow,
+                new Vector2(246f, 34f),
+                new Vector2(0f, 35f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                1f,
+                false);
+            CreatePart(
+                pelvisBone,
+                "Detail.Drawstring.Knot",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.BottomDetail,
+                new Vector2(23f, 18f),
+                new Vector2(0f, 18f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                1f,
+                false,
+                true,
+                true,
+                false);
+            CreatePart(
+                pelvisBone,
+                "Detail.Drawstring.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.BottomDetail,
+                new Vector2(8f, 55f),
+                new Vector2(-8f, -4f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                false);
+            CreatePart(
+                pelvisBone,
+                "Detail.Drawstring.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.BottomDetail,
+                new Vector2(8f, 55f),
+                new Vector2(8f, -4f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                false);
+            CreatePart(
+                pelvisBone,
+                "Detail.BackPocket.L",
+                CharacterMeshShape.Pocket,
+                CharacterVisualRole.BottomDetail,
+                new Vector2(82f, 69f),
+                new Vector2(-75f, -24f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                2f,
+                false,
+                false,
+                false,
+                true);
+            CreatePart(
+                pelvisBone,
+                "Detail.BackPocket.R",
+                CharacterMeshShape.Pocket,
+                CharacterVisualRole.BottomDetail,
+                new Vector2(82f, 69f),
+                new Vector2(75f, -24f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                2f,
+                false,
+                false,
+                false,
+                true);
 
             spineBone = CreateBone(
                 pelvisBone,
                 "Bone.Spine",
                 skeletonDefinition.spine);
-            CreatePart(
+            bellyBone = CreateBone(
                 spineBone,
+                "Bone.Belly",
+                new Vector2(0f, 18f));
+            CreatePart(
+                bellyBone,
                 "Part.Abdomen",
-                CharacterMeshShape.Torso,
+                CharacterMeshShape.FatBelly,
                 CharacterVisualRole.Top,
-                new Vector2(244f, 194f),
-                new Vector2(0f, 29f),
+                new Vector2(270f, 220f),
+                new Vector2(0f, 24f),
                 new Vector2(0.5f, 0.5f),
-                0.88f,
-                1.04f);
+                0.90f,
+                1.18f);
+            CreatePart(
+                bellyBone,
+                "Detail.BellyBand",
+                CharacterMeshShape.BellyBand,
+                CharacterVisualRole.Skin,
+                new Vector2(258f, 64f),
+                new Vector2(0f, -96f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                2f,
+                false);
+            CreatePart(
+                bellyBone,
+                "Detail.SideBellyProfile",
+                CharacterMeshShape.FatBelly,
+                CharacterVisualRole.Top,
+                new Vector2(145f, 194f),
+                new Vector2(138f, 15f),
+                new Vector2(0.5f, 0.5f),
+                0.82f,
+                1.16f,
+                4f,
+                false,
+                false,
+                true,
+                false);
+            CreatePart(
+                bellyBone,
+                "Detail.ShirtStain.Belly",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.TopStain,
+                new Vector2(82f, 49f),
+                new Vector2(-48f, 26f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                true);
+            CreatePart(
+                bellyBone,
+                "Detail.ShirtFold.Belly.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.TopShadow,
+                new Vector2(86f, 9f),
+                new Vector2(-66f, -43f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                bellyBone,
+                "Detail.ShirtFold.Belly.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.TopShadow,
+                new Vector2(72f, 8f),
+                new Vector2(70f, -24f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            shirtHemBone = CreateBone(
+                bellyBone,
+                "Bone.ShirtHem",
+                new Vector2(0f, -73f));
+            CreatePart(
+                shirtHemBone,
+                "Part.ShirtHem",
+                CharacterMeshShape.ShirtHem,
+                CharacterVisualRole.Top,
+                new Vector2(292f, 66f),
+                Vector2.zero,
+                new Vector2(0.5f, 0.5f));
 
             chestBone = CreateBone(
                 spineBone,
                 "Bone.Chest",
                 skeletonDefinition.chest);
-            CreatePart(
+            chestSoftBone = CreateBone(
                 chestBone,
+                "Bone.ChestSoft",
+                Vector2.zero);
+            CreatePart(
+                chestSoftBone,
                 "Part.Chest",
-                CharacterMeshShape.Torso,
+                CharacterMeshShape.FatChest,
                 CharacterVisualRole.Top,
-                new Vector2(316f, 244f),
+                new Vector2(330f, 250f),
                 Vector2.zero,
                 new Vector2(0.5f, 0.5f),
-                1.05f,
-                0.76f);
+                1.02f,
+                0.92f);
             CreatePart(
-                chestBone,
+                chestSoftBone,
+                "Detail.NecklineSkin",
+                CharacterMeshShape.Neckline,
+                CharacterVisualRole.Skin,
+                new Vector2(184f, 108f),
+                new Vector2(0f, 86f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                3f,
+                false,
+                true,
+                true,
+                false);
+            CreatePart(
+                chestSoftBone,
+                "Detail.ChestHair.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.Hair,
+                new Vector2(43f, 5f),
+                new Vector2(-18f, 63f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                false,
+                false);
+            CreatePart(
+                chestSoftBone,
+                "Detail.ChestHair.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.Hair,
+                new Vector2(40f, 5f),
+                new Vector2(20f, 55f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                false,
+                false);
+            CreatePart(
+                chestSoftBone,
+                "Detail.ShirtStain.Chest",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.TopStain,
+                new Vector2(56f, 42f),
+                new Vector2(82f, -8f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                chestSoftBone,
+                "Detail.ShirtChestShade",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.TopShadow,
+                new Vector2(238f, 15f),
+                new Vector2(0f, -72f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                chestSoftBone,
                 "Part.ChestAccent",
                 CharacterMeshShape.Ellipse,
                 CharacterVisualRole.Accent,
@@ -325,7 +694,8 @@ namespace SkinnyToBeast.Gameplay
                 new Vector2(0.5f, 0.5f),
                 1f,
                 1f,
-                2f);
+                2f,
+                false);
 
             leftShoulderBone = CreateBone(
                 chestBone,
@@ -338,19 +708,43 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 leftShoulderBone,
                 "Part.Shoulder.L",
-                CharacterMeshShape.Ellipse,
+                CharacterMeshShape.FatShoulder,
                 CharacterVisualRole.Skin,
-                new Vector2(92f, 92f),
+                new Vector2(104f, 108f),
                 Vector2.zero,
                 new Vector2(0.5f, 0.5f));
             CreatePart(
                 rightShoulderBone,
                 "Part.Shoulder.R",
-                CharacterMeshShape.Ellipse,
+                CharacterMeshShape.FatShoulder,
                 CharacterVisualRole.Skin,
-                new Vector2(92f, 92f),
+                new Vector2(104f, 108f),
                 Vector2.zero,
                 new Vector2(0.5f, 0.5f));
+            CreatePart(
+                leftShoulderBone,
+                "Detail.ShoulderHighlight.L",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinHighlight,
+                new Vector2(38f, 46f),
+                new Vector2(-14f, 17f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                rightShoulderBone,
+                "Detail.ShoulderHighlight.R",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinHighlight,
+                new Vector2(38f, 46f),
+                new Vector2(14f, 17f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
 
             leftUpperArmBone = CreateBone(
                 leftShoulderBone,
@@ -363,19 +757,43 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 leftUpperArmBone,
                 "Part.UpperArm.L",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatUpperArm,
                 CharacterVisualRole.Skin,
-                new Vector2(80f, 181f),
+                new Vector2(98f, 190f),
                 new Vector2(0f, 20f),
                 new Vector2(0.5f, 1f));
             CreatePart(
                 rightUpperArmBone,
                 "Part.UpperArm.R",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatUpperArm,
                 CharacterVisualRole.Skin,
-                new Vector2(80f, 181f),
+                new Vector2(98f, 190f),
                 new Vector2(0f, 20f),
                 new Vector2(0.5f, 1f));
+            CreatePart(
+                leftUpperArmBone,
+                "Detail.UpperArmShade.L",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(38f, 88f),
+                new Vector2(-24f, -58f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
+            CreatePart(
+                rightUpperArmBone,
+                "Detail.UpperArmShade.R",
+                CharacterMeshShape.Stain,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(38f, 88f),
+                new Vector2(24f, -58f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false);
 
             leftForearmBone = CreateBone(
                 leftUpperArmBone,
@@ -388,19 +806,49 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 leftForearmBone,
                 "Part.Forearm.L",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatForearm,
                 CharacterVisualRole.Skin,
-                new Vector2(69f, 165f),
+                new Vector2(87f, 172f),
                 new Vector2(0f, 18f),
                 new Vector2(0.5f, 1f));
             CreatePart(
                 rightForearmBone,
                 "Part.Forearm.R",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatForearm,
                 CharacterVisualRole.Skin,
-                new Vector2(69f, 165f),
+                new Vector2(87f, 172f),
                 new Vector2(0f, 18f),
                 new Vector2(0.5f, 1f));
+            CreatePart(
+                leftForearmBone,
+                "Detail.ElbowCrease.L",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(53f, 8f),
+                new Vector2(9f, 0f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                false);
+            CreatePart(
+                rightForearmBone,
+                "Detail.ElbowCrease.R",
+                CharacterMeshShape.FabricFold,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(53f, 8f),
+                new Vector2(-9f, 0f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                0f,
+                false,
+                true,
+                true,
+                false);
             CreatePart(
                 leftForearmBone,
                 "Part.WristWrap.L",
@@ -411,7 +859,8 @@ namespace SkinnyToBeast.Gameplay
                 new Vector2(0.5f, 0.5f),
                 1f,
                 1f,
-                2f);
+                2f,
+                false);
             CreatePart(
                 rightForearmBone,
                 "Part.WristWrap.R",
@@ -422,7 +871,8 @@ namespace SkinnyToBeast.Gameplay
                 new Vector2(0.5f, 0.5f),
                 1f,
                 1f,
-                2f);
+                2f,
+                false);
 
             leftHandBone = CreateBone(
                 leftForearmBone,
@@ -435,17 +885,17 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 leftHandBone,
                 "Part.Hand.L",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatHand,
                 CharacterVisualRole.Skin,
-                new Vector2(76f, 92f),
+                new Vector2(88f, 101f),
                 new Vector2(0f, -34f),
                 new Vector2(0.5f, 0.5f));
             CreatePart(
                 rightHandBone,
                 "Part.Hand.R",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatHand,
                 CharacterVisualRole.Skin,
-                new Vector2(76f, 92f),
+                new Vector2(88f, 101f),
                 new Vector2(0f, -34f),
                 new Vector2(0.5f, 0.5f));
         }
@@ -459,9 +909,9 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 neckBone,
                 "Part.Neck",
-                CharacterMeshShape.Capsule,
+                CharacterMeshShape.FatNeck,
                 CharacterVisualRole.Skin,
-                new Vector2(76f, 104f),
+                new Vector2(116f, 110f),
                 new Vector2(0f, 31f),
                 new Vector2(0.5f, 0.5f));
 
@@ -472,22 +922,66 @@ namespace SkinnyToBeast.Gameplay
             CreatePart(
                 headBone,
                 "Part.Head",
-                CharacterMeshShape.Ellipse,
+                CharacterMeshShape.FatHead,
                 CharacterVisualRole.Skin,
-                new Vector2(214f, 242f),
+                new Vector2(230f, 254f),
                 new Vector2(0f, 87f),
                 new Vector2(0.5f, 0.5f));
             CreatePart(
                 headBone,
                 "Part.HairBack",
-                CharacterMeshShape.Hair,
+                CharacterMeshShape.MessyHair,
                 CharacterVisualRole.Hair,
-                new Vector2(222f, 132f),
-                new Vector2(0f, 162f),
+                new Vector2(242f, 148f),
+                new Vector2(0f, 168f),
                 new Vector2(0.5f, 0.5f),
                 1f,
                 1f,
                 4f);
+            CreatePart(
+                headBone,
+                "Part.Ear.L",
+                CharacterMeshShape.Ear,
+                CharacterVisualRole.Skin,
+                new Vector2(40f, 65f),
+                new Vector2(-112f, 91f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                3f,
+                false);
+            CreatePart(
+                headBone,
+                "Part.Ear.R",
+                CharacterMeshShape.Ear,
+                CharacterVisualRole.Skin,
+                new Vector2(40f, 65f),
+                new Vector2(112f, 91f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                3f,
+                false);
+
+            chinSoftBone = CreateBone(
+                headBone,
+                "Bone.ChinSoft",
+                new Vector2(0f, 30f));
+            CreatePart(
+                chinSoftBone,
+                "Part.DoubleChin",
+                CharacterMeshShape.DoubleChin,
+                CharacterVisualRole.SkinShadow,
+                new Vector2(158f, 64f),
+                Vector2.zero,
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                2f,
+                true,
+                true,
+                true,
+                false);
 
             faceController?.Build(headBone);
         }
@@ -565,6 +1059,7 @@ namespace SkinnyToBeast.Gameplay
             animationDriver?.ResetState();
             viewController?.SetFacing(restingFacing);
             ikController?.SetLocomotion(false, restingFacing);
+            softBodyController?.ResetState();
         }
 
         public void SetLocomotion(Vector2 direction, float speed)
@@ -585,6 +1080,9 @@ namespace SkinnyToBeast.Gameplay
                 Mathf.Max(0f, speed),
                 moving);
             ikController?.SetLocomotion(moving, nextFacing);
+            softBodyController?.SetLocomotion(
+                moving,
+                Mathf.Max(0f, speed));
         }
 
         public void StopLocomotion(CharacterFacing facing)
@@ -595,6 +1093,7 @@ namespace SkinnyToBeast.Gameplay
             viewController?.SetFacing(facing);
             animationDriver?.SetLocomotion(facing, 0f, false);
             ikController?.SetLocomotion(false, facing);
+            softBodyController?.SetLocomotion(false, 0f);
         }
 
         public void PlayEntryWalk(float speed = 1f)
@@ -607,6 +1106,9 @@ namespace SkinnyToBeast.Gameplay
             ikController?.SetLocomotion(
                 true,
                 CharacterFacing.Back);
+            softBodyController?.SetLocomotion(
+                true,
+                Mathf.Max(0.2f, speed));
         }
 
         public void SetRestingFacing(CharacterFacing facing)
@@ -632,6 +1134,16 @@ namespace SkinnyToBeast.Gameplay
             activeActionUntil =
                 Time.unscaledTime + Mathf.Max(0.12f, duration);
             animationDriver?.PlayRoutineAction(action, duration);
+            if (action == CharacterRoutineAction.SitDown ||
+                action == CharacterRoutineAction.StandUp ||
+                action == CharacterRoutineAction.Flex ||
+                action == CharacterRoutineAction.AdjustClothes)
+            {
+                softBodyController?.AddImpulse(
+                    action == CharacterRoutineAction.Flex
+                        ? 0.82f
+                        : 0.55f);
+            }
 
             if (action == CharacterRoutineAction.Yawn)
             {
@@ -673,6 +1185,8 @@ namespace SkinnyToBeast.Gameplay
                 ? animationDriver.TriggerTap()
                 : (tapVariant + 1) % 3;
             activeActionUntil = Time.unscaledTime + 0.54f;
+            softBodyController?.AddImpulse(
+                0.92f + tapVariant * 0.12f);
             faceController?.LookAt(new Vector2(0f, -1f), 0.42f);
             faceController?.SetExpression(
                 CharacterExpression.Strain,
@@ -682,6 +1196,7 @@ namespace SkinnyToBeast.Gameplay
         public void TriggerUpgrade()
         {
             animationDriver?.TriggerUpgrade();
+            softBodyController?.AddImpulse(1.15f);
             faceController?.SetExpression(
                 CharacterExpression.Happy,
                 0.9f);
@@ -690,6 +1205,7 @@ namespace SkinnyToBeast.Gameplay
         public void TriggerStageChange()
         {
             animationDriver?.TriggerStageChange();
+            softBodyController?.AddImpulse(1.42f);
             faceController?.SetExpression(
                 CharacterExpression.Happy,
                 0.82f);
@@ -863,80 +1379,136 @@ namespace SkinnyToBeast.Gameplay
             float shoulderOffset =
                 Mathf.Abs(skeletonDefinition.leftShoulder.x) *
                 appearance.shoulderWidth;
+            float shoulderDrop = appearance.slouch * 15f;
             leftShoulderBone.anchoredPosition =
                 new Vector2(
                     -shoulderOffset,
-                    skeletonDefinition.leftShoulder.y);
+                    skeletonDefinition.leftShoulder.y -
+                    shoulderDrop);
             rightShoulderBone.anchoredPosition =
                 new Vector2(
                     shoulderOffset,
-                    skeletonDefinition.rightShoulder.y);
+                    skeletonDefinition.rightShoulder.y -
+                    shoulderDrop);
+            chestBone.anchoredPosition =
+                skeletonDefinition.chest +
+                new Vector2(0f, -appearance.slouch * 10f);
+            neckBone.anchoredPosition =
+                skeletonDefinition.neck +
+                new Vector2(0f, -appearance.slouch * 8f);
 
             SetPartSize(
                 "Part.Chest",
                 new Vector2(
-                    316f * appearance.chestWidth,
-                    244f));
+                    330f * appearance.chestWidth,
+                    250f));
             SetPartWidthProfile(
                 "Part.Chest",
-                1.05f,
-                Mathf.Lerp(0.70f, 0.86f, appearance.bellyWidth - 0.9f));
+                1.02f,
+                Mathf.Lerp(
+                    0.86f,
+                    1.06f,
+                    Mathf.InverseLerp(
+                        1.12f,
+                        1.72f,
+                        appearance.bellyWidth)));
             SetPartSize(
                 "Part.Abdomen",
                 new Vector2(
-                    244f * appearance.bellyWidth,
-                    194f));
+                    270f * appearance.bellyWidth,
+                    220f +
+                    appearance.softness * 13f));
+            SetPartSize(
+                "Part.ShirtHem",
+                new Vector2(
+                    270f * appearance.bellyWidth,
+                    66f +
+                    appearance.softness * 8f));
+            SetPartSize(
+                "Detail.BellyBand",
+                new Vector2(
+                    245f * appearance.bellyWidth,
+                    64f +
+                    appearance.softness * 7f));
+            SetPartSize(
+                "Detail.SideBellyProfile",
+                new Vector2(
+                    145f * appearance.sideDepth,
+                    194f +
+                    appearance.softness * 16f));
             SetPartSize(
                 "Part.Pelvis",
                 new Vector2(
-                    245f * appearance.hipWidth,
-                    151f));
+                    270f * appearance.hipWidth,
+                    158f));
+            SetPartSize(
+                "Detail.Waistband",
+                new Vector2(
+                    246f * appearance.hipWidth,
+                    34f));
 
             SetPairSize(
                 "Part.Shoulder",
                 new Vector2(
-                    92f * appearance.armWidth,
-                    92f * appearance.armWidth));
+                    104f * appearance.armWidth,
+                    108f * appearance.armWidth));
             SetPairSize(
                 "Part.UpperArm",
                 new Vector2(
-                    80f * appearance.armWidth,
-                    181f));
+                    98f * appearance.armWidth,
+                    190f));
             SetPairSize(
                 "Part.Forearm",
                 new Vector2(
-                    69f * appearance.armWidth,
-                    165f));
+                    87f * appearance.armWidth,
+                    172f));
             SetPairSize(
                 "Part.Hand",
                 new Vector2(
-                    76f * appearance.armWidth,
-                    92f * appearance.armWidth));
+                    88f * appearance.armWidth,
+                    101f * appearance.armWidth));
             SetPairSize(
                 "Part.Thigh",
                 new Vector2(
-                    104f * appearance.legWidth,
-                    224f));
+                    122f * appearance.legWidth,
+                    232f));
             SetPairSize(
                 "Part.Shin",
                 new Vector2(
-                    75f * appearance.legWidth,
-                    201f));
+                    91f * appearance.legWidth,
+                    208f));
             SetPairSize(
                 "Part.Foot",
                 new Vector2(
-                    132f * appearance.legWidth,
-                    67f * appearance.legWidth));
+                    145f * appearance.legWidth,
+                    72f * appearance.legWidth));
+            SetPartSize(
+                "Part.Neck",
+                new Vector2(
+                    116f * appearance.chinScale,
+                    110f));
             SetPartSize(
                 "Part.Head",
                 new Vector2(
-                    214f * appearance.headScale,
-                    242f * appearance.headScale));
+                    230f * appearance.headScale,
+                    254f * appearance.headScale));
             SetPartSize(
                 "Part.HairBack",
                 new Vector2(
-                    222f * appearance.headScale,
-                    132f * appearance.headScale));
+                    242f * appearance.headScale,
+                    148f * appearance.headScale));
+            SetPartSize(
+                "Part.DoubleChin",
+                new Vector2(
+                    158f * appearance.chinScale,
+                    64f * appearance.chinScale));
+            SetPairSize(
+                "Part.Ear",
+                new Vector2(
+                    40f * appearance.headScale,
+                    65f * appearance.headScale));
+
+            softBodyController?.ApplyAppearance(appearance);
         }
 
         private static Color ResolveRoleColor(
@@ -946,10 +1518,33 @@ namespace SkinnyToBeast.Gameplay
             return role switch
             {
                 CharacterVisualRole.Skin => appearance.skin,
+                CharacterVisualRole.SkinShadow =>
+                    Shade(appearance.skin, 0.72f, 0.56f),
+                CharacterVisualRole.SkinHighlight =>
+                    Shade(appearance.skin, 1.15f, 0.48f),
                 CharacterVisualRole.Hair => appearance.hair,
                 CharacterVisualRole.Top => appearance.top,
+                CharacterVisualRole.TopShadow =>
+                    Shade(appearance.top, 0.58f, 0.64f),
+                CharacterVisualRole.TopHighlight =>
+                    Shade(appearance.top, 1.18f, 0.46f),
+                CharacterVisualRole.TopStain =>
+                    new Color(
+                        0.19f,
+                        0.16f,
+                        0.12f,
+                        Mathf.Lerp(
+                            0.10f,
+                            0.48f,
+                            appearance.shirtWear)),
                 CharacterVisualRole.Bottom => appearance.bottom,
+                CharacterVisualRole.BottomShadow =>
+                    Shade(appearance.bottom, 0.56f, 0.78f),
+                CharacterVisualRole.BottomDetail =>
+                    Shade(appearance.bottom, 1.38f, 0.68f),
                 CharacterVisualRole.Shoe => appearance.shoes,
+                CharacterVisualRole.ShoeDetail =>
+                    Shade(appearance.shoes, 0.48f, 0.88f),
                 CharacterVisualRole.Accent => appearance.accentVisible
                     ? appearance.accent
                     : new Color(
@@ -959,6 +1554,18 @@ namespace SkinnyToBeast.Gameplay
                         0f),
                 _ => Color.white
             };
+        }
+
+        private static Color Shade(
+            Color source,
+            float brightness,
+            float alpha)
+        {
+            return new Color(
+                Mathf.Clamp01(source.r * brightness),
+                Mathf.Clamp01(source.g * brightness),
+                Mathf.Clamp01(source.b * brightness),
+                Mathf.Clamp01(source.a * alpha));
         }
 
         private void SetPairSize(string baseName, Vector2 size)
@@ -1059,7 +1666,11 @@ namespace SkinnyToBeast.Gameplay
             Vector2 pivot,
             float topWidth = 1f,
             float bottomWidth = 1f,
-            float outlineWidth = 5f)
+            float outlineWidth = 5f,
+            bool corePart = true,
+            bool showFront = true,
+            bool showSide = true,
+            bool showBack = true)
         {
             RectTransform rect = CreateRect(
                 parent,
@@ -1083,7 +1694,189 @@ namespace SkinnyToBeast.Gameplay
                 bottomWidth);
             meshRenderers.Add(graphic);
             namedParts[name] = graphic;
+
+            CharacterArtPart artPart =
+                rect.gameObject.AddComponent<CharacterArtPart>();
+            artPart.Configure(
+                graphic,
+                ResolveArtKind(shape, role),
+                ResolveArtSlot(role),
+                corePart,
+                showFront,
+                showSide,
+                showBack);
+            artParts.Add(artPart);
             return graphic;
+        }
+
+        public bool ValidateFatManArtCoverage(out string error)
+        {
+            string[] requiredParts =
+            {
+                "Part.Thigh.L",
+                "Part.Thigh.R",
+                "Part.Shin.L",
+                "Part.Shin.R",
+                "Part.Foot.L",
+                "Part.Foot.R",
+                "Part.Pelvis",
+                "Part.Abdomen",
+                "Part.ShirtHem",
+                "Part.Chest",
+                "Part.Shoulder.L",
+                "Part.Shoulder.R",
+                "Part.UpperArm.L",
+                "Part.UpperArm.R",
+                "Part.Forearm.L",
+                "Part.Forearm.R",
+                "Part.Hand.L",
+                "Part.Hand.R",
+                "Part.Neck",
+                "Part.Head",
+                "Part.HairBack",
+                "Part.DoubleChin"
+            };
+
+            for (int i = 0; i < requiredParts.Length; i++)
+            {
+                string partName = requiredParts[i];
+                if (!namedParts.TryGetValue(
+                        partName,
+                        out CharacterMeshGraphic graphic) ||
+                    graphic == null)
+                {
+                    error =
+                        $"Required fat-man art part is missing: {partName}.";
+                    return false;
+                }
+
+                CharacterArtPart artPart =
+                    graphic.GetComponent<CharacterArtPart>();
+                if (artPart == null ||
+                    !artPart.IsConfigured ||
+                    !artPart.IsCorePart ||
+                    !artPart.UsesFatManSilhouette)
+                {
+                    error =
+                        $"'{partName}' still uses the technical mannequin " +
+                        "instead of a fat-man cutout silhouette.";
+                    return false;
+                }
+            }
+
+            if (softBodyController == null ||
+                !softBodyController.HasCompleteRig ||
+                SoftBoneCount != 4)
+            {
+                error =
+                    "Belly, ShirtHem, ChestSoft and ChinSoft bones are not " +
+                    "fully connected.";
+                return false;
+            }
+
+            if (currentDefinition != null &&
+                (currentDefinition.SkinSet == null ||
+                 !currentDefinition.SkinSet.IsValid))
+            {
+                error =
+                    "The selected stage is not a valid FatManSkinSet.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private static FatManArtPartKind ResolveArtKind(
+            CharacterMeshShape shape,
+            CharacterVisualRole role)
+        {
+            return shape switch
+            {
+                CharacterMeshShape.FatThigh =>
+                    FatManArtPartKind.Thigh,
+                CharacterMeshShape.FatCalf =>
+                    FatManArtPartKind.Calf,
+                CharacterMeshShape.WornShoe =>
+                    FatManArtPartKind.Foot,
+                CharacterMeshShape.FatPelvis =>
+                    FatManArtPartKind.Pelvis,
+                CharacterMeshShape.FatBelly =>
+                    FatManArtPartKind.Belly,
+                CharacterMeshShape.ShirtHem =>
+                    FatManArtPartKind.ShirtHem,
+                CharacterMeshShape.FatChest =>
+                    FatManArtPartKind.Chest,
+                CharacterMeshShape.FatShoulder =>
+                    FatManArtPartKind.Shoulder,
+                CharacterMeshShape.FatUpperArm =>
+                    FatManArtPartKind.UpperArm,
+                CharacterMeshShape.FatForearm =>
+                    FatManArtPartKind.Forearm,
+                CharacterMeshShape.FatHand =>
+                    FatManArtPartKind.Hand,
+                CharacterMeshShape.FatNeck =>
+                    FatManArtPartKind.Neck,
+                CharacterMeshShape.FatHead =>
+                    FatManArtPartKind.Head,
+                CharacterMeshShape.DoubleChin =>
+                    FatManArtPartKind.DoubleChin,
+                CharacterMeshShape.MessyHair =>
+                    FatManArtPartKind.Hair,
+                CharacterMeshShape.Ear =>
+                    FatManArtPartKind.Ear,
+                _ => role switch
+                {
+                    CharacterVisualRole.ShoeDetail =>
+                        FatManArtPartKind.ShoeDetail,
+                    CharacterVisualRole.SkinShadow =>
+                        FatManArtPartKind.SkinDetail,
+                    CharacterVisualRole.SkinHighlight =>
+                        FatManArtPartKind.SkinDetail,
+                    _ => FatManArtPartKind.ClothingDetail
+                }
+            };
+        }
+
+        private static CharacterSkinSlot ResolveArtSlot(
+            CharacterVisualRole role)
+        {
+            return role switch
+            {
+                CharacterVisualRole.Hair =>
+                    CharacterSkinSlot.Hair,
+                CharacterVisualRole.Top =>
+                    CharacterSkinSlot.Top,
+                CharacterVisualRole.TopShadow =>
+                    CharacterSkinSlot.Top,
+                CharacterVisualRole.TopHighlight =>
+                    CharacterSkinSlot.Top,
+                CharacterVisualRole.TopStain =>
+                    CharacterSkinSlot.Top,
+                CharacterVisualRole.Bottom =>
+                    CharacterSkinSlot.Bottom,
+                CharacterVisualRole.BottomShadow =>
+                    CharacterSkinSlot.Bottom,
+                CharacterVisualRole.BottomDetail =>
+                    CharacterSkinSlot.Bottom,
+                CharacterVisualRole.Shoe =>
+                    CharacterSkinSlot.Shoes,
+                CharacterVisualRole.ShoeDetail =>
+                    CharacterSkinSlot.Shoes,
+                CharacterVisualRole.Accent =>
+                    CharacterSkinSlot.Accessory,
+                CharacterVisualRole.EyeWhite =>
+                    CharacterSkinSlot.Face,
+                CharacterVisualRole.Iris =>
+                    CharacterSkinSlot.Face,
+                CharacterVisualRole.Brow =>
+                    CharacterSkinSlot.Face,
+                CharacterVisualRole.Mouth =>
+                    CharacterSkinSlot.Face,
+                CharacterVisualRole.Cheek =>
+                    CharacterSkinSlot.Face,
+                _ => CharacterSkinSlot.Body
+            };
         }
 
         public bool ValidateCanvasRendererCoverage(
@@ -1117,6 +1910,30 @@ namespace SkinnyToBeast.Gameplay
                         $"Skeletal graphic " +
                         $"'{(graphic != null ? graphic.name : "<missing>")}' " +
                         "has no CanvasRenderer.";
+                    return false;
+                }
+            }
+
+            CharacterSurfaceGraphic[] surfaces =
+                characterRoot.GetComponentsInChildren<
+                    CharacterSurfaceGraphic>(true);
+            if (surfaces.Length < graphics.Length * 2)
+            {
+                error =
+                    $"Expected two stable artistic surfaces per skeletal " +
+                    $"graphic, found {surfaces.Length} surfaces for " +
+                    $"{graphics.Length} graphics.";
+                return false;
+            }
+
+            for (int i = 0; i < surfaces.Length; i++)
+            {
+                CharacterSurfaceGraphic surface = surfaces[i];
+                if (surface == null ||
+                    surface.GetComponent<CanvasRenderer>() == null)
+                {
+                    error =
+                        "An artistic character surface has no CanvasRenderer.";
                     return false;
                 }
             }

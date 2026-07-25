@@ -7,6 +7,7 @@ namespace SkinnyToBeast.Gameplay
     {
         private RectTransform visualRoot;
         private CharacterFaceController faceController;
+        private CharacterArtPart[] artParts;
         private CharacterFacing facing = CharacterFacing.Front;
         private float baseScale = 0.78f;
         private bool configured;
@@ -21,6 +22,10 @@ namespace SkinnyToBeast.Gameplay
             visualRoot = targetVisualRoot;
             faceController = face;
             configured = visualRoot != null;
+            artParts = configured
+                ? visualRoot.GetComponentsInChildren<
+                    CharacterArtPart>(true)
+                : System.Array.Empty<CharacterArtPart>();
             ApplyView();
         }
 
@@ -47,7 +52,9 @@ namespace SkinnyToBeast.Gameplay
             if (facing == CharacterFacing.SideLeft ||
                 facing == CharacterFacing.SideRight)
             {
-                horizontal *= 0.72f;
+                // A fat side profile keeps more depth than the old technical
+                // mannequin. Left uses the same artwork mirrored.
+                horizontal *= 0.82f;
                 if (facing == CharacterFacing.SideLeft)
                 {
                     horizontal *= -1f;
@@ -56,6 +63,13 @@ namespace SkinnyToBeast.Gameplay
 
             visualRoot.localScale =
                 new Vector3(horizontal, baseScale, 1f);
+            for (int i = 0;
+                 artParts != null && i < artParts.Length;
+                 i++)
+            {
+                artParts[i]?.SetFacing(facing);
+            }
+
             faceController?.SetFacing(facing);
         }
     }

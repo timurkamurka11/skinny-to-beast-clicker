@@ -33,13 +33,13 @@ namespace SkinnyToBeast.Gameplay
             visibilityGate = gate;
         }
 
-        [ContextMenu("Run Full Patch 3 Readiness Suite")]
+        [ContextMenu("Run Full Patch 3.1 Fat Man Readiness Suite")]
         private void RunFromContextMenu()
         {
             if (!Application.isPlaying)
             {
                 Debug.LogError(
-                    "Patch 3 readiness suite must run in Play Mode.",
+                    "Patch 3.1 readiness suite must run in Play Mode.",
                     this);
                 return;
             }
@@ -118,6 +118,16 @@ namespace SkinnyToBeast.Gameplay
                     Fail(
                         $"CanvasRenderer coverage failed on real prefab " +
                         $"launch {launch + 1}: {rendererError}");
+                    Destroy(probe);
+                    skinController.ApplySkin(originalStage, false);
+                    yield break;
+                }
+                if (!probeRig.ValidateFatManArtCoverage(
+                        out string fatManError))
+                {
+                    Fail(
+                        $"Fat-man art coverage failed on real prefab " +
+                        $"launch {launch + 1}: {fatManError}");
                     Destroy(probe);
                     skinController.ApplySkin(originalStage, false);
                     yield break;
@@ -320,8 +330,16 @@ namespace SkinnyToBeast.Gameplay
                 rigController.GetBone("Bone.Spine");
             RectTransform chest =
                 rigController.GetBone("Bone.Chest");
+            RectTransform belly =
+                rigController.GetBone("Bone.Belly");
+            RectTransform shirtHem =
+                rigController.GetBone("Bone.ShirtHem");
+            RectTransform chestSoft =
+                rigController.GetBone("Bone.ChestSoft");
             RectTransform head =
                 rigController.GetBone("Bone.Head");
+            RectTransform chinSoft =
+                rigController.GetBone("Bone.ChinSoft");
             RectTransform leftArm =
                 rigController.GetBone("Bone.UpperArm.L");
             RectTransform rightLeg =
@@ -336,7 +354,11 @@ namespace SkinnyToBeast.Gameplay
                 pelvis == null ||
                 spine == null ||
                 chest == null ||
+                belly == null ||
+                shirtHem == null ||
+                chestSoft == null ||
                 head == null ||
+                chinSoft == null ||
                 leftArm == null ||
                 rightLeg == null ||
                 leftEyelid == null ||
@@ -390,6 +412,8 @@ namespace SkinnyToBeast.Gameplay
                 Quaternion.Angle(
                     rightLeg.localRotation,
                     legBefore) > 2f;
+            bool softBodyMoved =
+                rigController.SoftBodyMotionMagnitude > 0.25f;
             rigController.StopLocomotion(CharacterFacing.Front);
 
             Quaternion headBefore = head.localRotation;
@@ -416,6 +440,7 @@ namespace SkinnyToBeast.Gameplay
             if (!breathingMoved ||
                 !upperBodyMoved ||
                 !lowerBodyMoved ||
+                !softBodyMoved ||
                 !headMoved ||
                 !faceMoved)
             {
@@ -424,6 +449,7 @@ namespace SkinnyToBeast.Gameplay
                     $"breathing={breathingMoved}, " +
                     $"upperBody={upperBodyMoved}, " +
                     $"lowerBody={lowerBodyMoved}, " +
+                    $"softBody={softBodyMoved}, " +
                     $"head={headMoved}, face={faceMoved}.");
                 if (routineController != null)
                 {
@@ -459,8 +485,9 @@ namespace SkinnyToBeast.Gameplay
             skinController.ApplySkin(originalStage, false);
             LastRunPassed = true;
             LastResult =
-                "PASS: 100 visibility starts with complete CanvasRenderer " +
-                "coverage, 50 immediate + 50 animated stage swaps, 300 taps, " +
+                "PASS Patch 3.1: 100 fat-man visibility starts with complete " +
+                "art/CanvasRenderer coverage, four soft-body bones, " +
+                "50 immediate + 50 animated stage swaps, 300 taps, " +
                 "four-direction travel with planted feet, independent bones " +
                 "and three idle actions.";
             Debug.Log(LastResult, this);
