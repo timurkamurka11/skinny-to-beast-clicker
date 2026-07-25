@@ -34,13 +34,14 @@ namespace SkinnyToBeast.Gameplay
         private CharacterSkinController skinController;
         private bool hasLoggedFailure;
 
+        public string LastError { get; private set; } = string.Empty;
+
         public void Configure(
             CharacterRigController rig,
             CharacterSkinController skin)
         {
             rigController = rig;
             skinController = skin;
-            ValidateNow(false);
         }
 
         public bool ValidateNow()
@@ -48,35 +49,59 @@ namespace SkinnyToBeast.Gameplay
             return ValidateNow(true);
         }
 
-        [ContextMenu("Validate Character Rig")]
-        private void ValidateFromContextMenu()
-        {
-            ValidateNow(true);
-        }
-
         public bool ValidateNow(bool logSuccess)
         {
-            StringBuilder errors = new StringBuilder();
+            StringBuilder errors = new();
             if (rigController == null)
             {
                 errors.AppendLine("Rig controller is missing.");
             }
             else
             {
-                foreach (string bone in RequiredBones)
+                for (int i = 0; i < RequiredBones.Length; i++)
                 {
-                    if (!rigController.HasBone(bone))
+                    if (!rigController.HasBone(RequiredBones[i]))
                     {
-                        errors.AppendLine($"Missing bone: {bone}");
+                        errors.AppendLine(
+                            $"Missing bone: {RequiredBones[i]}");
                     }
                 }
 
-                int textureCount = rigController.GetDistinctFrontTextureCount();
-                if (textureCount > 1)
+                if (rigController.GetCharacterTextureCount() != 0)
                 {
                     errors.AppendLine(
-                        $"More than one front skin texture is visible ({textureCount}).");
+                        "The mesh rig unexpectedly samples a character texture.");
                 }
+
+                if (rigController.GetVisibleGraphicCount() < 18)
+                {
+                    errors.AppendLine(
+                        "Fewer than 18 independent mesh parts are visible.");
+                }
+
+                if (!rigController.AnimatorReady)
+                {
+                    errors.AppendLine(
+                        "The four-layer character Animator is not ready.");
+                }
+
+                if (!rigController.HasVisibleSkin)
+                {
+                    errors.AppendLine(
+                        "The selected stage has no non-zero on-screen mesh bounds.");
+                }
+
+                if (!rigController.ValidateJointContinuity(
+                        out string jointError))
+                {
+                    errors.AppendLine(jointError);
+                }
+            }
+
+            if (ContainsForbiddenCharacterComponent())
+            {
+                errors.AppendLine(
+                    "CharacterRoot contains a forbidden raw texture UI component.");
             }
 
             if (skinController == null)
@@ -85,10 +110,11 @@ namespace SkinnyToBeast.Gameplay
             }
             else
             {
-                if (skinController.ActiveBaseSkinCount > 1)
+                if (skinController.ActiveBaseSkinCount != 1)
                 {
                     errors.AppendLine(
-                        $"More than one base skin is active ({skinController.ActiveBaseSkinCount}).");
+                        $"Expected one active Body slot, found " +
+                        $"{skinController.ActiveBaseSkinCount}.");
                 }
 
                 if (!skinController.ValidateSlotExclusivity(
@@ -101,14 +127,15 @@ namespace SkinnyToBeast.Gameplay
                     !skinController.IsVisualReady)
                 {
                     errors.AppendLine(
-                        "The selected skin is logically active but its " +
-                        "CharacterRoot or rig renderers are invisible.");
+                        "The selected stage is not visually ready.");
                 }
 
                 foreach (CharacterSkinSlot slot in
-                         System.Enum.GetValues(typeof(CharacterSkinSlot)))
+                         System.Enum.GetValues(
+                             typeof(CharacterSkinSlot)))
                 {
-                    int active = skinController.GetActiveCount(slot);
+                    int active =
+                        skinController.GetActiveCount(slot);
                     if (active > 1)
                     {
                         errors.AppendLine(
@@ -117,11 +144,14 @@ namespace SkinnyToBeast.Gameplay
                 }
             }
 
+            LastError = errors.ToString().Trim();
             if (errors.Length > 0)
             {
-                if (!hasLoggedFailure)
+                if (!hasLoggedFailure && logSuccess)
                 {
-                    Debug.LogError($"Character rig validation failed:\n{errors}", this);
+                    Debug.LogError(
+                        $"Character rig validation failed:\n{errors}",
+                        this);
                     hasLoggedFailure = true;
                 }
 
@@ -132,44 +162,118 @@ namespace SkinnyToBeast.Gameplay
             if (logSuccess)
             {
                 Debug.Log(
-                    $"Character rig is valid: {rigController.BoneCount} bones, " +
-                    "one active skin texture.",
+                    $"Character rig is valid: {rigController.BoneCount} " +
+                    $"bones, {rigController.GetVisibleGraphicCount()} " +
+                    "vector mesh parts, zero character textures.",
                     this);
             }
 
             return true;
         }
 
-        [ContextMenu("Run 50 Skin Swaps")]
-        private void RunFiftySkinSwaps()
+        public bool RunSkinSwapStress(int swapCount = 50)
         {
-            if (skinController == null || skinController.DefinitionCount <= 0)
+            if (rigController == null ||
+                skinController == null ||
+                skinController.DefinitionCount <= 0)
             {
-                Debug.LogError("Cannot run skin swap test: no skins configured.", this);
-                return;
+                LastError =
+                    "Cannot run skin swap stress: no definitions.";
+                return false;
             }
 
-            int original = Mathf.Max(0, skinController.CurrentArtIndex);
-            for (int i = 0; i < 50; i++)
+            int count = Mathf.Max(1, swapCount);
+            int original =
+                Mathf.Max(0, skinController.CurrentArtIndex);
+            int originalMeshCount =
+                rigController.MeshPartCount;
+            for (int i = 0; i < count; i++)
             {
                 skinController.ApplySkin(
-                    (original + i + 1) % skinController.DefinitionCount,
+                    (original + i + 1) %
+                    skinController.DefinitionCount,
                     false);
-                if (!ValidateNow(false))
+                if (!ValidateNow(false) ||
+                    rigController.MeshPartCount != originalMeshCount)
                 {
-                    Debug.LogError(
-                        $"Skin swap stress test failed on iteration {i + 1}.",
-                        this);
+                    LastError =
+                        $"Skin swap stress failed at iteration {i + 1}: " +
+                        (rigController.MeshPartCount != originalMeshCount
+                            ? "the persistent mesh count changed."
+                            : LastError);
                     skinController.ApplySkin(original, false);
-                    return;
+                    return false;
                 }
             }
 
             skinController.ApplySkin(original, false);
+            return ValidateNow(false);
+        }
+
+        public bool RunTapStress(int tapCount = 300)
+        {
+            if (rigController == null)
+            {
+                LastError =
+                    "Cannot run tap stress: rig is missing.";
+                return false;
+            }
+
+            bool passed =
+                rigController.StressTapAnimator(
+                    Mathf.Max(0, tapCount));
+            if (!passed)
+            {
+                LastError =
+                    "Animator rejected or lost one of the stress taps.";
+            }
+
+            return passed;
+        }
+
+        [ContextMenu("Validate Patch 3 Character Rig")]
+        private void ValidateFromContextMenu()
+        {
+            ValidateNow(true);
+        }
+
+        [ContextMenu("Run 50 Atomic Stage Swaps")]
+        private void RunFiftySkinSwaps()
+        {
+            bool passed = RunSkinSwapStress(50);
             Debug.Log(
-                "Skin swap stress test passed: 50 swaps, one Body item " +
-                "and no duplicate visual slot remained active.",
+                passed
+                    ? "Stage swap stress passed: 50 swaps, one persistent body."
+                    : $"Stage swap stress failed: {LastError}",
                 this);
+        }
+
+        [ContextMenu("Run 300 Tap Animator Stress")]
+        private void RunThreeHundredTaps()
+        {
+            bool passed = RunTapStress(300);
+            Debug.Log(
+                passed
+                    ? "Tap stress passed: 300 rapid taps, Animator remained healthy."
+                    : $"Tap stress failed: {LastError}",
+                this);
+        }
+
+        private bool ContainsForbiddenCharacterComponent()
+        {
+            Component[] components =
+                GetComponentsInChildren<Component>(true);
+            for (int i = 0; i < components.Length; i++)
+            {
+                Component component = components[i];
+                if (component != null &&
+                    component.GetType().Name == "Raw" + "Image")
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

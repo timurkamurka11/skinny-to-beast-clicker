@@ -15,27 +15,30 @@ namespace SkinnyToBeast.UI
     {
         private const string EntryBackgroundPath =
             "UI/Gameplay/Living/game_entry_door";
-        private const string WalkSheetRoot =
-            "UI/Gameplay/Living/Rig/walk_stage_";
+        private const string CharacterRigPrefabPath =
+            "UI/Gameplay/Living/CharacterRig2D";
         private const string StrengthKey = "game.player.strength";
         private const string GameEntrySceneName = "GameEntry";
         private const string MainMenuSceneName = "MainMenu";
-        private const float EntryCharacterSize = 720f;
-        private const float DirectionalReferenceSize = 1280f;
+        private const float EntryStartScale = 0.72f;
+        private const float EntryEndScale = 0.28f;
 
         private static GameEntryFlowController instance;
 
         private CanvasGroup rootGroup;
         private RectTransform backgroundRect;
-        private RawImage walkingCharacter;
-        private RectTransform walkingCharacterRect;
+        private CanvasGroup entryCharacterGroup;
+        private RectTransform entryCharacterRoot;
+        private CharacterRigController entryRig;
+        private CharacterSkinController entrySkin;
+        private CharacterRigValidator entryValidator;
+        private CharacterVisibilityGate entryVisibilityGate;
         private RectTransform characterShadow;
         private Image characterShadowImage;
         private Image doorwayGlow;
         private Image transitionCurtain;
         private TMP_Text statusText;
         private TMP_Text dotsText;
-        private CharacterDirectionalFrame[] entryDirectionalFrames;
         private readonly List<ResourceRequest> gameplayPreloads = new();
         private Func<bool> openGameplay;
         private Action<bool> completion;
@@ -183,27 +186,8 @@ namespace SkinnyToBeast.UI
             characterShadowImage.raycastTarget = false;
 
             int artIndex = ResolveSavedArtIndex();
-            BeginGameplayPreload(artIndex);
-            string walkPath = WalkSheetRoot + $"{artIndex + 1:00}";
-            Texture2D walkSheet = Resources.Load<Texture2D>(walkPath);
-            if (walkSheet == null)
-            {
-                Sprite walkSprite = Resources.Load<Sprite>(walkPath);
-                walkSheet = walkSprite != null ? walkSprite.texture : null;
-            }
-            entryDirectionalFrames =
-                CharacterDirectionalFrame.CreateForStage(artIndex);
-            walkingCharacterRect = CreateRect(
-                root,
-                "EntryCharacter",
-                new Vector2(0f, -260f),
-                new Vector2(EntryCharacterSize, EntryCharacterSize));
-            walkingCharacter = walkingCharacterRect.gameObject.AddComponent<RawImage>();
-            walkingCharacter.texture = walkSheet;
-            walkingCharacter.color = Color.white;
-            walkingCharacter.raycastTarget = false;
-            walkingCharacter.enabled = walkSheet != null;
-            ApplyEntryWalkFrame(0, 1.05f, new Vector2(0f, -260f));
+            BeginGameplayPreload();
+            BuildEntryCharacter(root, artIndex);
 
             RectTransform statusPanel = CreateRect(
                 root,
@@ -243,10 +227,119 @@ namespace SkinnyToBeast.UI
             StartCoroutine(EntryRoutine());
         }
 
+        private void BuildEntryCharacter(
+            RectTransform parent,
+            int artIndex)
+        {
+            GameObject prefab =
+                Resources.Load<GameObject>(CharacterRigPrefabPath);
+            if (prefab == null)
+            {
+                throw new InvalidOperationException(
+                    "CharacterRig2D.prefab is required for the entry flow.");
+            }
+
+            GameObject instance =
+                Instantiate(prefab, parent, false);
+            entryCharacterRoot =
+                instance.GetComponent<RectTransform>();
+            if (entryCharacterRoot == null)
+            {
+                Destroy(instance);
+                throw new InvalidOperationException(
+                    "CharacterRig2D.prefab has no RectTransform root.");
+            }
+
+            entryCharacterRoot.name = "EntryCharacterRoot";
+            entryCharacterRoot.anchorMin =
+                new Vector2(0.5f, 0.5f);
+            entryCharacterRoot.anchorMax =
+                new Vector2(0.5f, 0.5f);
+            entryCharacterRoot.pivot =
+                new Vector2(0.5f, 0.5f);
+            entryCharacterRoot.anchoredPosition =
+                new Vector2(0f, -260f);
+            entryCharacterRoot.sizeDelta =
+                new Vector2(720f, 1280f);
+            entryCharacterRoot.localScale =
+                Vector3.one * EntryStartScale;
+            entryCharacterRoot.localRotation =
+                Quaternion.identity;
+
+            entryCharacterGroup =
+                GetOrAddComponent<CanvasGroup>(
+                    entryCharacterRoot.gameObject);
+            entryCharacterGroup.alpha = 1f;
+            entryCharacterGroup.interactable = false;
+            entryCharacterGroup.blocksRaycasts = false;
+
+            CharacterFaceController face =
+                GetOrAddComponent<CharacterFaceController>(
+                    entryCharacterRoot.gameObject);
+            entryRig =
+                GetOrAddComponent<CharacterRigController>(
+                    entryCharacterRoot.gameObject);
+            entryRig.Build(entryCharacterRoot, face);
+
+            entrySkin =
+                GetOrAddComponent<CharacterSkinController>(
+                    entryCharacterRoot.gameObject);
+            entrySkin.Configure(
+                entryRig,
+                entryCharacterGroup,
+                4);
+            entrySkin.ApplySkin(
+                Mathf.Clamp(artIndex, 0, 3),
+                false);
+            entryRig.StopLocomotion(CharacterFacing.Back);
+
+            entryValidator =
+                GetOrAddComponent<CharacterRigValidator>(
+                    entryCharacterRoot.gameObject);
+            entryValidator.Configure(entryRig, entrySkin);
+
+            entryVisibilityGate =
+                GetOrAddComponent<CharacterVisibilityGate>(
+                    entryCharacterRoot.gameObject);
+            entryVisibilityGate.Configure(
+                entryCharacterRoot,
+                entryRig,
+                entrySkin,
+                entryValidator,
+                0.22f,
+                0.42f);
+        }
+
         private IEnumerator EntryRoutine()
         {
             opening = true;
             yield return FadeGroup(0f, 1f, 0.22f);
+
+            float rigDeadline = Time.unscaledTime + 4f;
+            while (entryVisibilityGate != null &&
+                   !entryVisibilityGate.IsReady &&
+                   Time.unscaledTime < rigDeadline)
+            {
+                yield return null;
+            }
+
+            if (entryVisibilityGate == null ||
+                !entryVisibilityGate.IsReady)
+            {
+                statusText.text = "CHARACTER RIG ERROR";
+                dotsText.text = "●  ○  ○";
+                Debug.LogError(
+                    "Entry character did not become visible: " +
+                    (entryVisibilityGate != null
+                        ? entryVisibilityGate.LastError
+                        : "visibility gate is missing."),
+                    this);
+                yield return new WaitForSecondsRealtime(0.8f);
+                InvokeCompletion(false);
+                yield return FadeGroup(1f, 0f, 0.2f);
+                Destroy(gameObject);
+                yield break;
+            }
 
             Vector2 characterStart = new Vector2(0f, -260f);
             Vector2 characterEnd = new Vector2(0f, 18f);
@@ -254,30 +347,42 @@ namespace SkinnyToBeast.UI
             Vector2 shadowEnd = new Vector2(0f, -115f);
             float elapsed = 0f;
             const float walkDuration = 1.35f;
-            int shownFrame = -1;
+            int shownPhase = -1;
+            float entryStepSpeed = Mathf.Clamp(
+                Vector2.Distance(
+                    characterStart,
+                    characterEnd) /
+                walkDuration /
+                420f,
+                0.65f,
+                1.75f);
+            entryRig.PlayEntryWalk(entryStepSpeed);
             while (elapsed < walkDuration)
             {
                 elapsed += Time.unscaledDeltaTime;
                 float t = Mathf.Clamp01(elapsed / walkDuration);
                 float eased = Mathf.SmoothStep(0f, 1f, t);
-                int frame = Mathf.FloorToInt(elapsed / 0.15f) & 1;
-                if (frame != shownFrame)
+                int phase = Mathf.FloorToInt(elapsed / 0.15f) & 1;
+                if (phase != shownPhase)
                 {
-                    shownFrame = frame;
-                    dotsText.text = frame == 0 ? "●  ○  ○" : "●  ●  ○";
+                    shownPhase = phase;
+                    dotsText.text = phase == 0 ? "●  ○  ○" : "●  ●  ○";
                 }
 
-                Vector2 characterPosition =
-                    Vector2.Lerp(characterStart, characterEnd, eased);
+                entryCharacterRoot.anchoredPosition =
+                    Vector2.Lerp(characterStart, characterEnd, t);
                 characterShadow.anchoredPosition =
-                    Vector2.Lerp(shadowStart, shadowEnd, eased);
-                float scale = Mathf.Lerp(1.05f, 0.38f, eased);
-                ApplyEntryWalkFrame(frame, scale, characterPosition);
+                    Vector2.Lerp(shadowStart, shadowEnd, t);
+                float scale =
+                    Mathf.Lerp(EntryStartScale, EntryEndScale, eased);
+                entryCharacterRoot.localScale =
+                    Vector3.one * scale;
                 characterShadow.localScale = Vector3.one *
                                              Mathf.Lerp(1f, 0.34f, eased);
                 yield return null;
             }
 
+            entryRig.StopLocomotion(CharacterFacing.Back);
             dotsText.text = "●  ●  ●";
             statusText.text = "PREPARING THE ROOM";
             yield return new WaitForSecondsRealtime(0.1f);
@@ -293,9 +398,7 @@ namespace SkinnyToBeast.UI
                 SetAlpha(doorwayGlow, eased * 0.32f);
                 backgroundRect.localScale =
                     Vector3.one * Mathf.Lerp(1f, 1.045f, eased);
-                walkingCharacter.color = WithAlpha(
-                    walkingCharacter.color,
-                    1f - eased);
+                entryCharacterGroup.alpha = 1f - eased;
                 SetAlpha(characterShadowImage, 0.38f * (1f - eased));
                 yield return null;
             }
@@ -342,6 +445,26 @@ namespace SkinnyToBeast.UI
             catch (Exception exception)
             {
                 Debug.LogError($"Could not finish game entry: {exception}");
+            }
+
+            if (opened)
+            {
+                float roomDeadline = Time.unscaledTime + 6f;
+                while (!GameplayWindowController.IsCharacterReady &&
+                       Time.unscaledTime < roomDeadline)
+                {
+                    yield return null;
+                }
+
+                if (!GameplayWindowController.IsCharacterReady)
+                {
+                    opened = false;
+                    Debug.LogError(
+                        "The room remained covered because its character " +
+                        "did not pass CharacterVisibilityGate: " +
+                        GameplayWindowController.CharacterReadinessError,
+                        this);
+                }
             }
 
             if (!opened)
@@ -397,16 +520,15 @@ namespace SkinnyToBeast.UI
             }
         }
 
-        private void BeginGameplayPreload(int artIndex)
+        private void BeginGameplayPreload()
         {
             gameplayPreloads.Clear();
-            string stage = $"{Mathf.Clamp(artIndex, 0, 3) + 1:00}";
             string[] paths =
             {
                 "UI/Gameplay/Living/room_stage_01",
                 "UI/Gameplay/Living/room_stage_02",
-                $"UI/Gameplay/Living/character_stage_{stage}",
-                $"UI/Gameplay/Living/Rig/walk_stage_{stage}",
+                CharacterRigPrefabPath,
+                CharacterAnimationDriver.ControllerResourcePath,
                 "UI/Gameplay/Living/dumbbell_stage_01",
                 "UI/Gameplay/Living/dumbbell_stage_02",
                 "UI/Gameplay/Living/dumbbell_stage_03",
@@ -436,34 +558,6 @@ namespace SkinnyToBeast.UI
                     yield return null;
                 }
             }
-        }
-
-        private void ApplyEntryWalkFrame(
-            int frame,
-            float depthScale,
-            Vector2 pathPosition)
-        {
-            int safeFrame = Mathf.Abs(frame) % 2;
-            CharacterDirectionalFrame calibration =
-                entryDirectionalFrames != null &&
-                entryDirectionalFrames.Length >= 4
-                    ? entryDirectionalFrames[2 + safeFrame]
-                    : CharacterDirectionalFrame.Default;
-            walkingCharacter.uvRect = new Rect(
-                safeFrame == 0 ? 0f : 0.5f,
-                0f,
-                0.5f,
-                0.5f);
-
-            float safeDepth = Mathf.Max(0.01f, depthScale);
-            Vector2 calibratedOffset = calibration.Offset *
-                                       (EntryCharacterSize /
-                                        DirectionalReferenceSize) *
-                                       safeDepth;
-            walkingCharacterRect.anchoredPosition =
-                pathPosition + calibratedOffset;
-            walkingCharacterRect.localScale =
-                Vector3.one * (safeDepth * calibration.Scale);
         }
 
         private IEnumerator FadeGroup(float from, float to, float duration)
@@ -570,6 +664,15 @@ namespace SkinnyToBeast.UI
             rect.anchoredPosition = position;
             rect.sizeDelta = size;
             return rect;
+        }
+
+        private static T GetOrAddComponent<T>(GameObject target)
+            where T : Component
+        {
+            T component = target.GetComponent<T>();
+            return component != null
+                ? component
+                : target.AddComponent<T>();
         }
 
         private static Image CreateStretchImage(

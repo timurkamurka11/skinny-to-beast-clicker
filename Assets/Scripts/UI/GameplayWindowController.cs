@@ -59,6 +59,8 @@ namespace SkinnyToBeast.UI
         private Coroutine toastRoutine;
         private GameplayVisualStageController visualStageController;
         private TapFeedbackController tapFeedbackController;
+        private CanvasGroup windowGroup;
+        private Coroutine characterReadinessRoutine;
 
         private float tapPunch;
         private float lastTapTime = -10f;
@@ -66,6 +68,17 @@ namespace SkinnyToBeast.UI
         private int lastVisualBodyStage = -1;
         private bool isClosing;
         private bool initialized;
+        private bool characterReady;
+
+        public static bool IsCharacterReady =>
+            instance != null &&
+            instance.initialized &&
+            instance.characterReady;
+        public static string CharacterReadinessError =>
+            instance != null &&
+            instance.visualStageController != null
+                ? instance.visualStageController.CharacterVisibilityError
+                : "Gameplay window is not initialized.";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
@@ -84,6 +97,7 @@ namespace SkinnyToBeast.UI
                     {
                         instance.gameObject.SetActive(true);
                         instance.transform.SetAsLastSibling();
+                        instance.EnsureCharacterReveal();
                         return true;
                     }
 
@@ -204,9 +218,21 @@ namespace SkinnyToBeast.UI
 
             instance = this;
             initialized = false;
+            characterReady = false;
 
             try
             {
+                windowGroup = GetComponent<CanvasGroup>();
+                if (windowGroup == null)
+                {
+                    windowGroup =
+                        gameObject.AddComponent<CanvasGroup>();
+                }
+
+                windowGroup.alpha = 0f;
+                windowGroup.interactable = false;
+                windowGroup.blocksRaycasts = false;
+
                 EnsureEventSystem();
                 PauseMenuVideo();
                 CreateGameState();
@@ -218,6 +244,7 @@ namespace SkinnyToBeast.UI
                 CreateTapAudio();
                 Refresh();
                 initialized = true;
+                EnsureCharacterReveal();
             }
             catch (Exception exception)
             {
@@ -271,6 +298,64 @@ namespace SkinnyToBeast.UI
             BuildBottomNavigation(safeRoot);
             BuildToast(safeRoot);
             BuildUpgradeSheet(safeRoot);
+        }
+
+        private IEnumerator RevealWhenCharacterReady()
+        {
+            float deadline = Time.unscaledTime + 8f;
+            while (visualStageController != null &&
+                   !visualStageController.HasVisibleCharacter &&
+                   Time.unscaledTime < deadline)
+            {
+                yield return null;
+            }
+
+            if (visualStageController == null ||
+                !visualStageController.HasVisibleCharacter)
+            {
+                characterReady = false;
+                Debug.LogError(
+                    "Gameplay room remains covered because the character " +
+                    "failed its real-geometry visibility check: " +
+                    CharacterReadinessError,
+                    this);
+                characterReadinessRoutine = null;
+                yield break;
+            }
+
+            characterReady = true;
+            float elapsed = 0f;
+            const float duration = 0.24f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t =
+                    Mathf.Clamp01(elapsed / duration);
+                windowGroup.alpha =
+                    Mathf.SmoothStep(0f, 1f, t);
+                yield return null;
+            }
+
+            windowGroup.alpha = 1f;
+            windowGroup.interactable = true;
+            windowGroup.blocksRaycasts = true;
+            characterReadinessRoutine = null;
+        }
+
+        private void EnsureCharacterReveal()
+        {
+            if (characterReady ||
+                characterReadinessRoutine != null ||
+                !isActiveAndEnabled)
+            {
+                return;
+            }
+
+            windowGroup.alpha = 0f;
+            windowGroup.interactable = false;
+            windowGroup.blocksRaycasts = false;
+            characterReadinessRoutine =
+                StartCoroutine(RevealWhenCharacterReady());
         }
 
         private void BuildTopHud(RectTransform safeRoot)
@@ -977,6 +1062,12 @@ namespace SkinnyToBeast.UI
 
         private void OnDestroy()
         {
+            if (characterReadinessRoutine != null)
+            {
+                StopCoroutine(characterReadinessRoutine);
+                characterReadinessRoutine = null;
+            }
+
             if (playerStats != null)
             {
                 playerStats.StatsChanged -= Refresh;

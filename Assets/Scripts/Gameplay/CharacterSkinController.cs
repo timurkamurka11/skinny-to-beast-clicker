@@ -21,16 +21,19 @@ namespace SkinnyToBeast.Gameplay
         public int TargetArtIndex =>
             transitionRoutine != null ? pendingArtIndex : currentArtIndex;
         public bool IsTransitioning => transitionRoutine != null;
-        public int DefinitionCount => definitions != null ? definitions.Length : 0;
+        public int DefinitionCount =>
+            definitions != null ? definitions.Length : 0;
         public int ActiveBaseSkinCount =>
             activeSlots.ContainsKey(CharacterSkinSlot.Body) ? 1 : 0;
         public int ActiveSlotCount => activeSlots.Count;
         public bool IsVisualReady =>
             configured &&
             currentArtIndex >= 0 &&
-            (characterGroup == null || characterGroup.alpha > 0.999f) &&
+            (characterGroup == null ||
+             characterGroup.alpha > 0.999f) &&
             rigController != null &&
-            rigController.HasVisibleSkin;
+            rigController.HasVisibleSkin &&
+            rigController.AnimatorReady;
         public CharacterSkinDefinition CurrentDefinition =>
             definitions != null &&
             currentArtIndex >= 0 &&
@@ -39,42 +42,26 @@ namespace SkinnyToBeast.Gameplay
                 : null;
 
         public void Configure(
-            Sprite[] frontSprites,
-            Texture2D[] directionalWalkSheets,
             CharacterRigController rig,
-            CanvasGroup group)
+            CanvasGroup group,
+            int stageCount = 4)
         {
             rigController = rig;
             characterGroup = group;
 
-            int count = frontSprites != null ? frontSprites.Length : 0;
+            int count = Mathf.Max(1, stageCount);
             definitions = new CharacterSkinDefinition[count];
             for (int i = 0; i < count; i++)
             {
-                Texture2D walkSheet =
-                    directionalWalkSheets != null && i < directionalWalkSheets.Length
-                        ? directionalWalkSheets[i]
-                        : null;
-                definitions[i] = CharacterSkinDefinition.Create(
-                    i,
-                    frontSprites[i],
-                    walkSheet);
+                definitions[i] = CharacterSkinDefinition.Create(i);
             }
 
-            configured = definitions.Length > 0 && rigController != null;
-            if (configured)
-            {
-                // Keep every body renderer empty until
-                // GameplayVisualStageController resolves the saved stage.
-                // Showing stage 1 here first caused an old-body flash.
-                activeSlots.Clear();
-                currentArtIndex = -1;
-                rigController.ClearSkin();
-                // ClearSkin already disables every body part, so there is no
-                // default stage to flash. Keeping the root group visible avoids
-                // carrying the prefab's hidden alpha into the first room Sync.
-                SetAlpha(1f);
-            }
+            configured = rigController != null;
+            activeSlots.Clear();
+            currentArtIndex = -1;
+            pendingArtIndex = -1;
+            rigController?.ClearSkin();
+            SetAlpha(0f);
         }
 
         public void ApplySkin(int artIndex, bool animate)
@@ -84,9 +71,16 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            int safeIndex = Mathf.Clamp(artIndex, 0, definitions.Length - 1);
+            int safeIndex =
+                Mathf.Clamp(artIndex, 0, definitions.Length - 1);
             if (safeIndex == currentArtIndex)
             {
+                if (transitionRoutine != null)
+                {
+                    StopCoroutine(transitionRoutine);
+                    transitionRoutine = null;
+                }
+
                 pendingArtIndex = -1;
                 EnsureVisibleState();
                 return;
@@ -97,114 +91,92 @@ namespace SkinnyToBeast.Gameplay
                 StopCoroutine(transitionRoutine);
                 transitionRoutine = null;
                 pendingArtIndex = -1;
-                EnsureVisibleState();
             }
 
-            if (!animate || !isActiveAndEnabled)
+            if (!animate ||
+                !isActiveAndEnabled ||
+                currentArtIndex < 0)
             {
-                ApplyImmediate(safeIndex);
+                ApplyDefinition(safeIndex, true);
+                EnsureVisibleState();
                 return;
             }
 
             pendingArtIndex = safeIndex;
-            transitionRoutine = StartCoroutine(SwapSkinRoutine(safeIndex));
+            transitionRoutine =
+                StartCoroutine(SwapSkinRoutine(safeIndex));
         }
 
         private IEnumerator SwapSkinRoutine(int nextIndex)
         {
-            float elapsed = 0f;
-            const float hideDuration = 0.11f;
-            float from = characterGroup != null ? characterGroup.alpha : 1f;
-            while (elapsed < hideDuration)
+            // The outgoing body remains visible until the new palette and
+            // proportions are installed atomically on the same mesh objects.
+            // There is never an empty frame and never a second body overlay.
+            SetAlpha(1f);
+            rigController.TriggerStageChange();
+            yield return new WaitForSecondsRealtime(0.18f);
+
+            ApplyDefinition(nextIndex, false);
+            if (currentArtIndex != nextIndex)
             {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / hideDuration);
-                SetAlpha(Mathf.Lerp(from, 0f, t));
-                yield return null;
+                transitionRoutine = null;
+                pendingArtIndex = -1;
+                yield break;
             }
 
-            SetAlpha(0f);
-            ApplyDefinition(nextIndex);
-            if (currentArtIndex == nextIndex)
-            {
-                // SynchronizeAnimationState deliberately clears every previous
-                // action. Start the transformation only after that reset so the
-                // newly installed skin, rather than the outgoing one, receives it.
-                rigController.TriggerStageChange();
-            }
-
-            elapsed = 0f;
-            const float showDuration = 0.34f;
-            while (elapsed < showDuration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / showDuration);
-                float eased = 1f - Mathf.Pow(1f - t, 3f);
-                SetAlpha(eased);
-                yield return null;
-            }
-
+            yield return new WaitForSecondsRealtime(0.64f);
             SetAlpha(1f);
             transitionRoutine = null;
             pendingArtIndex = -1;
         }
 
-        private void ApplyImmediate(int nextIndex)
+        private void ApplyDefinition(
+            int nextIndex,
+            bool resetAnimation)
         {
-            pendingArtIndex = -1;
-            ApplyDefinition(nextIndex);
-            EnsureVisibleState();
-        }
-
-        private void ApplyDefinition(int nextIndex)
-        {
-            CharacterSkinDefinition definition = definitions[nextIndex];
+            CharacterSkinDefinition definition =
+                definitions[nextIndex];
             if (definition == null || !definition.IsValid)
             {
-                Debug.LogError($"Character skin {nextIndex} is missing or invalid.");
+                Debug.LogError(
+                    $"Character skin {nextIndex} is missing or invalid.",
+                    this);
                 return;
             }
 
-            // CharacterSkinController is the only writer for visual slots.
-            // Clear every old renderer and logical selection before publishing
-            // the new stage as one atomic visible state.
-            SetAlpha(0f);
-            rigController.ClearSkin();
-            activeSlots.Clear();
-
-            CharacterSkinSlotSelection[] nextSlots = definition.Slots;
-            if (nextSlots != null)
+            Dictionary<CharacterSkinSlot, string> nextSlots = new();
+            CharacterSkinSlotSelection[] selections = definition.Slots;
+            if (selections != null)
             {
-                for (int i = 0; i < nextSlots.Length; i++)
+                for (int i = 0; i < selections.Length; i++)
                 {
-                    CharacterSkinSlotSelection selection = nextSlots[i];
+                    CharacterSkinSlotSelection selection =
+                        selections[i];
                     if (!selection.Visible)
                     {
                         continue;
                     }
 
-                    if (activeSlots.ContainsKey(selection.Slot))
+                    if (nextSlots.ContainsKey(selection.Slot))
                     {
                         Debug.LogError(
-                            $"Skin '{definition.Id}' contains more than one " +
-                            $"active item in slot {selection.Slot}.",
+                            $"Skin '{definition.Id}' contains more than " +
+                            $"one active item in slot {selection.Slot}.",
                             this);
-                        activeSlots.Clear();
-                        currentArtIndex = -1;
                         return;
                     }
 
-                    activeSlots.Add(selection.Slot, selection.ItemId);
+                    nextSlots.Add(
+                        selection.Slot,
+                        selection.ItemId);
                 }
             }
 
-            if (!activeSlots.ContainsKey(CharacterSkinSlot.Body))
+            if (!nextSlots.ContainsKey(CharacterSkinSlot.Body))
             {
                 Debug.LogError(
                     $"Skin '{definition.Id}' has no active Body slot.",
                     this);
-                activeSlots.Clear();
-                currentArtIndex = -1;
                 return;
             }
 
@@ -212,16 +184,27 @@ namespace SkinnyToBeast.Gameplay
             if (!rigController.HasAppliedSkin)
             {
                 Debug.LogError(
-                    $"Skin '{definition.Id}' could not be installed on the rig.",
+                    $"Skin '{definition.Id}' could not be installed " +
+                    "on the persistent mesh rig.",
                     this);
-                activeSlots.Clear();
-                currentArtIndex = -1;
                 return;
             }
 
-            rigController.SynchronizeAnimationState();
+            activeSlots.Clear();
+            foreach (KeyValuePair<CharacterSkinSlot, string> entry
+                     in nextSlots)
+            {
+                activeSlots.Add(entry.Key, entry.Value);
+            }
+
             currentArtIndex = nextIndex;
+            if (resetAnimation)
+            {
+                rigController.SynchronizeAnimationState();
+            }
+
             rigController.EnsureSkinVisible();
+            SetAlpha(1f);
         }
 
         public bool TryGetActiveItem(
@@ -238,11 +221,13 @@ namespace SkinnyToBeast.Gameplay
 
         public bool ValidateSlotExclusivity(out string error)
         {
-            foreach (KeyValuePair<CharacterSkinSlot, string> entry in activeSlots)
+            foreach (KeyValuePair<CharacterSkinSlot, string> entry
+                     in activeSlots)
             {
                 if (string.IsNullOrWhiteSpace(entry.Value))
                 {
-                    error = $"Slot {entry.Key} contains an empty item id.";
+                    error =
+                        $"Slot {entry.Key} contains an empty item id.";
                     return false;
                 }
             }
@@ -250,23 +235,13 @@ namespace SkinnyToBeast.Gameplay
             if (currentArtIndex >= 0 &&
                 !activeSlots.ContainsKey(CharacterSkinSlot.Body))
             {
-                error = "A selected skin has no active Body slot.";
+                error =
+                    "A selected skin has no active Body slot.";
                 return false;
             }
 
             error = string.Empty;
             return true;
-        }
-
-        private void EnsureVisibleState()
-        {
-            SetAlpha(1f);
-            rigController?.EnsureSkinVisible();
-            if (characterGroup != null)
-            {
-                characterGroup.interactable = false;
-                characterGroup.blocksRaycasts = false;
-            }
         }
 
         public bool EnsureVisibleSkin()
@@ -280,21 +255,15 @@ namespace SkinnyToBeast.Gameplay
             return IsVisualReady;
         }
 
-        private void LateUpdate()
+        private void EnsureVisibleState()
         {
-            if (!configured ||
-                currentArtIndex < 0 ||
-                transitionRoutine != null ||
-                IsVisualReady)
+            SetAlpha(1f);
+            rigController?.EnsureSkinVisible();
+            if (characterGroup != null)
             {
-                return;
+                characterGroup.interactable = false;
+                characterGroup.blocksRaycasts = false;
             }
-
-            // Prefab defaults, an Animator write or an interrupted transition
-            // may change UI visibility after ApplySkin. Restore the selected
-            // atomic skin at the end of the frame instead of accepting an
-            // invisible but logically active body.
-            EnsureVisibleState();
         }
 
         private void SetAlpha(float alpha)
@@ -314,7 +283,10 @@ namespace SkinnyToBeast.Gameplay
             }
 
             pendingArtIndex = -1;
-            EnsureVisibleState();
+            if (currentArtIndex >= 0)
+            {
+                EnsureVisibleState();
+            }
         }
     }
 }

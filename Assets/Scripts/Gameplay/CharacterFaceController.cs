@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay
 {
@@ -29,25 +28,25 @@ namespace SkinnyToBeast.Gameplay
     public sealed class CharacterFaceController : MonoBehaviour
     {
         private RectTransform faceRoot;
-        private Image leftEye;
-        private Image rightEye;
-        private Image leftPupil;
-        private Image rightPupil;
-        private Image leftEyelid;
-        private Image rightEyelid;
-        private Image leftBrow;
-        private Image rightBrow;
-        private Image mouthLine;
-        private Image mouthOpen;
-        private Image leftSmileCorner;
-        private Image rightSmileCorner;
-        private Image leftCheek;
-        private Image rightCheek;
-        private Image sweatDrop;
+        private CharacterMeshGraphic leftEye;
+        private CharacterMeshGraphic rightEye;
+        private CharacterMeshGraphic leftPupil;
+        private CharacterMeshGraphic rightPupil;
+        private CharacterMeshGraphic leftEyelid;
+        private CharacterMeshGraphic rightEyelid;
+        private CharacterMeshGraphic leftBrow;
+        private CharacterMeshGraphic rightBrow;
+        private CharacterMeshGraphic mouthLine;
+        private CharacterMeshGraphic mouthOpen;
+        private CharacterMeshGraphic leftCheek;
+        private CharacterMeshGraphic rightCheek;
+        private CharacterMeshGraphic sweatDrop;
+        private CharacterAnimationDriver animationDriver;
 
         private CharacterFaceStyle style;
         private CharacterExpression baseExpression;
         private CharacterExpression activeExpression;
+        private CharacterFacing facing = CharacterFacing.Front;
         private Vector2 lookTarget;
         private Vector2 currentLook;
         private float lookUntil;
@@ -55,10 +54,16 @@ namespace SkinnyToBeast.Gameplay
         private float nextBlinkAt;
         private float blinkStartedAt = -10f;
         private bool doubleBlink;
+        private bool secondBlinkTriggered;
         private bool built;
-        private bool visible = true;
+        private bool requestedVisible = true;
 
         public CharacterMouthShape CurrentMouthShape { get; private set; }
+        public bool IsBuilt => built;
+        public bool IsActuallyVisible =>
+            built &&
+            faceRoot != null &&
+            faceRoot.gameObject.activeInHierarchy;
 
         public void Build(RectTransform headBone)
         {
@@ -67,85 +72,143 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            faceRoot = LivingGameplayVisualFactory.CreateRect(
+            faceRoot = CreateRect(
                 headBone,
                 "FaceRig",
-                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 88f),
+                new Vector2(190f, 180f));
+
+            leftEye = CreateMesh(
+                faceRoot,
+                "Eye.L",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.EyeWhite,
+                new Vector2(-33f, 25f),
+                new Vector2(48f, 35f),
+                Color.white,
+                3f);
+            rightEye = CreateMesh(
+                faceRoot,
+                "Eye.R",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.EyeWhite,
+                new Vector2(33f, 25f),
+                new Vector2(48f, 35f),
+                Color.white,
+                3f);
+
+            leftPupil = CreateMesh(
+                leftEye.rectTransform,
+                "Pupil.L",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Iris,
                 Vector2.zero,
-                new Vector2(190f, 170f));
+                new Vector2(16f, 20f),
+                Color.black,
+                1f);
+            rightPupil = CreateMesh(
+                rightEye.rectTransform,
+                "Pupil.R",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Iris,
+                Vector2.zero,
+                new Vector2(16f, 20f),
+                Color.black,
+                1f);
 
-            leftEye = CreateOval(faceRoot, "Eye.L", new Vector2(-33f, 31f), new Vector2(43f, 34f));
-            rightEye = CreateOval(faceRoot, "Eye.R", new Vector2(33f, 31f), new Vector2(43f, 34f));
-            leftPupil = CreateOval(leftEye.rectTransform, "Pupil.L", Vector2.zero, new Vector2(15f, 19f));
-            rightPupil = CreateOval(rightEye.rectTransform, "Pupil.R", Vector2.zero, new Vector2(15f, 19f));
-
-            leftEyelid = CreateRounded(
+            leftEyelid = CreateMesh(
                 faceRoot,
                 "Eyelid.L",
-                new Vector2(-33f, 32f),
-                new Vector2(48f, 15f));
-            rightEyelid = CreateRounded(
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(-33f, 25f),
+                new Vector2(52f, 38f),
+                Color.white,
+                2f);
+            rightEyelid = CreateMesh(
                 faceRoot,
                 "Eyelid.R",
-                new Vector2(33f, 32f),
-                new Vector2(48f, 15f));
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(33f, 25f),
+                new Vector2(52f, 38f),
+                Color.white,
+                2f);
 
-            leftBrow = CreateRounded(
+            leftBrow = CreateMesh(
                 faceRoot,
                 "Brow.L",
-                new Vector2(-34f, 60f),
-                new Vector2(48f, 9f));
-            rightBrow = CreateRounded(
+                CharacterMeshShape.Brow,
+                CharacterVisualRole.Brow,
+                new Vector2(-34f, 57f),
+                new Vector2(50f, 9f),
+                Color.black,
+                1f);
+            rightBrow = CreateMesh(
                 faceRoot,
                 "Brow.R",
-                new Vector2(34f, 60f),
-                new Vector2(48f, 9f));
+                CharacterMeshShape.Brow,
+                CharacterVisualRole.Brow,
+                new Vector2(34f, 57f),
+                new Vector2(50f, 9f),
+                Color.black,
+                1f);
 
-            mouthOpen = CreateOval(
+            mouthOpen = CreateMesh(
                 faceRoot,
                 "Mouth.Open",
-                new Vector2(0f, -31f),
-                new Vector2(34f, 10f));
-            mouthLine = CreateRounded(
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Mouth,
+                new Vector2(0f, -34f),
+                new Vector2(40f, 14f),
+                Color.black,
+                2f);
+            mouthLine = CreateMesh(
                 faceRoot,
                 "Mouth.Line",
-                new Vector2(0f, -28f),
-                new Vector2(60f, 7f));
-            leftSmileCorner = CreateRounded(
-                faceRoot,
-                "Mouth.Corner.L",
-                new Vector2(-28f, -24f),
-                new Vector2(22f, 6f));
-            rightSmileCorner = CreateRounded(
-                faceRoot,
-                "Mouth.Corner.R",
-                new Vector2(28f, -24f),
-                new Vector2(22f, 6f));
-            leftCheek = CreateOval(
+                CharacterMeshShape.Mouth,
+                CharacterVisualRole.Mouth,
+                new Vector2(0f, -31f),
+                new Vector2(62f, 7f),
+                Color.black,
+                1f);
+
+            leftCheek = CreateMesh(
                 faceRoot,
                 "Cheek.L",
-                new Vector2(-56f, -7f),
-                new Vector2(25f, 13f));
-            rightCheek = CreateOval(
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Cheek,
+                new Vector2(-58f, -8f),
+                new Vector2(28f, 14f),
+                Color.clear,
+                0f);
+            rightCheek = CreateMesh(
                 faceRoot,
                 "Cheek.R",
-                new Vector2(56f, -7f),
-                new Vector2(25f, 13f));
-            sweatDrop = CreateOval(
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Cheek,
+                new Vector2(58f, -8f),
+                new Vector2(28f, 14f),
+                Color.clear,
+                0f);
+            sweatDrop = CreateMesh(
                 faceRoot,
                 "SweatDrop",
-                new Vector2(72f, 42f),
-                new Vector2(12f, 25f));
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Accent,
+                new Vector2(75f, 42f),
+                new Vector2(13f, 27f),
+                Color.clear,
+                0f);
 
-            ScheduleBlink();
             built = true;
+            ScheduleBlink();
+            ApplyVisibility();
         }
 
-        public void ApplyStyle(
-            CharacterFaceStyle nextStyle,
-            CharacterRigProfile profile)
+        public void ApplyStyle(CharacterFaceStyle nextStyle)
         {
-            if (!built || profile == null)
+            if (!built)
             {
                 return;
             }
@@ -154,12 +217,8 @@ namespace SkinnyToBeast.Gameplay
             baseExpression = style.defaultExpression;
             activeExpression = baseExpression;
             expressionUntil = 0f;
-
-            Vector2 fullSize = new Vector2(profile.visualWidth, profile.visualHeight);
-            faceRoot.anchoredPosition = Vector2.Scale(
-                profile.faceCenter - profile.head,
-                fullSize);
-            faceRoot.localScale = Vector3.one * Mathf.Max(0.1f, style.overlayScale);
+            faceRoot.localScale =
+                Vector3.one * Mathf.Max(0.1f, style.overlayScale);
 
             SetColor(leftEye, style.eyeWhite);
             SetColor(rightEye, style.eyeWhite);
@@ -171,29 +230,69 @@ namespace SkinnyToBeast.Gameplay
             SetColor(rightBrow, style.brow);
             SetColor(mouthLine, style.mouth);
             SetColor(mouthOpen, style.mouth);
-            SetColor(leftSmileCorner, style.mouth);
-            SetColor(rightSmileCorner, style.mouth);
-            SetColor(leftCheek, new Color(0.96f, 0.29f, 0.22f, 0f));
-            SetColor(rightCheek, new Color(0.96f, 0.29f, 0.22f, 0f));
-            SetColor(sweatDrop, new Color(0.55f, 0.87f, 1f, 0f));
+            SetColor(leftCheek, style.cheek);
+            SetColor(rightCheek, style.cheek);
+            SetColor(sweatDrop, new Color(0.45f, 0.83f, 1f, 0f));
 
-            leftEye.rectTransform.anchoredPosition = new Vector2(-style.eyeSeparation, style.eyeY);
-            rightEye.rectTransform.anchoredPosition = new Vector2(style.eyeSeparation, style.eyeY);
-            leftEyelid.rectTransform.anchoredPosition = leftEye.rectTransform.anchoredPosition;
-            rightEyelid.rectTransform.anchoredPosition = rightEye.rectTransform.anchoredPosition;
-            leftBrow.rectTransform.anchoredPosition = new Vector2(-style.eyeSeparation, style.eyeY + 29f);
-            rightBrow.rectTransform.anchoredPosition = new Vector2(style.eyeSeparation, style.eyeY + 29f);
-            ApplyExpression(baseExpression, 1f);
+            leftEye.rectTransform.anchoredPosition =
+                new Vector2(-style.eyeSeparation, style.eyeY);
+            rightEye.rectTransform.anchoredPosition =
+                new Vector2(style.eyeSeparation, style.eyeY);
+            leftEyelid.rectTransform.anchoredPosition =
+                leftEye.rectTransform.anchoredPosition;
+            rightEyelid.rectTransform.anchoredPosition =
+                rightEye.rectTransform.anchoredPosition;
+            leftBrow.rectTransform.anchoredPosition =
+                new Vector2(-style.eyeSeparation, style.eyeY + 31f);
+            rightBrow.rectTransform.anchoredPosition =
+                new Vector2(style.eyeSeparation, style.eyeY + 31f);
+
+            ApplyExpression(baseExpression);
             ApplyBlink(0f);
+            ApplyVisibility();
+        }
+
+        public void ConfigureAnimationDriver(
+            CharacterAnimationDriver driver)
+        {
+            animationDriver = driver;
         }
 
         public void SetVisible(bool shouldShow)
         {
-            visible = shouldShow;
-            if (faceRoot != null)
+            requestedVisible = shouldShow;
+            ApplyVisibility();
+        }
+
+        public void SetFacing(CharacterFacing nextFacing)
+        {
+            facing = nextFacing;
+            ApplyVisibility();
+            if (!built || faceRoot == null)
             {
-                faceRoot.gameObject.SetActive(shouldShow);
+                return;
             }
+
+            bool side = facing == CharacterFacing.SideLeft ||
+                        facing == CharacterFacing.SideRight;
+            faceRoot.anchoredPosition = side
+                ? new Vector2(
+                    facing == CharacterFacing.SideLeft ? -25f : 25f,
+                    88f)
+                : new Vector2(0f, 88f);
+            faceRoot.localScale = new Vector3(
+                side ? 0.86f : 1f,
+                1f,
+                1f) * Mathf.Max(0.1f, style.overlayScale);
+
+            bool hideLeft = facing == CharacterFacing.SideRight;
+            bool hideRight = facing == CharacterFacing.SideLeft;
+            leftEye.gameObject.SetActive(!hideLeft);
+            leftEyelid.gameObject.SetActive(!hideLeft);
+            leftBrow.gameObject.SetActive(!hideLeft);
+            rightEye.gameObject.SetActive(!hideRight);
+            rightEyelid.gameObject.SetActive(!hideRight);
+            rightBrow.gameObject.SetActive(!hideRight);
         }
 
         public void LookAt(Vector2 normalizedDirection, float duration)
@@ -202,233 +301,270 @@ namespace SkinnyToBeast.Gameplay
             lookUntil = Time.unscaledTime + Mathf.Max(0.05f, duration);
         }
 
-        public void SetExpression(CharacterExpression expression, float duration)
+        public void SetExpression(
+            CharacterExpression expression,
+            float duration)
         {
             activeExpression = expression;
-            expressionUntil = Time.unscaledTime + Mathf.Max(0.05f, duration);
+            expressionUntil =
+                Time.unscaledTime + Mathf.Max(0.05f, duration);
         }
 
         public void ResetExpression()
         {
             activeExpression = baseExpression;
             expressionUntil = 0f;
+            ApplyExpression(activeExpression);
         }
 
         public void ForceBlink(bool twice)
         {
             blinkStartedAt = Time.unscaledTime;
             doubleBlink = twice;
+            secondBlinkTriggered = false;
+            if (animationDriver != null &&
+                animationDriver.IsReady)
+            {
+                animationDriver.TriggerFaceBlink();
+            }
         }
 
         private void Update()
         {
-            if (!built || !visible)
+            if (!built || !IsActuallyVisible)
             {
                 return;
             }
 
             float now = Time.unscaledTime;
             float delta = Time.unscaledDeltaTime;
-
             if (now >= nextBlinkAt)
             {
                 ForceBlink(Random.value < 0.18f);
                 ScheduleBlink();
             }
 
-            Vector2 desiredLook = now <= lookUntil ? lookTarget : Vector2.zero;
+            Vector2 desiredLook =
+                now <= lookUntil ? lookTarget : Vector2.zero;
             currentLook = Vector2.Lerp(
                 currentLook,
                 desiredLook,
                 1f - Mathf.Exp(-delta * 7.5f));
-            Vector2 pupilOffset = new Vector2(currentLook.x * 7f, currentLook.y * 5f);
+            Vector2 pupilOffset =
+                new Vector2(currentLook.x * 7f, currentLook.y * 5f);
             leftPupil.rectTransform.anchoredPosition = pupilOffset;
             rightPupil.rectTransform.anchoredPosition = pupilOffset;
 
-            CharacterExpression expression =
-                now <= expressionUntil ? activeExpression : baseExpression;
-            ApplyExpression(expression, delta);
-            ApplyBlink(GetBlinkAmount(now));
+            if (expressionUntil > 0f && now > expressionUntil)
+            {
+                activeExpression = baseExpression;
+                expressionUntil = 0f;
+            }
+
+            ApplyExpression(activeExpression);
+            if (animationDriver != null &&
+                animationDriver.IsReady)
+            {
+                if (doubleBlink &&
+                    !secondBlinkTriggered &&
+                    now - blinkStartedAt >= 0.17f)
+                {
+                    secondBlinkTriggered = true;
+                    animationDriver.TriggerFaceBlink();
+                }
+            }
+            else
+            {
+                ApplyBlink(CalculateBlinkAmount(now));
+            }
         }
 
-        private float GetBlinkAmount(float now)
+        private float CalculateBlinkAmount(float now)
         {
-            float age = now - blinkStartedAt;
-            float first = BlinkPulse(age);
+            float elapsed = now - blinkStartedAt;
+            float first = BlinkPulse(elapsed);
             if (!doubleBlink)
             {
                 return first;
             }
 
-            return Mathf.Max(first, BlinkPulse(age - 0.19f));
+            return Mathf.Max(first, BlinkPulse(elapsed - 0.17f));
         }
 
-        private static float BlinkPulse(float age)
+        private static float BlinkPulse(float elapsed)
         {
-            const float half = 0.055f;
-            if (age < 0f || age >= half * 2f)
+            const float duration = 0.13f;
+            if (elapsed < 0f || elapsed > duration)
             {
                 return 0f;
             }
 
-            return age <= half
-                ? Mathf.SmoothStep(0f, 1f, age / half)
-                : Mathf.SmoothStep(1f, 0f, (age - half) / half);
+            float normalized = elapsed / duration;
+            float triangle = 1f - Mathf.Abs(normalized * 2f - 1f);
+            return Mathf.SmoothStep(0f, 1f, triangle);
         }
 
         private void ApplyBlink(float amount)
         {
-            float clamped = Mathf.Clamp01(amount);
-            SetAlpha(leftEyelid, clamped);
-            SetAlpha(rightEyelid, clamped);
-            float eyelidScale = Mathf.Lerp(0.18f, 1.35f, clamped);
-            leftEyelid.rectTransform.localScale = new Vector3(1f, eyelidScale, 1f);
-            rightEyelid.rectTransform.localScale = new Vector3(1f, eyelidScale, 1f);
+            float scaleY = Mathf.Lerp(0.035f, 1f, amount);
+            leftEyelid.rectTransform.localScale =
+                new Vector3(1f, scaleY, 1f);
+            rightEyelid.rectTransform.localScale =
+                new Vector3(1f, scaleY, 1f);
         }
 
-        private void ApplyExpression(CharacterExpression expression, float delta)
+        private void ApplyExpression(CharacterExpression expression)
         {
-            float blend = delta >= 0.99f
-                ? 1f
-                : 1f - Mathf.Exp(-Mathf.Max(0f, delta) * 10f);
+            if (!built)
+            {
+                return;
+            }
 
-            float leftBrowRotation = 0f;
-            float rightBrowRotation = 0f;
-            float browY = style.eyeY + 29f;
-            Vector2 mouthSize = new Vector2(60f, 7f);
-            float mouthRotation = 0f;
-            Vector2 openSize = new Vector2(34f, 4f);
-            float cornerAlpha = 0f;
+            CharacterMouthShape mouthShape = expression switch
+            {
+                CharacterExpression.Relaxed => CharacterMouthShape.Relaxed,
+                CharacterExpression.Tired => CharacterMouthShape.Frown,
+                CharacterExpression.Focused => CharacterMouthShape.Focused,
+                CharacterExpression.Happy => CharacterMouthShape.Smile,
+                CharacterExpression.Strain => CharacterMouthShape.Strain,
+                CharacterExpression.Yawn => CharacterMouthShape.Yawn,
+                _ => CharacterMouthShape.Neutral
+            };
+            CurrentMouthShape = mouthShape;
+
+            float leftBrowAngle = 0f;
+            float rightBrowAngle = 0f;
+            float mouthAngle = 0f;
+            Vector2 mouthSize = new Vector2(62f, 7f);
+            Vector2 openSize = new Vector2(40f, 14f);
+            float openAlpha = 0f;
             float cheekAlpha = 0f;
             float sweatAlpha = 0f;
-            CurrentMouthShape = CharacterMouthShape.Neutral;
 
-            switch (expression)
+            switch (mouthShape)
             {
-                case CharacterExpression.Relaxed:
-                    CurrentMouthShape = CharacterMouthShape.Relaxed;
-                    mouthSize = new Vector2(52f, 6f);
-                    cornerAlpha = 0.28f;
+                case CharacterMouthShape.Frown:
+                    leftBrowAngle = -9f;
+                    rightBrowAngle = 9f;
+                    mouthAngle = 180f;
                     break;
-                case CharacterExpression.Tired:
-                    CurrentMouthShape = CharacterMouthShape.Frown;
-                    leftBrowRotation = -11f;
-                    rightBrowRotation = 11f;
-                    browY -= 4f;
-                    mouthRotation = -2f;
+                case CharacterMouthShape.Focused:
+                    leftBrowAngle = 10f;
+                    rightBrowAngle = -10f;
+                    mouthSize = new Vector2(47f, 8f);
                     break;
-                case CharacterExpression.Focused:
-                    CurrentMouthShape = CharacterMouthShape.Focused;
-                    leftBrowRotation = 12f;
-                    rightBrowRotation = -12f;
-                    browY -= 2f;
-                    mouthSize = new Vector2(48f, 8f);
+                case CharacterMouthShape.Smile:
+                    leftBrowAngle = 4f;
+                    rightBrowAngle = -4f;
+                    mouthSize = new Vector2(69f, 10f);
+                    mouthAngle = -4f;
+                    cheekAlpha = style.cheek.a;
                     break;
-                case CharacterExpression.Happy:
-                    CurrentMouthShape = CharacterMouthShape.Smile;
-                    leftBrowRotation = -4f;
-                    rightBrowRotation = 4f;
-                    mouthSize = new Vector2(54f, 8f);
-                    mouthRotation = 2f;
-                    cornerAlpha = 1f;
-                    cheekAlpha = 0.24f;
-                    break;
-                case CharacterExpression.Strain:
-                    CurrentMouthShape = CharacterMouthShape.Strain;
-                    leftBrowRotation = 17f;
-                    rightBrowRotation = -17f;
-                    browY -= 5f;
-                    mouthSize = new Vector2(43f, 10f);
-                    openSize = new Vector2(29f, 13f);
-                    cheekAlpha = 0.1f;
+                case CharacterMouthShape.Strain:
+                    leftBrowAngle = 15f;
+                    rightBrowAngle = -15f;
+                    mouthSize = new Vector2(54f, 11f);
+                    openSize = new Vector2(49f, 18f);
+                    openAlpha = 0.72f;
                     sweatAlpha = 0.92f;
                     break;
-                case CharacterExpression.Yawn:
-                    CurrentMouthShape = CharacterMouthShape.Yawn;
-                    leftBrowRotation = -7f;
-                    rightBrowRotation = 7f;
-                    browY -= 3f;
-                    mouthSize = new Vector2(25f, 6f);
-                    openSize = new Vector2(31f, 42f);
+                case CharacterMouthShape.Yawn:
+                    leftBrowAngle = -4f;
+                    rightBrowAngle = 4f;
+                    openSize = new Vector2(51f, 59f);
+                    openAlpha = 1f;
+                    mouthSize = new Vector2(22f, 6f);
+                    break;
+                case CharacterMouthShape.Relaxed:
+                    mouthSize = new Vector2(51f, 7f);
                     break;
             }
 
-            SetRotation(leftBrow.rectTransform, leftBrowRotation, blend);
-            SetRotation(rightBrow.rectTransform, rightBrowRotation, blend);
-            SetY(leftBrow.rectTransform, browY, blend);
-            SetY(rightBrow.rectTransform, browY, blend);
-            mouthLine.rectTransform.sizeDelta = Vector2.Lerp(
-                mouthLine.rectTransform.sizeDelta,
-                mouthSize,
-                blend);
-            SetRotation(mouthLine.rectTransform, mouthRotation, blend);
-            mouthOpen.rectTransform.sizeDelta = Vector2.Lerp(
-                mouthOpen.rectTransform.sizeDelta,
-                openSize,
-                blend);
-            SetAlphaSmooth(
-                mouthOpen,
-                Mathf.InverseLerp(5f, 14f, openSize.y),
-                blend);
-            SetAlphaSmooth(leftSmileCorner, cornerAlpha, blend);
-            SetAlphaSmooth(rightSmileCorner, cornerAlpha, blend);
-            SetAlphaSmooth(leftCheek, cheekAlpha, blend);
-            SetAlphaSmooth(rightCheek, cheekAlpha, blend);
-            SetAlphaSmooth(sweatDrop, sweatAlpha, blend);
-            SetRotation(leftSmileCorner.rectTransform, -32f, blend);
-            SetRotation(rightSmileCorner.rectTransform, 32f, blend);
+            leftBrow.rectTransform.localRotation =
+                Quaternion.Euler(0f, 0f, leftBrowAngle);
+            rightBrow.rectTransform.localRotation =
+                Quaternion.Euler(0f, 0f, rightBrowAngle);
+            mouthLine.rectTransform.localRotation =
+                Quaternion.Euler(0f, 0f, mouthAngle);
+            mouthLine.SetSize(mouthSize);
+            mouthOpen.SetSize(openSize);
+            SetAlpha(mouthOpen, openAlpha);
+            SetAlpha(leftCheek, cheekAlpha);
+            SetAlpha(rightCheek, cheekAlpha);
+            SetAlpha(sweatDrop, sweatAlpha);
+        }
+
+        private void ApplyVisibility()
+        {
+            if (faceRoot != null)
+            {
+                faceRoot.gameObject.SetActive(
+                    requestedVisible &&
+                    facing != CharacterFacing.Back);
+            }
         }
 
         private void ScheduleBlink()
         {
-            nextBlinkAt = Time.unscaledTime + Random.Range(2.5f, 6f);
+            nextBlinkAt =
+                Time.unscaledTime + Random.Range(2.5f, 6f);
         }
 
-        private static Image CreateOval(
+        private static RectTransform CreateRect(
             Transform parent,
             string name,
             Vector2 position,
             Vector2 size)
         {
-            Image image = LivingGameplayVisualFactory.CreateImage(
-                parent,
-                name,
-                new Vector2(0.5f, 0.5f),
-                position,
-                size,
-                LivingGameplayVisualFactory.GetSoftCircleSprite(),
-                Color.white);
-            return image;
+            GameObject target = new GameObject(name, typeof(RectTransform));
+            target.layer = parent.gameObject.layer;
+            target.transform.SetParent(parent, false);
+            RectTransform rect = target.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            return rect;
         }
 
-        private static Image CreateRounded(
+        private static CharacterMeshGraphic CreateMesh(
             Transform parent,
             string name,
+            CharacterMeshShape shape,
+            CharacterVisualRole role,
             Vector2 position,
-            Vector2 size)
+            Vector2 size,
+            Color fill,
+            float outline)
         {
-            return LivingGameplayVisualFactory.CreateImage(
-                parent,
-                name,
-                new Vector2(0.5f, 0.5f),
-                position,
+            RectTransform rect = CreateRect(parent, name, position, size);
+            CharacterMeshGraphic graphic =
+                rect.gameObject.AddComponent<CharacterMeshGraphic>();
+            graphic.Configure(
+                shape,
+                role,
                 size,
-                LivingGameplayVisualFactory.GetRoundedSprite(),
-                Color.white);
+                new Vector2(0.5f, 0.5f),
+                fill,
+                new Color(0.075f, 0.045f, 0.035f, 1f),
+                outline);
+            return graphic;
         }
 
-        private static void SetColor(Image image, Color color)
+        private static void SetColor(
+            CharacterMeshGraphic graphic,
+            Color color)
         {
-            if (image != null)
+            if (graphic != null)
             {
-                image.color = color;
+                graphic.SetFill(color);
             }
         }
 
-        private static void SetAlphaSmooth(
-            Graphic graphic,
-            float targetAlpha,
-            float blend)
+        private static void SetAlpha(
+            CharacterMeshGraphic graphic,
+            float alpha)
         {
             if (graphic == null)
             {
@@ -436,37 +572,8 @@ namespace SkinnyToBeast.Gameplay
             }
 
             Color color = graphic.color;
-            color.a = Mathf.Lerp(
-                color.a,
-                Mathf.Clamp01(targetAlpha),
-                Mathf.Clamp01(blend));
-            graphic.color = color;
-        }
-
-        private static void SetAlpha(Image image, float alpha)
-        {
-            if (image == null)
-            {
-                return;
-            }
-
-            Color color = image.color;
             color.a = Mathf.Clamp01(alpha);
-            image.color = color;
-        }
-
-        private static void SetRotation(RectTransform rect, float target, float blend)
-        {
-            float current = rect.localEulerAngles.z;
-            float next = Mathf.LerpAngle(current, target, blend);
-            rect.localRotation = Quaternion.Euler(0f, 0f, next);
-        }
-
-        private static void SetY(RectTransform rect, float target, float blend)
-        {
-            Vector2 position = rect.anchoredPosition;
-            position.y = Mathf.Lerp(position.y, target, blend);
-            rect.anchoredPosition = position;
+            graphic.SetFill(color);
         }
     }
 }

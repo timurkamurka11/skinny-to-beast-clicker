@@ -1,7 +1,5 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay
 {
@@ -33,52 +31,21 @@ namespace SkinnyToBeast.Gameplay
     [DisallowMultipleComponent]
     public sealed class CharacterRigController : MonoBehaviour
     {
-        private const string AnimatorResourcePath =
-            "UI/Gameplay/Living/Animations/LivingCharacter";
-
-        private sealed class RigPart
-        {
-            public RigPartGraphic Graphic;
-            public RectTransform Bone;
-        }
-
-        private struct PoseFrame
-        {
-            public float pelvis;
-            public float spine;
-            public float chest;
-            public float neck;
-            public float head;
-            public float leftShoulder;
-            public float rightShoulder;
-            public float leftUpperArm;
-            public float leftForearm;
-            public float leftHand;
-            public float rightUpperArm;
-            public float rightForearm;
-            public float rightHand;
-            public float leftThigh;
-            public float leftShin;
-            public float leftFoot;
-            public float rightThigh;
-            public float rightShin;
-            public float rightFoot;
-            public float pelvisY;
-            public float pelvisX;
-            public Vector2 chestScale;
-            public Vector2 abdomenScale;
-        }
-
-        private readonly List<RigPartGraphic> frontRenderers = new();
         private readonly Dictionary<string, RectTransform> namedBones = new();
+        private readonly Dictionary<string, CharacterMeshGraphic> namedParts = new();
+        private readonly List<CharacterMeshGraphic> meshRenderers = new();
+
+        private CharacterSkeletonDefinition skeletonDefinition;
+        private CharacterSkinDefinition currentDefinition;
+        private CharacterFaceController faceController;
+        private CharacterAnimationDriver animationDriver;
+        private CharacterViewController viewController;
+        private CharacterIKController ikController;
+        private Animator animator;
 
         private RectTransform characterRoot;
+        private RectTransform visualRoot;
         private RectTransform skeletonRoot;
-        private CanvasGroup skeletonGroup;
-        private RawImage directionalImage;
-        private CharacterFaceController faceController;
-        private Animator stateAnimator;
-
         private RectTransform rootBone;
         private RectTransform pelvisBone;
         private RectTransform spineBone;
@@ -88,107 +55,71 @@ namespace SkinnyToBeast.Gameplay
         private RectTransform leftShoulderBone;
         private RectTransform rightShoulderBone;
         private RectTransform leftUpperArmBone;
-        private RectTransform leftForearmBone;
-        private RectTransform leftHandBone;
         private RectTransform rightUpperArmBone;
+        private RectTransform leftForearmBone;
         private RectTransform rightForearmBone;
+        private RectTransform leftHandBone;
         private RectTransform rightHandBone;
         private RectTransform leftThighBone;
-        private RectTransform leftShinBone;
-        private RectTransform leftFootBone;
         private RectTransform rightThighBone;
+        private RectTransform leftShinBone;
         private RectTransform rightShinBone;
+        private RectTransform leftFootBone;
         private RectTransform rightFootBone;
 
-        private RigPart torsoPart;
-        private RigPart abdomenPart;
-        private RigPart pelvisPart;
-        private RigPart headPart;
-        private RigPart leftUpperArmPart;
-        private RigPart leftForearmPart;
-        private RigPart leftHandPart;
-        private RigPart rightUpperArmPart;
-        private RigPart rightForearmPart;
-        private RigPart rightHandPart;
-        private RigPart leftThighPart;
-        private RigPart leftShinPart;
-        private RigPart leftFootPart;
-        private RigPart rightThighPart;
-        private RigPart rightShinPart;
-        private RigPart rightFootPart;
-
-        private CharacterRigProfile profile;
-        private CharacterSkinDefinition currentDefinition;
-        private Texture currentFrontTexture;
-        private Rect sourceUv = new Rect(0f, 0f, 1f, 1f);
-        private Vector2 fullSize = new Vector2(720f, 1280f);
-        private Vector2 basePelvisPosition;
-        private PoseFrame currentPose;
-        private CharacterFacing restingFacing;
-        private CharacterRoutineAction activeAction;
         private Vector2 moveDirection;
-        private float actionAge = 10f;
-        private float actionDuration = 1f;
-        private float walkBlend;
-        private float walkCycle;
-        private float tapAge = 10f;
-        private float upgradeAge = 10f;
-        private float stageChangeAge = 10f;
-        private int tapVariant = -1;
-        private Coroutine tapFaceRoutine;
-        private string currentBaseAnimatorState;
-        private bool animatorBound;
+        private CharacterFacing restingFacing = CharacterFacing.Front;
+        private CharacterRoutineAction activeAction;
+        private float activeActionUntil;
+        private int tapVariant;
         private bool moving;
         private bool built;
 
         public int BoneCount => namedBones.Count;
+        public int MeshPartCount => meshRenderers.Count;
         public bool IsMoving => moving;
         public CharacterFacing Facing => ResolveFacing();
-        public bool HasAppliedSkin =>
-            built &&
-            currentDefinition != null &&
-            currentFrontTexture != null;
+        public CharacterRoutineAction ActiveAction => activeAction;
+        public float ActiveActionRemaining =>
+            Mathf.Max(0f, activeActionUntil - Time.unscaledTime);
+        public int ActiveTapVariant => tapVariant;
+        public bool IsTapReacting =>
+            animationDriver != null &&
+            ActiveActionRemaining > 0f;
+        public bool HasAppliedSkin => currentDefinition != null;
+        public bool AnimatorReady =>
+            animationDriver != null && animationDriver.IsReady;
+        public int AcceptedTapCount =>
+            animationDriver != null
+                ? animationDriver.AcceptedTapCount
+                : 0;
+        public int ObservedIdleActionCount =>
+            animationDriver != null
+                ? animationDriver.ObservedIdleActionCount
+                : 0;
+        public RectTransform VisualRoot => visualRoot;
+
         public bool HasVisibleSkin
         {
             get
             {
-                if (!HasAppliedSkin)
+                if (!built ||
+                    currentDefinition == null ||
+                    characterRoot == null ||
+                    !characterRoot.gameObject.activeInHierarchy ||
+                    skeletonRoot == null ||
+                    !skeletonRoot.gameObject.activeInHierarchy ||
+                    GetVisibleGraphicCount() < 18)
                 {
                     return false;
                 }
 
-                if (directionalImage != null && directionalImage.enabled)
-                {
-                    return directionalImage.texture != null &&
-                           directionalImage.color.a > 0.001f;
-                }
-
-                if (skeletonGroup == null || skeletonGroup.alpha <= 0.001f)
-                {
-                    return false;
-                }
-
-                foreach (RigPartGraphic renderer in frontRenderers)
-                {
-                    if (renderer != null &&
-                        renderer.isActiveAndEnabled &&
-                        renderer.SourceTexture == currentFrontTexture &&
-                        renderer.color.a > 0.001f)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
+                Bounds bounds = GetWorldGeometryBounds();
+                return bounds.size.x > 10f &&
+                       bounds.size.y > 10f &&
+                       characterRoot.lossyScale.sqrMagnitude > 0.0001f;
             }
         }
-        public CharacterRoutineAction ActiveAction => activeAction;
-        public float ActiveActionRemaining =>
-            activeAction == CharacterRoutineAction.None
-                ? 0f
-                : Mathf.Max(0f, actionDuration - actionAge);
-        public int ActiveTapVariant => Mathf.Max(0, tapVariant);
-        public bool IsTapReacting => tapAge < 0.52f;
 
         public void Build(
             RectTransform root,
@@ -201,83 +132,364 @@ namespace SkinnyToBeast.Gameplay
 
             characterRoot = root;
             faceController = face;
-            stateAnimator = root.GetComponent<Animator>();
-            if (stateAnimator == null)
-            {
-                stateAnimator = root.gameObject.AddComponent<Animator>();
-            }
-            TryBindStateAnimator();
+            skeletonDefinition =
+                CharacterSkeletonDefinition.CreateDefault();
 
-            skeletonRoot = LivingGameplayVisualFactory.CreateRect(
-                root,
-                "Skeleton.Root",
-                new Vector2(0.5f, 0.5f),
+            visualRoot = CreateRect(
+                characterRoot,
+                "VisualRoot",
                 Vector2.zero,
-                fullSize);
-            skeletonGroup = skeletonRoot.gameObject.AddComponent<CanvasGroup>();
+                skeletonDefinition.canvasSize);
+            skeletonRoot = CreateRect(
+                visualRoot,
+                "Skeleton",
+                Vector2.zero,
+                skeletonDefinition.canvasSize);
 
-            rootBone = CreateBone(skeletonRoot, "Bone.Root");
-            pelvisBone = CreateBone(rootBone, "Bone.Pelvis");
-            leftThighBone = CreateBone(pelvisBone, "Bone.Thigh.L");
-            leftThighPart = CreatePart(leftThighBone, "Part.Thigh.L");
-            leftShinBone = CreateBone(leftThighBone, "Bone.Shin.L");
-            leftShinPart = CreatePart(leftShinBone, "Part.Shin.L");
-            leftFootBone = CreateBone(leftShinBone, "Bone.Foot.L");
-            leftFootPart = CreatePart(leftFootBone, "Part.Foot.L");
+            rootBone = CreateBone(
+                skeletonRoot,
+                "Bone.Root",
+                Vector2.zero);
+            pelvisBone = CreateBone(
+                rootBone,
+                "Bone.Pelvis",
+                skeletonDefinition.pelvis);
 
-            rightThighBone = CreateBone(pelvisBone, "Bone.Thigh.R");
-            rightThighPart = CreatePart(rightThighBone, "Part.Thigh.R");
-            rightShinBone = CreateBone(rightThighBone, "Bone.Shin.R");
-            rightShinPart = CreatePart(rightShinBone, "Part.Shin.R");
-            rightFootBone = CreateBone(rightShinBone, "Bone.Foot.R");
-            rightFootPart = CreatePart(rightFootBone, "Part.Foot.R");
+            BuildLegs();
+            BuildTorsoAndArms();
+            BuildHead();
 
-            spineBone = CreateBone(pelvisBone, "Bone.Spine");
-            abdomenPart = CreatePart(spineBone, "Part.Abdomen");
-            chestBone = CreateBone(spineBone, "Bone.Chest");
-            torsoPart = CreatePart(chestBone, "Part.Torso");
+            animator = GetOrAdd<Animator>(characterRoot.gameObject);
+            animator.applyRootMotion = false;
+            animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-            leftShoulderBone = CreateBone(chestBone, "Bone.Shoulder.L");
+            animationDriver =
+                GetOrAdd<CharacterAnimationDriver>(
+                    characterRoot.gameObject);
+            animationDriver.Configure(animator);
+            faceController?.ConfigureAnimationDriver(
+                animationDriver);
+
+            viewController =
+                GetOrAdd<CharacterViewController>(
+                    characterRoot.gameObject);
+            viewController.Configure(visualRoot, faceController);
+            viewController.SetBasePresentationScale(
+                skeletonDefinition.presentationScale);
+
+            ikController =
+                GetOrAdd<CharacterIKController>(
+                    characterRoot.gameObject);
+            ikController.Configure(
+                leftThighBone,
+                leftShinBone,
+                leftFootBone,
+                rightThighBone,
+                rightShinBone,
+                rightFootBone,
+                animator);
+
+            built = true;
+            ClearSkin();
+        }
+
+        private void BuildLegs()
+        {
+            leftThighBone = CreateBone(
+                pelvisBone,
+                "Bone.Thigh.L",
+                skeletonDefinition.leftHip);
+            rightThighBone = CreateBone(
+                pelvisBone,
+                "Bone.Thigh.R",
+                skeletonDefinition.rightHip);
+
+            CreatePart(
+                leftThighBone,
+                "Part.Thigh.L",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Bottom,
+                new Vector2(104f, 224f),
+                new Vector2(0f, 20f),
+                new Vector2(0.5f, 1f));
+            CreatePart(
+                rightThighBone,
+                "Part.Thigh.R",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Bottom,
+                new Vector2(104f, 224f),
+                new Vector2(0f, 20f),
+                new Vector2(0.5f, 1f));
+
+            leftShinBone = CreateBone(
+                leftThighBone,
+                "Bone.Shin.L",
+                skeletonDefinition.knee);
+            rightShinBone = CreateBone(
+                rightThighBone,
+                "Bone.Shin.R",
+                skeletonDefinition.knee);
+            CreatePart(
+                leftShinBone,
+                "Part.Shin.L",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(75f, 201f),
+                new Vector2(0f, 18f),
+                new Vector2(0.5f, 1f));
+            CreatePart(
+                rightShinBone,
+                "Part.Shin.R",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(75f, 201f),
+                new Vector2(0f, 18f),
+                new Vector2(0.5f, 1f));
+
+            leftFootBone = CreateBone(
+                leftShinBone,
+                "Bone.Foot.L",
+                skeletonDefinition.ankle);
+            rightFootBone = CreateBone(
+                rightShinBone,
+                "Bone.Foot.R",
+                skeletonDefinition.ankle);
+            CharacterMeshGraphic leftShoe = CreatePart(
+                leftFootBone,
+                "Part.Foot.L",
+                CharacterMeshShape.Shoe,
+                CharacterVisualRole.Shoe,
+                new Vector2(132f, 67f),
+                new Vector2(-18f, -31f),
+                new Vector2(0.5f, 0.5f));
+            leftShoe.rectTransform.localScale =
+                new Vector3(-1f, 1f, 1f);
+            CreatePart(
+                rightFootBone,
+                "Part.Foot.R",
+                CharacterMeshShape.Shoe,
+                CharacterVisualRole.Shoe,
+                new Vector2(132f, 67f),
+                new Vector2(18f, -31f),
+                new Vector2(0.5f, 0.5f));
+        }
+
+        private void BuildTorsoAndArms()
+        {
+            CreatePart(
+                pelvisBone,
+                "Part.Pelvis",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Bottom,
+                new Vector2(245f, 151f),
+                new Vector2(0f, -20f),
+                new Vector2(0.5f, 0.5f));
+
+            spineBone = CreateBone(
+                pelvisBone,
+                "Bone.Spine",
+                skeletonDefinition.spine);
+            CreatePart(
+                spineBone,
+                "Part.Abdomen",
+                CharacterMeshShape.Torso,
+                CharacterVisualRole.Top,
+                new Vector2(244f, 194f),
+                new Vector2(0f, 29f),
+                new Vector2(0.5f, 0.5f),
+                0.88f,
+                1.04f);
+
+            chestBone = CreateBone(
+                spineBone,
+                "Bone.Chest",
+                skeletonDefinition.chest);
+            CreatePart(
+                chestBone,
+                "Part.Chest",
+                CharacterMeshShape.Torso,
+                CharacterVisualRole.Top,
+                new Vector2(316f, 244f),
+                Vector2.zero,
+                new Vector2(0.5f, 0.5f),
+                1.05f,
+                0.76f);
+            CreatePart(
+                chestBone,
+                "Part.ChestAccent",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Accent,
+                new Vector2(48f, 48f),
+                new Vector2(0f, 28f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                2f);
+
+            leftShoulderBone = CreateBone(
+                chestBone,
+                "Bone.Shoulder.L",
+                skeletonDefinition.leftShoulder);
+            rightShoulderBone = CreateBone(
+                chestBone,
+                "Bone.Shoulder.R",
+                skeletonDefinition.rightShoulder);
+            CreatePart(
+                leftShoulderBone,
+                "Part.Shoulder.L",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Skin,
+                new Vector2(92f, 92f),
+                Vector2.zero,
+                new Vector2(0.5f, 0.5f));
+            CreatePart(
+                rightShoulderBone,
+                "Part.Shoulder.R",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Skin,
+                new Vector2(92f, 92f),
+                Vector2.zero,
+                new Vector2(0.5f, 0.5f));
+
             leftUpperArmBone = CreateBone(
                 leftShoulderBone,
-                "Bone.UpperArm.L");
-            leftUpperArmPart = CreatePart(leftUpperArmBone, "Part.UpperArm.L");
-            leftForearmBone = CreateBone(leftUpperArmBone, "Bone.Forearm.L");
-            leftForearmPart = CreatePart(leftForearmBone, "Part.Forearm.L");
-            leftHandBone = CreateBone(leftForearmBone, "Bone.Hand.L");
-            leftHandPart = CreatePart(leftHandBone, "Part.Hand.L");
-
-            rightShoulderBone = CreateBone(chestBone, "Bone.Shoulder.R");
+                "Bone.UpperArm.L",
+                Vector2.zero);
             rightUpperArmBone = CreateBone(
                 rightShoulderBone,
-                "Bone.UpperArm.R");
-            rightUpperArmPart = CreatePart(rightUpperArmBone, "Part.UpperArm.R");
-            rightForearmBone = CreateBone(rightUpperArmBone, "Bone.Forearm.R");
-            rightForearmPart = CreatePart(rightForearmBone, "Part.Forearm.R");
-            rightHandBone = CreateBone(rightForearmBone, "Bone.Hand.R");
-            rightHandPart = CreatePart(rightHandBone, "Part.Hand.R");
+                "Bone.UpperArm.R",
+                Vector2.zero);
+            CreatePart(
+                leftUpperArmBone,
+                "Part.UpperArm.L",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(80f, 181f),
+                new Vector2(0f, 20f),
+                new Vector2(0.5f, 1f));
+            CreatePart(
+                rightUpperArmBone,
+                "Part.UpperArm.R",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(80f, 181f),
+                new Vector2(0f, 20f),
+                new Vector2(0.5f, 1f));
 
-            neckBone = CreateBone(chestBone, "Bone.Neck");
-            headBone = CreateBone(neckBone, "Bone.Head");
-            headPart = CreatePart(headBone, "Part.Head");
-            faceController?.Build(headBone);
-
-            pelvisPart = CreatePart(pelvisBone, "Part.Pelvis");
-
-            RectTransform directionalRect = LivingGameplayVisualFactory.CreateRect(
-                root,
-                "DirectionalWalkRenderer",
+            leftForearmBone = CreateBone(
+                leftUpperArmBone,
+                "Bone.Forearm.L",
+                skeletonDefinition.elbow);
+            rightForearmBone = CreateBone(
+                rightUpperArmBone,
+                "Bone.Forearm.R",
+                skeletonDefinition.elbow);
+            CreatePart(
+                leftForearmBone,
+                "Part.Forearm.L",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(69f, 165f),
+                new Vector2(0f, 18f),
+                new Vector2(0.5f, 1f));
+            CreatePart(
+                rightForearmBone,
+                "Part.Forearm.R",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(69f, 165f),
+                new Vector2(0f, 18f),
+                new Vector2(0.5f, 1f));
+            CreatePart(
+                leftForearmBone,
+                "Part.WristWrap.L",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Accent,
+                new Vector2(76f, 28f),
+                new Vector2(0f, -117f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -18f),
-                new Vector2(1280f, 1280f));
-            directionalImage = directionalRect.gameObject.AddComponent<RawImage>();
-            directionalImage.color = Color.white;
-            directionalImage.raycastTarget = false;
-            directionalImage.enabled = false;
+                1f,
+                1f,
+                2f);
+            CreatePart(
+                rightForearmBone,
+                "Part.WristWrap.R",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Accent,
+                new Vector2(76f, 28f),
+                new Vector2(0f, -117f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                2f);
 
-            currentPose.chestScale = Vector2.one;
-            currentPose.abdomenScale = Vector2.one;
-            built = true;
+            leftHandBone = CreateBone(
+                leftForearmBone,
+                "Bone.Hand.L",
+                skeletonDefinition.wrist);
+            rightHandBone = CreateBone(
+                rightForearmBone,
+                "Bone.Hand.R",
+                skeletonDefinition.wrist);
+            CreatePart(
+                leftHandBone,
+                "Part.Hand.L",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(76f, 92f),
+                new Vector2(0f, -34f),
+                new Vector2(0.5f, 0.5f));
+            CreatePart(
+                rightHandBone,
+                "Part.Hand.R",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(76f, 92f),
+                new Vector2(0f, -34f),
+                new Vector2(0.5f, 0.5f));
+        }
+
+        private void BuildHead()
+        {
+            neckBone = CreateBone(
+                chestBone,
+                "Bone.Neck",
+                skeletonDefinition.neck);
+            CreatePart(
+                neckBone,
+                "Part.Neck",
+                CharacterMeshShape.Capsule,
+                CharacterVisualRole.Skin,
+                new Vector2(76f, 104f),
+                new Vector2(0f, 31f),
+                new Vector2(0.5f, 0.5f));
+
+            headBone = CreateBone(
+                neckBone,
+                "Bone.Head",
+                skeletonDefinition.head);
+            CreatePart(
+                headBone,
+                "Part.Head",
+                CharacterMeshShape.Ellipse,
+                CharacterVisualRole.Skin,
+                new Vector2(214f, 242f),
+                new Vector2(0f, 87f),
+                new Vector2(0.5f, 0.5f));
+            CreatePart(
+                headBone,
+                "Part.HairBack",
+                CharacterMeshShape.Hair,
+                CharacterVisualRole.Hair,
+                new Vector2(222f, 132f),
+                new Vector2(0f, 162f),
+                new Vector2(0.5f, 0.5f),
+                1f,
+                1f,
+                4f);
+
+            faceController?.Build(headBone);
         }
 
         public void ApplySkin(CharacterSkinDefinition definition)
@@ -287,61 +499,35 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            Sprite sprite = definition.FrontSprite;
-            TryBindStateAnimator();
-            Texture texture = sprite.texture;
-            currentFrontTexture = texture;
-            sourceUv = new Rect(
-                sprite.rect.x / texture.width,
-                sprite.rect.y / texture.height,
-                sprite.rect.width / texture.width,
-                sprite.rect.height / texture.height);
-
-            foreach (RigPartGraphic renderer in frontRenderers)
+            currentDefinition = definition;
+            CharacterAppearance appearance = definition.Appearance;
+            ApplyAppearance(appearance);
+            for (int i = 0; i < meshRenderers.Count; i++)
             {
-                renderer.enabled = true;
-                renderer.color = Color.white;
+                CharacterMeshGraphic part = meshRenderers[i];
+                part.enabled = true;
+                part.gameObject.SetActive(true);
+                part.SetOutline(appearance.outline);
+                part.SetFill(ResolveRoleColor(part.Role, appearance));
             }
 
-            directionalImage.texture = definition.DirectionalWalkSheet;
-            currentDefinition = definition;
-            profile = definition.RigProfile;
-            fullSize = new Vector2(profile.visualWidth, profile.visualHeight);
-            skeletonRoot.sizeDelta = fullSize;
-            ApplyProfile(profile);
-            faceController?.ApplyStyle(definition.FaceStyle, profile);
-            SetDirectionalVisible(false);
-            EnsureSkinVisible();
+            faceController?.ApplyStyle(definition.FaceStyle);
+            faceController?.SetVisible(true);
+            skeletonRoot.gameObject.SetActive(true);
+            viewController?.SetBasePresentationScale(
+                skeletonDefinition.presentationScale *
+                appearance.heightScale);
+            viewController?.SetFacing(ResolveFacing());
         }
 
         public void ClearSkin()
         {
-            if (tapFaceRoutine != null)
-            {
-                StopCoroutine(tapFaceRoutine);
-                tapFaceRoutine = null;
-            }
-
-            foreach (RigPartGraphic renderer in frontRenderers)
-            {
-                if (renderer != null)
-                {
-                    renderer.enabled = false;
-                }
-            }
-
-            currentFrontTexture = null;
             currentDefinition = null;
-            profile = null;
-            if (directionalImage != null)
+            for (int i = 0; i < meshRenderers.Count; i++)
             {
-                directionalImage.enabled = false;
-                directionalImage.texture = null;
-            }
-
-            if (skeletonGroup != null)
-            {
-                skeletonGroup.alpha = 0f;
+                Color clear = meshRenderers[i].color;
+                clear.a = 0f;
+                meshRenderers[i].SetFill(clear);
             }
 
             faceController?.SetVisible(false);
@@ -349,89 +535,54 @@ namespace SkinnyToBeast.Gameplay
 
         public bool EnsureSkinVisible()
         {
-            if (!HasAppliedSkin)
+            if (!built || currentDefinition == null)
             {
                 return false;
             }
 
-            bool hasFrontPart = false;
-            foreach (RigPartGraphic renderer in frontRenderers)
+            if (!characterRoot.gameObject.activeSelf)
             {
-                if (renderer == null ||
-                    renderer.SourceTexture != currentFrontTexture)
-                {
-                    continue;
-                }
-
-                renderer.enabled = true;
-                Color color = renderer.color;
-                color.a = 1f;
-                renderer.color = color;
-                renderer.SetVerticesDirty();
-                renderer.SetMaterialDirty();
-                hasFrontPart = true;
+                characterRoot.gameObject.SetActive(true);
             }
 
-            bool directional = ShouldUseDirectionalRenderer();
-            SetDirectionalVisible(directional);
-            if (directional)
+            if (!skeletonRoot.gameObject.activeSelf)
             {
-                UpdateDirectionalRenderer();
-                return directionalImage != null &&
-                       directionalImage.enabled &&
-                       directionalImage.texture != null;
+                skeletonRoot.gameObject.SetActive(true);
             }
 
-            return hasFrontPart &&
-                   skeletonGroup != null &&
-                   skeletonGroup.alpha > 0.001f;
+            ApplySkin(currentDefinition);
+            return HasVisibleSkin;
         }
 
         public void SynchronizeAnimationState()
         {
             activeAction = CharacterRoutineAction.None;
-            actionAge = actionDuration;
-            tapAge = 10f;
-            upgradeAge = 10f;
-            stageChangeAge = 10f;
-            currentPose = default;
-            currentPose.chestScale = Vector2.one;
-            currentPose.abdomenScale = Vector2.one;
-            if (rootBone != null)
-            {
-                rootBone.localRotation = Quaternion.identity;
-                rootBone.localScale = Vector3.one;
-            }
-
-            if (skeletonRoot != null)
-            {
-                skeletonRoot.localScale = Vector3.one;
-            }
-
-            faceController?.ResetExpression();
-            CrossFadeState("Idle_Breathe", 0, 0f);
+            activeActionUntil = 0f;
+            moving = false;
+            moveDirection = Vector2.zero;
+            animationDriver?.ResetState();
+            viewController?.SetFacing(restingFacing);
+            ikController?.SetLocomotion(false, restingFacing);
         }
 
         public void SetLocomotion(Vector2 direction, float speed)
         {
-            bool wasMoving = moving;
-            moveDirection = direction.sqrMagnitude > 0.0001f
-                ? direction.normalized
-                : Vector2.zero;
-            moving = speed > 0.01f && moveDirection.sqrMagnitude > 0.001f;
-            if (moving && !wasMoving)
+            if (!built)
             {
-                walkCycle = 0f;
+                return;
             }
 
-            UpdateBaseAnimatorState();
-            if (!moving)
-            {
-                walkBlend = Mathf.MoveTowards(
-                    walkBlend,
-                    0f,
-                    Time.unscaledDeltaTime * 4f);
-            }
+            moveDirection = direction.sqrMagnitude > 0.0001f
+                ? direction.normalized
+                : Vector2.down;
+            moving = speed > 0.001f;
+            CharacterFacing nextFacing = ResolveFacing();
+            viewController?.SetFacing(nextFacing);
+            animationDriver?.SetLocomotion(
+                nextFacing,
+                Mathf.Max(0f, speed),
+                moving);
+            ikController?.SetLocomotion(moving, nextFacing);
         }
 
         public void StopLocomotion(CharacterFacing facing)
@@ -439,445 +590,250 @@ namespace SkinnyToBeast.Gameplay
             moving = false;
             moveDirection = Vector2.zero;
             restingFacing = facing;
-            UpdateBaseAnimatorState();
+            viewController?.SetFacing(facing);
+            animationDriver?.SetLocomotion(facing, 0f, false);
+            ikController?.SetLocomotion(false, facing);
+        }
+
+        public void PlayEntryWalk(float speed = 1f)
+        {
+            moveDirection = Vector2.up;
+            moving = true;
+            restingFacing = CharacterFacing.Back;
+            viewController?.SetFacing(CharacterFacing.Back);
+            animationDriver?.PlayEntryWalk(speed);
+            ikController?.SetLocomotion(
+                true,
+                CharacterFacing.Back);
         }
 
         public void SetRestingFacing(CharacterFacing facing)
         {
             restingFacing = facing;
-            UpdateBaseAnimatorState();
+            if (!moving)
+            {
+                viewController?.SetFacing(facing);
+                animationDriver?.SetLocomotion(facing, 0f, false);
+            }
         }
 
-        public void PlayAction(CharacterRoutineAction action, float duration)
+        public void PlayAction(
+            CharacterRoutineAction action,
+            float duration)
         {
-            activeAction = action;
-            actionAge = 0f;
-            actionDuration = Mathf.Max(0.2f, duration);
-
-            CharacterExpression expression = action switch
+            if (!built || action == CharacterRoutineAction.None)
             {
-                CharacterRoutineAction.Yawn => CharacterExpression.Yawn,
-                CharacterRoutineAction.Flex => CharacterExpression.Happy,
-                CharacterRoutineAction.Stretch => CharacterExpression.Focused,
-                CharacterRoutineAction.WarmShoulders => CharacterExpression.Focused,
-                CharacterRoutineAction.AdjustClothes => CharacterExpression.Neutral,
-                _ => CharacterExpression.Neutral
-            };
-            faceController?.SetExpression(expression, actionDuration);
-            PlayAnimatorAction(action);
+                return;
+            }
+
+            activeAction = action;
+            activeActionUntil =
+                Time.unscaledTime + Mathf.Max(0.12f, duration);
+            animationDriver?.PlayRoutineAction(action, duration);
+
+            if (action == CharacterRoutineAction.Yawn)
+            {
+                faceController?.SetExpression(
+                    CharacterExpression.Yawn,
+                    duration);
+            }
+            else if (action == CharacterRoutineAction.Flex)
+            {
+                faceController?.SetExpression(
+                    CharacterExpression.Happy,
+                    duration);
+            }
+            else if (action == CharacterRoutineAction.Scratch ||
+                     action == CharacterRoutineAction.WarmShoulders)
+            {
+                faceController?.SetExpression(
+                    CharacterExpression.Focused,
+                    duration);
+            }
         }
 
         public void CancelAction()
         {
             activeAction = CharacterRoutineAction.None;
-            actionAge = actionDuration;
+            activeActionUntil = 0f;
+            animationDriver?.CancelActions();
             faceController?.ResetExpression();
-            CrossFadeState("UpperBody_Idle", 1, 0.1f);
-            CrossFadeState("FullBody_Idle", 3, 0.1f);
         }
 
         public void TriggerTap()
         {
-            tapVariant = (tapVariant + 1) % 3;
-            tapAge = 0f;
-            activeAction = CharacterRoutineAction.None;
-            faceController?.LookAt(new Vector2(0f, -1f), 0.75f);
-            faceController?.SetExpression(CharacterExpression.Strain, 0.52f);
-            CrossFadeState(
-                $"TapLift_{(char)('A' + tapVariant)}",
-                3,
-                0.08f);
-            if (tapFaceRoutine != null)
-            {
-                StopCoroutine(tapFaceRoutine);
-            }
-
-            tapFaceRoutine = StartCoroutine(TapFaceSequence());
-        }
-
-        private IEnumerator TapFaceSequence()
-        {
-            yield return new WaitForSecondsRealtime(0.5f);
-            faceController?.SetExpression(CharacterExpression.Happy, 0.34f);
-            yield return new WaitForSecondsRealtime(0.34f);
-            tapFaceRoutine = null;
-        }
-
-        public void TriggerUpgrade()
-        {
-            upgradeAge = 0f;
-            PlayAction(CharacterRoutineAction.Flex, 0.95f);
-            faceController?.SetExpression(CharacterExpression.Happy, 1.15f);
-            CrossFadeState("Idle_Flex", 1, 0.1f);
-        }
-
-        public void TriggerStageChange()
-        {
-            stageChangeAge = 0f;
-            faceController?.SetExpression(CharacterExpression.Happy, 1.15f);
-            CrossFadeState("StageChange", 3, 0.08f);
-        }
-
-        public bool HasBone(string boneName)
-        {
-            return !string.IsNullOrEmpty(boneName) && namedBones.ContainsKey(boneName);
-        }
-
-        public int GetDistinctFrontTextureCount()
-        {
-            HashSet<Texture> textures = new();
-            foreach (RigPartGraphic renderer in frontRenderers)
-            {
-                if (renderer != null &&
-                    renderer.enabled &&
-                    renderer.SourceTexture != null)
-                {
-                    textures.Add(renderer.SourceTexture);
-                }
-            }
-
-            return textures.Count;
-        }
-
-        private void Update()
-        {
-            if (!built || profile == null)
+            if (!built)
             {
                 return;
             }
 
-            float delta = Time.unscaledDeltaTime;
-            float now = Time.unscaledTime;
-            actionAge += delta;
-            tapAge += delta;
-            upgradeAge += delta;
-            stageChangeAge += delta;
-
-            walkBlend = Mathf.MoveTowards(
-                walkBlend,
-                moving ? 1f : 0f,
-                delta * (moving ? 6f : 4f));
-            if (moving)
-            {
-                // One complete two-contact gait lasts about 0.77 seconds.
-                // Keeping the procedural legs and two-frame directional sheets
-                // on the same clock prevents foot cadence from doubling.
-                walkCycle += delta * 2.6f;
-            }
-
-            if (animatorBound)
-            {
-                stateAnimator.SetFloat("Speed", moving ? 1f : 0f);
-                stateAnimator.SetInteger("Facing", (int)ResolveFacing());
-            }
-
-            bool directional = ShouldUseDirectionalRenderer();
-            SetDirectionalVisible(directional);
-            if (directional)
-            {
-                UpdateDirectionalRenderer();
-            }
-
-            PoseFrame target = CalculatePose(now);
-            float poseBlend = 1f - Mathf.Exp(-delta * 12f);
-            SmoothPose(ref currentPose, target, poseBlend);
-            ApplyPose(currentPose);
+            tapVariant = animationDriver != null
+                ? animationDriver.TriggerTap()
+                : (tapVariant + 1) % 3;
+            activeActionUntil = Time.unscaledTime + 0.54f;
+            faceController?.LookAt(new Vector2(0f, -1f), 0.42f);
+            faceController?.SetExpression(
+                CharacterExpression.Strain,
+                0.46f);
         }
 
-        private PoseFrame CalculatePose(float now)
+        public void TriggerUpgrade()
         {
-            float breath = Mathf.Sin(now * Mathf.PI * 2f / 2.6f);
-            float slowSway = Mathf.Sin(now * 0.72f);
-            PoseFrame pose = new PoseFrame
-            {
-                pelvis = slowSway * 0.55f,
-                spine = -slowSway * 0.7f,
-                chest = slowSway * 0.45f,
-                neck = -slowSway * 0.18f,
-                head = slowSway * 0.72f,
-                leftShoulder = breath * 0.45f,
-                rightShoulder = -breath * 0.45f,
-                leftUpperArm = slowSway * 1.6f,
-                rightUpperArm = -slowSway * 1.6f,
-                leftForearm = 0f,
-                rightForearm = 0f,
-                leftHand = slowSway * 0.5f,
-                rightHand = -slowSway * 0.5f,
-                leftThigh = slowSway * 0.35f,
-                rightThigh = -slowSway * 0.35f,
-                leftShin = 0f,
-                rightShin = 0f,
-                leftFoot = 0f,
-                rightFoot = 0f,
-                pelvisY = breath * 2.5f,
-                pelvisX = slowSway * 1.6f,
-                chestScale = new Vector2(
-                    1f - breath * 0.004f,
-                    1f + breath * 0.012f),
-                abdomenScale = new Vector2(
-                    1f + breath * 0.009f,
-                    1f + breath * 0.005f)
-            };
+            animationDriver?.TriggerUpgrade();
+            faceController?.SetExpression(
+                CharacterExpression.Happy,
+                0.9f);
+        }
 
-            if (walkBlend > 0.001f && !ShouldUseDirectionalRenderer())
-            {
-                float phase = walkCycle * Mathf.PI;
-                float stride = Mathf.Sin(phase) * 17f * walkBlend;
-                float liftLeft = Mathf.Max(0f, Mathf.Sin(phase)) * 19f * walkBlend;
-                float liftRight = Mathf.Max(0f, -Mathf.Sin(phase)) * 19f * walkBlend;
-                pose.leftThigh += stride;
-                pose.rightThigh -= stride;
-                pose.leftShin -= liftLeft;
-                pose.rightShin += liftRight;
-                pose.leftFoot += liftLeft * 0.35f;
-                pose.rightFoot -= liftRight * 0.35f;
-                pose.leftUpperArm -= stride * 0.72f;
-                pose.rightUpperArm += stride * 0.72f;
-                pose.pelvisY += Mathf.Abs(Mathf.Sin(phase)) * 8f * walkBlend;
-                pose.pelvis = Mathf.Sin(phase * 2f) * 1.1f * walkBlend;
-                pose.chest = -pose.pelvis * 0.55f;
-            }
+        public void TriggerStageChange()
+        {
+            animationDriver?.TriggerStageChange();
+            faceController?.SetExpression(
+                CharacterExpression.Happy,
+                0.82f);
+        }
 
-            if (activeAction != CharacterRoutineAction.None &&
-                actionAge < actionDuration)
+        public bool StressTapAnimator(int tapCount)
+        {
+            return animationDriver != null &&
+                   animationDriver.StressTap(tapCount);
+        }
+
+        public void ResetObservedIdleActionHistory()
+        {
+            animationDriver?.ClearObservedIdleActions();
+        }
+
+        public void ResetFootPlantDiagnostics()
+        {
+            ikController?.ResetDiagnostics();
+        }
+
+        public float FootPlantError =>
+            ikController != null
+                ? ikController.LastPlantError
+                : float.PositiveInfinity;
+
+        public bool HasBone(string boneName)
+        {
+            return !string.IsNullOrEmpty(boneName) &&
+                   namedBones.ContainsKey(boneName) &&
+                   namedBones[boneName] != null;
+        }
+
+        public RectTransform GetBone(string boneName)
+        {
+            namedBones.TryGetValue(boneName, out RectTransform bone);
+            return bone;
+        }
+
+        public int GetCharacterTextureCount()
+        {
+            return 0;
+        }
+
+        public int GetVisibleGraphicCount()
+        {
+            int count = 0;
+            for (int i = 0; i < meshRenderers.Count; i++)
             {
-                float t = Mathf.Clamp01(actionAge / actionDuration);
-                float envelope = activeAction switch
+                if (meshRenderers[i] != null &&
+                    meshRenderers[i].HasRenderableGeometry)
                 {
-                    CharacterRoutineAction.Sit => CalculateHeldEnvelope(t),
-                    CharacterRoutineAction.SitDown =>
-                        Mathf.SmoothStep(0f, 1f, t),
-                    CharacterRoutineAction.SitLoop => 1f,
-                    CharacterRoutineAction.StandUp =>
-                        Mathf.SmoothStep(1f, 0f, t),
-                    _ => Mathf.Sin(t * Mathf.PI)
-                };
-                float repeat = Mathf.Sin(t * Mathf.PI * 4f);
-                ApplyActionPose(ref pose, activeAction, envelope, repeat);
-            }
-            else if (actionAge >= actionDuration)
-            {
-                activeAction = CharacterRoutineAction.None;
+                    count++;
+                }
             }
 
-            if (tapAge < 0.52f)
+            return count;
+        }
+
+        public Bounds GetWorldGeometryBounds()
+        {
+            Bounds bounds = default;
+            bool initialized = false;
+            Vector3[] corners = new Vector3[4];
+            for (int i = 0; i < meshRenderers.Count; i++)
             {
-                float t = tapAge / 0.52f;
-                float punch = Mathf.Sin(t * Mathf.PI);
-                pose.pelvisY += punch * 11f;
-                switch (tapVariant)
+                CharacterMeshGraphic graphic = meshRenderers[i];
+                if (graphic == null || !graphic.HasRenderableGeometry)
                 {
-                    case 0:
-                        pose.spine -= punch * 4f;
-                        pose.chest += punch * 6f;
-                        pose.leftShoulder -= punch * 8f;
-                        pose.leftUpperArm -= punch * 38f;
-                        pose.leftForearm -= punch * 92f;
-                        pose.leftHand += punch * 20f;
-                        break;
-                    case 1:
-                        pose.spine += punch * 4f;
-                        pose.chest -= punch * 6f;
-                        pose.rightShoulder += punch * 8f;
-                        pose.rightUpperArm += punch * 38f;
-                        pose.rightForearm += punch * 92f;
-                        pose.rightHand -= punch * 20f;
-                        break;
-                    default:
-                        pose.pelvisY -= punch * 8f;
-                        pose.spine += Mathf.Sin(t * Mathf.PI * 2f) * 3f;
-                        pose.leftShoulder -= punch * 11f;
-                        pose.rightShoulder += punch * 11f;
-                        pose.leftUpperArm -= punch * 52f;
-                        pose.rightUpperArm += punch * 52f;
-                        pose.leftForearm -= punch * 106f;
-                        pose.rightForearm += punch * 106f;
-                        pose.leftHand += punch * 18f;
-                        pose.rightHand -= punch * 18f;
-                        break;
+                    continue;
                 }
 
-                pose.chestScale += new Vector2(punch * 0.025f, -punch * 0.018f);
+                graphic.rectTransform.GetWorldCorners(corners);
+                for (int corner = 0; corner < corners.Length; corner++)
+                {
+                    if (!initialized)
+                    {
+                        bounds = new Bounds(corners[corner], Vector3.zero);
+                        initialized = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(corners[corner]);
+                    }
+                }
             }
 
-            if (upgradeAge < 0.95f)
-            {
-                float pulse = Mathf.Sin(Mathf.Clamp01(upgradeAge / 0.95f) * Mathf.PI);
-                pose.leftUpperArm -= pulse * 48f;
-                pose.rightUpperArm += pulse * 48f;
-                pose.leftForearm -= pulse * 78f;
-                pose.rightForearm += pulse * 78f;
-                pose.chestScale += Vector2.one * pulse * 0.035f;
-            }
-
-            if (!moving &&
-                activeAction != CharacterRoutineAction.SitDown &&
-                activeAction != CharacterRoutineAction.SitLoop &&
-                activeAction != CharacterRoutineAction.StandUp &&
-                activeAction != CharacterRoutineAction.Sit)
-            {
-                // Keep the global foot angle planted while the pelvis and legs
-                // perform breathing and weight-shift poses.
-                pose.leftFoot =
-                    -(pose.pelvis + pose.leftThigh + pose.leftShin);
-                pose.rightFoot =
-                    -(pose.pelvis + pose.rightThigh + pose.rightShin);
-            }
-
-            return pose;
+            return bounds;
         }
 
-        private static void ApplyActionPose(
-            ref PoseFrame pose,
-            CharacterRoutineAction action,
-            float envelope,
-            float repeat)
+        public bool ValidateJointContinuity(out string error)
         {
-            switch (action)
+            if (!ValidateJoint(
+                    leftShoulderBone,
+                    "Part.Shoulder.L",
+                    "Part.UpperArm.L") ||
+                !ValidateJoint(
+                    rightShoulderBone,
+                    "Part.Shoulder.R",
+                    "Part.UpperArm.R"))
             {
-                case CharacterRoutineAction.ShiftWeight:
-                    pose.pelvis += repeat * 2.5f * envelope;
-                    pose.pelvisX += repeat * 8f * envelope;
-                    pose.head -= repeat * 1.5f * envelope;
-                    break;
-                case CharacterRoutineAction.LookAround:
-                    pose.head += repeat * 11f * envelope;
-                    pose.neck += repeat * 3f * envelope;
-                    break;
-                case CharacterRoutineAction.Scratch:
-                    pose.rightUpperArm += 84f * envelope;
-                    pose.rightForearm += 112f * envelope + repeat * 8f;
-                    pose.rightHand -= 25f * envelope;
-                    pose.head -= 5f * envelope;
-                    break;
-                case CharacterRoutineAction.Yawn:
-                    pose.leftUpperArm -= 118f * envelope;
-                    pose.rightUpperArm += 118f * envelope;
-                    pose.leftForearm -= 18f * envelope;
-                    pose.rightForearm += 18f * envelope;
-                    pose.chestScale += new Vector2(0.02f, 0.035f) * envelope;
-                    break;
-                case CharacterRoutineAction.Stretch:
-                    pose.leftUpperArm -= 142f * envelope;
-                    pose.rightUpperArm += 142f * envelope;
-                    pose.leftForearm -= 12f * envelope;
-                    pose.rightForearm += 12f * envelope;
-                    pose.spine += repeat * 2f * envelope;
-                    pose.pelvisY += 12f * envelope;
-                    break;
-                case CharacterRoutineAction.Flex:
-                    pose.leftUpperArm -= 54f * envelope;
-                    pose.rightUpperArm += 54f * envelope;
-                    pose.leftForearm -= 108f * envelope;
-                    pose.rightForearm += 108f * envelope;
-                    pose.leftHand += 17f * envelope;
-                    pose.rightHand -= 17f * envelope;
-                    pose.chestScale += Vector2.one * 0.025f * envelope;
-                    break;
-                case CharacterRoutineAction.AdjustClothes:
-                    pose.leftUpperArm += 38f * envelope;
-                    pose.rightUpperArm -= 38f * envelope;
-                    pose.leftForearm -= 84f * envelope + repeat * 5f;
-                    pose.rightForearm += 84f * envelope - repeat * 5f;
-                    pose.leftHand += 13f * envelope;
-                    pose.rightHand -= 13f * envelope;
-                    pose.head += repeat * 1.2f * envelope;
-                    break;
-                case CharacterRoutineAction.WarmShoulders:
-                    pose.leftShoulder += repeat * 13f * envelope;
-                    pose.rightShoulder -= repeat * 13f * envelope;
-                    pose.leftUpperArm -= repeat * 8f * envelope;
-                    pose.rightUpperArm += repeat * 8f * envelope;
-                    pose.chest -= repeat * 2.2f * envelope;
-                    break;
-                case CharacterRoutineAction.SitDown:
-                    ApplySitPose(ref pose, envelope);
-                    break;
-                case CharacterRoutineAction.SitLoop:
-                    ApplySitPose(ref pose, 1f);
-                    pose.spine += repeat * 1.4f;
-                    pose.head -= repeat * 1.1f;
-                    break;
-                case CharacterRoutineAction.StandUp:
-                    ApplySitPose(ref pose, envelope);
-                    break;
-                case CharacterRoutineAction.Sit:
-                    ApplySitPose(ref pose, envelope);
-                    break;
-            }
-        }
-
-        private static void ApplySitPose(ref PoseFrame pose, float amount)
-        {
-            float held = Mathf.Clamp01(amount);
-            pose.pelvisY -= 105f * held;
-            pose.spine -= 5f * held;
-            pose.leftThigh -= 58f * held;
-            pose.rightThigh += 58f * held;
-            pose.leftShin += 78f * held;
-            pose.rightShin -= 78f * held;
-            pose.leftUpperArm += 10f * held;
-            pose.rightUpperArm -= 10f * held;
-        }
-
-        private void ApplyPose(PoseFrame pose)
-        {
-            pelvisBone.anchoredPosition =
-                basePelvisPosition + new Vector2(pose.pelvisX, pose.pelvisY);
-            SetRotation(pelvisBone, pose.pelvis);
-            SetRotation(spineBone, pose.spine);
-            SetRotation(chestBone, pose.chest);
-            SetRotation(neckBone, pose.neck);
-            SetRotation(headBone, pose.head);
-            SetRotation(leftShoulderBone, pose.leftShoulder);
-            SetRotation(rightShoulderBone, pose.rightShoulder);
-            SetRotation(leftUpperArmBone, pose.leftUpperArm);
-            SetRotation(leftForearmBone, pose.leftForearm);
-            SetRotation(leftHandBone, pose.leftHand);
-            SetRotation(rightUpperArmBone, pose.rightUpperArm);
-            SetRotation(rightForearmBone, pose.rightForearm);
-            SetRotation(rightHandBone, pose.rightHand);
-            SetRotation(leftThighBone, pose.leftThigh);
-            SetRotation(leftShinBone, pose.leftShin);
-            SetRotation(leftFootBone, pose.leftFoot);
-            SetRotation(rightThighBone, pose.rightThigh);
-            SetRotation(rightShinBone, pose.rightShin);
-            SetRotation(rightFootBone, pose.rightFoot);
-            chestBone.localScale = new Vector3(
-                Mathf.Max(0.85f, pose.chestScale.x),
-                Mathf.Max(0.85f, pose.chestScale.y),
-                1f);
-            abdomenPart.Graphic.rectTransform.localScale = new Vector3(
-                Mathf.Max(0.85f, pose.abdomenScale.x),
-                Mathf.Max(0.85f, pose.abdomenScale.y),
-                1f);
-
-            float stagePulse = 0f;
-            if (stageChangeAge < 0.78f)
-            {
-                float t = stageChangeAge / 0.78f;
-                stagePulse = Mathf.Sin(t * Mathf.PI) * 0.08f;
-            }
-
-            skeletonRoot.localScale = Vector3.one * (1f + stagePulse);
-        }
-
-        private bool ShouldUseDirectionalRenderer()
-        {
-            if (directionalImage == null || directionalImage.texture == null)
-            {
+                error =
+                    "A shoulder joint is outside one of its overlapping meshes.";
                 return false;
             }
 
-            if (!moving)
+            if (!ValidateJoint(
+                    leftForearmBone,
+                    "Part.UpperArm.L",
+                    "Part.Forearm.L") ||
+                !ValidateJoint(
+                    rightForearmBone,
+                    "Part.UpperArm.R",
+                    "Part.Forearm.R"))
             {
-                return restingFacing != CharacterFacing.Front;
+                error =
+                    "An elbow joint is outside one of its overlapping meshes.";
+                return false;
             }
 
-            bool side = Mathf.Abs(moveDirection.x) >
-                        Mathf.Abs(moveDirection.y) * 0.65f;
-            bool back = !side && moveDirection.y > 0f;
-            return side || back;
+            if (!ValidateJoint(
+                    leftShinBone,
+                    "Part.Thigh.L",
+                    "Part.Shin.L") ||
+                !ValidateJoint(
+                    rightShinBone,
+                    "Part.Thigh.R",
+                    "Part.Shin.R"))
+            {
+                error =
+                    "A knee joint is outside one of its overlapping meshes.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        private void Update()
+        {
+            animationDriver?.Tick();
+            if (activeAction != CharacterRoutineAction.None &&
+                Time.unscaledTime >= activeActionUntil)
+            {
+                activeAction = CharacterRoutineAction.None;
+            }
         }
 
         private CharacterFacing ResolveFacing()
@@ -887,7 +843,8 @@ namespace SkinnyToBeast.Gameplay
                 return restingFacing;
             }
 
-            if (Mathf.Abs(moveDirection.x) > Mathf.Abs(moveDirection.y) * 0.65f)
+            if (Mathf.Abs(moveDirection.x) >
+                Mathf.Abs(moveDirection.y) * 0.65f)
             {
                 return moveDirection.x < 0f
                     ? CharacterFacing.SideLeft
@@ -899,323 +856,258 @@ namespace SkinnyToBeast.Gameplay
                 : CharacterFacing.Front;
         }
 
-        private void UpdateDirectionalRenderer()
+        private void ApplyAppearance(CharacterAppearance appearance)
         {
-            CharacterFacing facing = ResolveFacing();
-            int frame = moving ? Mathf.FloorToInt(walkCycle) & 1 : 0;
-            bool back = facing == CharacterFacing.Back;
-            CharacterDirectionalFrame calibration = currentDefinition != null
-                ? currentDefinition.GetDirectionalFrame(back, frame)
-                : CharacterDirectionalFrame.Default;
-            directionalImage.uvRect = new Rect(
-                frame == 0 ? 0f : 0.5f,
-                back ? 0f : 0.5f,
-                0.5f,
-                0.5f);
+            float shoulderOffset =
+                Mathf.Abs(skeletonDefinition.leftShoulder.x) *
+                appearance.shoulderWidth;
+            leftShoulderBone.anchoredPosition =
+                new Vector2(
+                    -shoulderOffset,
+                    skeletonDefinition.leftShoulder.y);
+            rightShoulderBone.anchoredPosition =
+                new Vector2(
+                    shoulderOffset,
+                    skeletonDefinition.rightShoulder.y);
 
-            Vector3 scale = Vector3.one * calibration.Scale;
-            Vector2 offset = calibration.Offset;
-            if (facing == CharacterFacing.SideRight)
-            {
-                scale.x *= -1f;
-                offset.x *= -1f;
-            }
+            SetPartSize(
+                "Part.Chest",
+                new Vector2(
+                    316f * appearance.chestWidth,
+                    244f));
+            SetPartWidthProfile(
+                "Part.Chest",
+                1.05f,
+                Mathf.Lerp(0.70f, 0.86f, appearance.bellyWidth - 0.9f));
+            SetPartSize(
+                "Part.Abdomen",
+                new Vector2(
+                    244f * appearance.bellyWidth,
+                    194f));
+            SetPartSize(
+                "Part.Pelvis",
+                new Vector2(
+                    245f * appearance.hipWidth,
+                    151f));
 
-            float bob = moving ? Mathf.Abs(Mathf.Sin(walkCycle * Mathf.PI)) * 7f : 0f;
-            offset.y += bob;
-            directionalImage.rectTransform.anchoredPosition = offset;
-            directionalImage.rectTransform.localScale = scale;
+            SetPairSize(
+                "Part.Shoulder",
+                new Vector2(
+                    92f * appearance.armWidth,
+                    92f * appearance.armWidth));
+            SetPairSize(
+                "Part.UpperArm",
+                new Vector2(
+                    80f * appearance.armWidth,
+                    181f));
+            SetPairSize(
+                "Part.Forearm",
+                new Vector2(
+                    69f * appearance.armWidth,
+                    165f));
+            SetPairSize(
+                "Part.Hand",
+                new Vector2(
+                    76f * appearance.armWidth,
+                    92f * appearance.armWidth));
+            SetPairSize(
+                "Part.Thigh",
+                new Vector2(
+                    104f * appearance.legWidth,
+                    224f));
+            SetPairSize(
+                "Part.Shin",
+                new Vector2(
+                    75f * appearance.legWidth,
+                    201f));
+            SetPairSize(
+                "Part.Foot",
+                new Vector2(
+                    132f * appearance.legWidth,
+                    67f * appearance.legWidth));
+            SetPartSize(
+                "Part.Head",
+                new Vector2(
+                    214f * appearance.headScale,
+                    242f * appearance.headScale));
+            SetPartSize(
+                "Part.HairBack",
+                new Vector2(
+                    222f * appearance.headScale,
+                    132f * appearance.headScale));
         }
 
-        private void SetDirectionalVisible(bool directional)
+        private static Color ResolveRoleColor(
+            CharacterVisualRole role,
+            CharacterAppearance appearance)
         {
-            if (directionalImage == null)
+            return role switch
             {
-                return;
-            }
-
-            directionalImage.enabled = directional;
-            if (skeletonGroup != null)
-            {
-                skeletonGroup.alpha = directional ? 0f : 1f;
-            }
-
-            faceController?.SetVisible(!directional);
+                CharacterVisualRole.Skin => appearance.skin,
+                CharacterVisualRole.Hair => appearance.hair,
+                CharacterVisualRole.Top => appearance.top,
+                CharacterVisualRole.Bottom => appearance.bottom,
+                CharacterVisualRole.Shoe => appearance.shoes,
+                CharacterVisualRole.Accent => appearance.accentVisible
+                    ? appearance.accent
+                    : new Color(
+                        appearance.accent.r,
+                        appearance.accent.g,
+                        appearance.accent.b,
+                        0f),
+                _ => Color.white
+            };
         }
 
-        private void ApplyProfile(CharacterRigProfile next)
+        private void SetPairSize(string baseName, Vector2 size)
         {
-            SetBonePosition(rootBone, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
-            SetBonePosition(pelvisBone, next.pelvis, new Vector2(0.5f, 0.5f));
-            SetBonePosition(spineBone, next.spine, next.pelvis);
-            SetBonePosition(chestBone, next.chest, next.spine);
-            SetBonePosition(neckBone, next.neck, next.chest);
-            SetBonePosition(headBone, next.head, next.neck);
-
-            SetBonePosition(leftShoulderBone, next.leftShoulder, next.chest);
-            SetBonePosition(leftUpperArmBone, next.leftShoulder, next.leftShoulder);
-            SetBonePosition(leftForearmBone, next.leftElbow, next.leftShoulder);
-            SetBonePosition(leftHandBone, next.leftWrist, next.leftElbow);
-            SetBonePosition(rightShoulderBone, next.rightShoulder, next.chest);
-            SetBonePosition(rightUpperArmBone, next.rightShoulder, next.rightShoulder);
-            SetBonePosition(rightForearmBone, next.rightElbow, next.rightShoulder);
-            SetBonePosition(rightHandBone, next.rightWrist, next.rightElbow);
-
-            SetBonePosition(leftThighBone, next.leftHip, next.pelvis);
-            SetBonePosition(leftShinBone, next.leftKnee, next.leftHip);
-            SetBonePosition(leftFootBone, next.leftAnkle, next.leftKnee);
-            SetBonePosition(rightThighBone, next.rightHip, next.pelvis);
-            SetBonePosition(rightShinBone, next.rightKnee, next.rightHip);
-            SetBonePosition(rightFootBone, next.rightAnkle, next.rightKnee);
-            basePelvisPosition = pelvisBone.anchoredPosition;
-
-            ApplyPart(torsoPart, next.torso);
-            ApplyPart(abdomenPart, next.abdomen);
-            ApplyPart(pelvisPart, next.pelvisArt);
-            ApplyPart(headPart, next.headArt);
-            ApplyPart(leftUpperArmPart, next.leftUpperArm);
-            ApplyPart(leftForearmPart, next.leftForearm);
-            ApplyPart(leftHandPart, next.leftHand);
-            ApplyPart(rightUpperArmPart, next.rightUpperArm);
-            ApplyPart(rightForearmPart, next.rightForearm);
-            ApplyPart(rightHandPart, next.rightHand);
-            ApplyPart(leftThighPart, next.leftThigh);
-            ApplyPart(leftShinPart, next.leftShin);
-            ApplyPart(leftFootPart, next.leftFoot);
-            ApplyPart(rightThighPart, next.rightThigh);
-            ApplyPart(rightShinPart, next.rightShin);
-            ApplyPart(rightFootPart, next.rightFoot);
+            SetPartSize($"{baseName}.L", size);
+            SetPartSize($"{baseName}.R", size);
         }
 
-        private RectTransform CreateBone(Transform parent, string name)
+        private void SetPartSize(string name, Vector2 size)
         {
-            RectTransform bone = LivingGameplayVisualFactory.CreateRect(
+            if (namedParts.TryGetValue(
+                    name,
+                    out CharacterMeshGraphic part))
+            {
+                part.SetSize(size);
+            }
+        }
+
+        private void SetPartWidthProfile(
+            string name,
+            float top,
+            float bottom)
+        {
+            if (namedParts.TryGetValue(
+                    name,
+                    out CharacterMeshGraphic part))
+            {
+                part.SetWidthProfile(top, bottom);
+            }
+        }
+
+        private bool ValidateJoint(
+            RectTransform joint,
+            string firstPartName,
+            string secondPartName)
+        {
+            if (joint == null ||
+                !namedParts.TryGetValue(
+                    firstPartName,
+                    out CharacterMeshGraphic first) ||
+                !namedParts.TryGetValue(
+                    secondPartName,
+                    out CharacterMeshGraphic second) ||
+                first == null ||
+                second == null)
+            {
+                return false;
+            }
+
+            Vector3 point = joint.position;
+            return ContainsWorldPoint(
+                       first.rectTransform,
+                       point,
+                       8f) &&
+                   ContainsWorldPoint(
+                       second.rectTransform,
+                       point,
+                       8f);
+        }
+
+        private static bool ContainsWorldPoint(
+            RectTransform rect,
+            Vector3 point,
+            float margin)
+        {
+            Vector3 local = rect.InverseTransformPoint(point);
+            Rect localRect = rect.rect;
+            localRect.xMin -= margin;
+            localRect.xMax += margin;
+            localRect.yMin -= margin;
+            localRect.yMax += margin;
+            return localRect.Contains(local);
+        }
+
+        private RectTransform CreateBone(
+            Transform parent,
+            string name,
+            Vector2 position)
+        {
+            RectTransform bone = CreateRect(
                 parent,
                 name,
-                new Vector2(0.5f, 0.5f),
-                Vector2.zero,
+                position,
                 Vector2.zero);
+            bone.localRotation = Quaternion.identity;
+            bone.localScale = Vector3.one;
             namedBones[name] = bone;
             return bone;
         }
 
-        private RigPart CreatePart(RectTransform bone, string name)
+        private CharacterMeshGraphic CreatePart(
+            Transform parent,
+            string name,
+            CharacterMeshShape shape,
+            CharacterVisualRole role,
+            Vector2 size,
+            Vector2 position,
+            Vector2 pivot,
+            float topWidth = 1f,
+            float bottomWidth = 1f,
+            float outlineWidth = 5f)
         {
-            RectTransform rect = LivingGameplayVisualFactory.CreateRect(
-                bone,
+            RectTransform rect = CreateRect(
+                parent,
                 name,
-                new Vector2(0.5f, 0.5f),
-                Vector2.zero,
-                new Vector2(16f, 16f));
-            RigPartGraphic graphic =
-                rect.gameObject.AddComponent<RigPartGraphic>();
-            graphic.color = Color.white;
-            graphic.raycastTarget = false;
-            frontRenderers.Add(graphic);
-            return new RigPart
-            {
-                Bone = bone,
-                Graphic = graphic
-            };
+                position,
+                size);
+            CharacterMeshGraphic graphic =
+                rect.gameObject.AddComponent<CharacterMeshGraphic>();
+            graphic.Configure(
+                shape,
+                role,
+                size,
+                pivot,
+                Color.clear,
+                new Color(0.075f, 0.045f, 0.035f, 1f),
+                outlineWidth,
+                topWidth,
+                bottomWidth);
+            meshRenderers.Add(graphic);
+            namedParts[name] = graphic;
+            return graphic;
         }
 
-        private void SetBonePosition(
-            RectTransform bone,
-            Vector2 joint,
-            Vector2 parentJoint)
+        private static RectTransform CreateRect(
+            Transform parent,
+            string name,
+            Vector2 position,
+            Vector2 size)
         {
-            bone.anchoredPosition = Vector2.Scale(joint - parentJoint, fullSize);
-            bone.localRotation = Quaternion.identity;
-            bone.localScale = Vector3.one;
+            GameObject target = new GameObject(name, typeof(RectTransform));
+            target.layer = parent.gameObject.layer;
+            target.transform.SetParent(parent, false);
+            RectTransform rect = target.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            rect.localRotation = Quaternion.identity;
+            rect.localScale = Vector3.one;
+            return rect;
         }
 
-        private void ApplyPart(RigPart part, CharacterRigCrop crop)
+        private static T GetOrAdd<T>(GameObject target)
+            where T : Component
         {
-            part.Graphic.Configure(
-                currentFrontTexture,
-                sourceUv,
-                crop,
-                fullSize);
-        }
-
-        private static void SmoothPose(
-            ref PoseFrame current,
-            PoseFrame target,
-            float blend)
-        {
-            current.pelvis = Mathf.LerpAngle(current.pelvis, target.pelvis, blend);
-            current.spine = Mathf.LerpAngle(current.spine, target.spine, blend);
-            current.chest = Mathf.LerpAngle(current.chest, target.chest, blend);
-            current.neck = Mathf.LerpAngle(current.neck, target.neck, blend);
-            current.head = Mathf.LerpAngle(current.head, target.head, blend);
-            current.leftShoulder = Mathf.LerpAngle(current.leftShoulder, target.leftShoulder, blend);
-            current.rightShoulder = Mathf.LerpAngle(current.rightShoulder, target.rightShoulder, blend);
-            current.leftUpperArm = Mathf.LerpAngle(current.leftUpperArm, target.leftUpperArm, blend);
-            current.leftForearm = Mathf.LerpAngle(current.leftForearm, target.leftForearm, blend);
-            current.leftHand = Mathf.LerpAngle(current.leftHand, target.leftHand, blend);
-            current.rightUpperArm = Mathf.LerpAngle(current.rightUpperArm, target.rightUpperArm, blend);
-            current.rightForearm = Mathf.LerpAngle(current.rightForearm, target.rightForearm, blend);
-            current.rightHand = Mathf.LerpAngle(current.rightHand, target.rightHand, blend);
-            current.leftThigh = Mathf.LerpAngle(current.leftThigh, target.leftThigh, blend);
-            current.leftShin = Mathf.LerpAngle(current.leftShin, target.leftShin, blend);
-            current.leftFoot = Mathf.LerpAngle(current.leftFoot, target.leftFoot, blend);
-            current.rightThigh = Mathf.LerpAngle(current.rightThigh, target.rightThigh, blend);
-            current.rightShin = Mathf.LerpAngle(current.rightShin, target.rightShin, blend);
-            current.rightFoot = Mathf.LerpAngle(current.rightFoot, target.rightFoot, blend);
-            current.pelvisY = Mathf.Lerp(current.pelvisY, target.pelvisY, blend);
-            current.pelvisX = Mathf.Lerp(current.pelvisX, target.pelvisX, blend);
-            current.chestScale = Vector2.Lerp(current.chestScale, target.chestScale, blend);
-            current.abdomenScale = Vector2.Lerp(
-                current.abdomenScale,
-                target.abdomenScale,
-                blend);
-        }
-
-        private static float CalculateHeldEnvelope(float normalizedTime)
-        {
-            const float transition = 0.18f;
-            float t = Mathf.Clamp01(normalizedTime);
-            if (t < transition)
-            {
-                return Mathf.SmoothStep(0f, 1f, t / transition);
-            }
-
-            if (t > 1f - transition)
-            {
-                return Mathf.SmoothStep(
-                    1f,
-                    0f,
-                    (t - (1f - transition)) / transition);
-            }
-
-            return 1f;
-        }
-
-        private static void SetRotation(RectTransform rect, float degrees)
-        {
-            rect.localRotation = Quaternion.Euler(0f, 0f, degrees);
-        }
-
-        private void TryBindStateAnimator()
-        {
-            if (stateAnimator == null || animatorBound)
-            {
-                return;
-            }
-
-            RuntimeAnimatorController controller =
-                Resources.Load<RuntimeAnimatorController>(
-                    AnimatorResourcePath);
-            if (controller == null)
-            {
-                return;
-            }
-
-            stateAnimator.runtimeAnimatorController = controller;
-            stateAnimator.applyRootMotion = false;
-            stateAnimator.updateMode = AnimatorUpdateMode.UnscaledTime;
-            stateAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            animatorBound = true;
-            currentBaseAnimatorState = string.Empty;
-        }
-
-        private void UpdateBaseAnimatorState()
-        {
-            if (!animatorBound)
-            {
-                TryBindStateAnimator();
-            }
-
-            string next;
-            if (!moving)
-            {
-                next = "Idle_Breathe";
-            }
-            else
-            {
-                CharacterFacing facing = ResolveFacing();
-                next = facing switch
-                {
-                    CharacterFacing.Back => "Walk_Back",
-                    CharacterFacing.SideLeft => "Walk_Side",
-                    CharacterFacing.SideRight => "Walk_Side",
-                    _ => "Walk_Front"
-                };
-            }
-
-            if (next == currentBaseAnimatorState)
-            {
-                return;
-            }
-
-            currentBaseAnimatorState = next;
-            CrossFadeState(next, 0, 0.12f);
-        }
-
-        private void PlayAnimatorAction(CharacterRoutineAction action)
-        {
-            switch (action)
-            {
-                case CharacterRoutineAction.ShiftWeight:
-                    CrossFadeState("Idle_ShiftWeight", 0, 0.12f);
-                    break;
-                case CharacterRoutineAction.LookAround:
-                    CrossFadeState("Face_Look", 2, 0.1f);
-                    break;
-                case CharacterRoutineAction.Scratch:
-                    CrossFadeState("Idle_Scratch", 1, 0.12f);
-                    break;
-                case CharacterRoutineAction.Yawn:
-                    CrossFadeState("Idle_Yawn", 1, 0.12f);
-                    break;
-                case CharacterRoutineAction.Stretch:
-                    CrossFadeState("Idle_Stretch", 1, 0.12f);
-                    break;
-                case CharacterRoutineAction.Flex:
-                    CrossFadeState("Idle_Flex", 1, 0.12f);
-                    break;
-                case CharacterRoutineAction.AdjustClothes:
-                    CrossFadeState("Idle_AdjustClothes", 1, 0.12f);
-                    break;
-                case CharacterRoutineAction.WarmShoulders:
-                    CrossFadeState("Idle_WarmShoulders", 1, 0.12f);
-                    break;
-                case CharacterRoutineAction.SitDown:
-                    CrossFadeState("SitDown", 3, 0.12f);
-                    break;
-                case CharacterRoutineAction.SitLoop:
-                    CrossFadeState("SitLoop", 0, 0.12f);
-                    break;
-                case CharacterRoutineAction.StandUp:
-                    CrossFadeState("StandUp", 3, 0.12f);
-                    break;
-            }
-        }
-
-        private void CrossFadeState(
-            string stateName,
-            int layer,
-            float duration)
-        {
-            if (!animatorBound || stateAnimator == null ||
-                stateAnimator.runtimeAnimatorController == null ||
-                layer < 0 ||
-                layer >= stateAnimator.layerCount)
-            {
-                return;
-            }
-
-            int hash = Animator.StringToHash(stateName);
-            if (!stateAnimator.HasState(layer, hash))
-            {
-                hash = Animator.StringToHash(
-                    $"{stateAnimator.GetLayerName(layer)}.{stateName}");
-            }
-
-            if (stateAnimator.HasState(layer, hash))
-            {
-                stateAnimator.CrossFade(hash, duration, layer);
-            }
+            T component = target.GetComponent<T>();
+            return component != null
+                ? component
+                : target.AddComponent<T>();
         }
     }
 }

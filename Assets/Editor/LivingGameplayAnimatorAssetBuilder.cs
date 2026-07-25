@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
@@ -9,9 +10,116 @@ namespace SkinnyToBeast.Editor
     internal static class LivingGameplayAnimatorAssetBuilder
     {
         private const string SessionKey =
-            "SkinnyToBeast.LivingAnimatorBuilt.Patch2";
-        private const string RootFolder = "Assets/Resources/UI/Gameplay/Living/Animations";
-        private const string ControllerPath = RootFolder + "/LivingCharacter.controller";
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch3";
+        private const string RootFolder =
+            "Assets/Resources/UI/Gameplay/Living/Animations";
+        private const string ControllerPath =
+            RootFolder + "/LivingCharacter.controller";
+
+        private const string Root =
+            "VisualRoot/Skeleton/Bone.Root";
+        private const string Pelvis =
+            Root + "/Bone.Pelvis";
+        private const string Spine =
+            Pelvis + "/Bone.Spine";
+        private const string Chest =
+            Spine + "/Bone.Chest";
+        private const string Neck =
+            Chest + "/Bone.Neck";
+        private const string Head =
+            Neck + "/Bone.Head";
+
+        private const string ShoulderL =
+            Chest + "/Bone.Shoulder.L";
+        private const string UpperArmL =
+            ShoulderL + "/Bone.UpperArm.L";
+        private const string ForearmL =
+            UpperArmL + "/Bone.Forearm.L";
+        private const string HandL =
+            ForearmL + "/Bone.Hand.L";
+        private const string ShoulderR =
+            Chest + "/Bone.Shoulder.R";
+        private const string UpperArmR =
+            ShoulderR + "/Bone.UpperArm.R";
+        private const string ForearmR =
+            UpperArmR + "/Bone.Forearm.R";
+        private const string HandR =
+            ForearmR + "/Bone.Hand.R";
+
+        private const string ThighL =
+            Pelvis + "/Bone.Thigh.L";
+        private const string ShinL =
+            ThighL + "/Bone.Shin.L";
+        private const string FootL =
+            ShinL + "/Bone.Foot.L";
+        private const string ThighR =
+            Pelvis + "/Bone.Thigh.R";
+        private const string ShinR =
+            ThighR + "/Bone.Shin.R";
+        private const string FootR =
+            ShinR + "/Bone.Foot.R";
+
+        private const string EyelidL =
+            Head + "/FaceRig/Eyelid.L";
+        private const string EyelidR =
+            Head + "/FaceRig/Eyelid.R";
+        private const string PupilL =
+            Head + "/FaceRig/Eye.L/Pupil.L";
+        private const string PupilR =
+            Head + "/FaceRig/Eye.R/Pupil.R";
+        private const string Mouth =
+            Head + "/FaceRig/Mouth.Open";
+
+        private static readonly string[] NeutralBones =
+        {
+            Root,
+            Pelvis,
+            Spine,
+            Chest,
+            Neck,
+            Head,
+            ShoulderL,
+            UpperArmL,
+            ForearmL,
+            HandL,
+            ShoulderR,
+            UpperArmR,
+            ForearmR,
+            HandR,
+            ThighL,
+            ShinL,
+            FootL,
+            ThighR,
+            ShinR,
+            FootR
+        };
+
+        private static readonly string[] RequiredMotionClips =
+        {
+            "Idle_Breathe",
+            "Idle_ShiftWeight",
+            "Idle_LookAround",
+            "Idle_Scratch",
+            "Idle_Yawn",
+            "Idle_Stretch",
+            "Idle_Flex",
+            "Idle_AdjustClothes",
+            "Idle_WarmShoulders",
+            "Walk_Front",
+            "Walk_Side",
+            "Walk_Back",
+            "SitDown",
+            "SitLoop",
+            "StandUp",
+            "TapLift_A",
+            "TapLift_B",
+            "TapLift_C",
+            "StageChange",
+            "Entry_WalkToDoor",
+            "Face_Blink",
+            "Face_Look",
+            "Face_Expression"
+        };
 
         static LivingGameplayAnimatorAssetBuilder()
         {
@@ -19,11 +127,32 @@ namespace SkinnyToBeast.Editor
             EditorApplication.delayCall += EnsureAssetsOnce;
         }
 
-        [MenuItem("Tools/Skinny to Beast/Rebuild Patch 2 Character Animator")]
+        [MenuItem("Tools/Skinny to Beast/Rebuild Patch 3 Skeletal Animator")]
         public static void RebuildFromMenu()
         {
             DeleteGeneratedAssets();
             BuildAssets();
+        }
+
+        public static void EnsureCurrentAssets()
+        {
+            AnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                    ControllerPath);
+            if (!NeedsPatchThreeRebuild(controller))
+            {
+                return;
+            }
+
+            DeleteGeneratedAssets();
+            BuildAssets();
+        }
+
+        [InitializeOnEnterPlayMode]
+        private static void EnsureBeforePlayMode(
+            EnterPlayModeOptions options)
+        {
+            EnsureCurrentAssets();
         }
 
         private static void EnsureAssetsOnce()
@@ -33,7 +162,8 @@ namespace SkinnyToBeast.Editor
                 return;
             }
 
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            if (EditorApplication.isCompiling ||
+                EditorApplication.isUpdating)
             {
                 EditorApplication.delayCall -= EnsureAssetsOnce;
                 EditorApplication.delayCall += EnsureAssetsOnce;
@@ -48,71 +178,67 @@ namespace SkinnyToBeast.Editor
             SessionState.SetBool(SessionKey, true);
             try
             {
-                AnimatorController controller =
-                    AssetDatabase.LoadAssetAtPath<AnimatorController>(
-                        ControllerPath);
-                if (NeedsPatchTwoRebuild(controller))
-                {
-                    DeleteGeneratedAssets();
-                    BuildAssets();
-                }
+                EnsureCurrentAssets();
             }
             catch (Exception exception)
             {
                 SessionState.SetBool(SessionKey, false);
                 Debug.LogError(
-                    $"Could not generate Patch 2 character Animator: {exception}");
+                    "Could not generate Patch 3 skeletal Animator: " +
+                    exception);
             }
         }
 
-        private static bool NeedsPatchTwoRebuild(
+        private static bool NeedsPatchThreeRebuild(
             AnimatorController controller)
         {
-            if (controller == null || controller.layers.Length != 4)
+            if (controller == null ||
+                controller.layers.Length != 4)
             {
                 return true;
             }
 
-            string[] required =
+            string[] layers =
             {
                 "Base",
                 "UpperBody",
                 "Face",
                 "FullBodyAction"
             };
-            for (int i = 0; i < required.Length; i++)
+            for (int i = 0; i < layers.Length; i++)
             {
-                if (controller.layers[i].name != required[i])
+                if (controller.layers[i].name != layers[i])
                 {
                     return true;
                 }
             }
 
-            return
-                !ContainsStates(
+            if (!ContainsExactlyOneState(
                     controller.layers[0].stateMachine,
                     "Idle_Breathe",
                     "Idle_ShiftWeight",
                     "Walk_Front",
                     "Walk_Side",
                     "Walk_Back",
-                    "SitLoop") ||
-                !ContainsStates(
+                    "SitLoop",
+                    "Entry_WalkToDoor") ||
+                !ContainsExactlyOneState(
                     controller.layers[1].stateMachine,
                     "UpperBody_Idle",
+                    "Idle_LookAround",
                     "Idle_Scratch",
                     "Idle_Yawn",
                     "Idle_Stretch",
                     "Idle_Flex",
                     "Idle_AdjustClothes",
                     "Idle_WarmShoulders") ||
-                !ContainsStates(
+                !ContainsExactlyOneState(
                     controller.layers[2].stateMachine,
                     "Face_Idle",
                     "Face_Blink",
                     "Face_Look",
                     "Face_Expression") ||
-                !ContainsStates(
+                !ContainsExactlyOneState(
                     controller.layers[3].stateMachine,
                     "FullBody_Idle",
                     "SitDown",
@@ -125,10 +251,26 @@ namespace SkinnyToBeast.Editor
                     controller,
                     "Speed",
                     "Facing",
-                    "Sitting");
+                    "Sitting"))
+            {
+                return true;
+            }
+
+            for (int i = 0; i < RequiredMotionClips.Length; i++)
+            {
+                AnimationClip clip =
+                    AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                        $"{RootFolder}/{RequiredMotionClips[i]}.anim");
+                if (!HasRealMotionCurves(clip))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
-        private static bool ContainsStates(
+        private static bool ContainsExactlyOneState(
             AnimatorStateMachine machine,
             params string[] names)
         {
@@ -138,24 +280,21 @@ namespace SkinnyToBeast.Editor
             }
 
             ChildAnimatorState[] states = machine.states;
-            for (int requiredIndex = 0;
-                 requiredIndex < names.Length;
-                 requiredIndex++)
+            for (int required = 0; required < names.Length; required++)
             {
-                bool found = false;
+                int matches = 0;
                 for (int stateIndex = 0;
                      stateIndex < states.Length;
                      stateIndex++)
                 {
                     if (states[stateIndex].state != null &&
-                        states[stateIndex].state.name == names[requiredIndex])
+                        states[stateIndex].state.name == names[required])
                     {
-                        found = true;
-                        break;
+                        matches++;
                     }
                 }
 
-                if (!found)
+                if (matches != 1)
                 {
                     return false;
                 }
@@ -168,25 +307,22 @@ namespace SkinnyToBeast.Editor
             AnimatorController controller,
             params string[] names)
         {
-            AnimatorControllerParameter[] parameters = controller.parameters;
-            for (int requiredIndex = 0;
-                 requiredIndex < names.Length;
-                 requiredIndex++)
+            AnimatorControllerParameter[] parameters =
+                controller.parameters;
+            for (int required = 0; required < names.Length; required++)
             {
-                bool found = false;
+                int matches = 0;
                 for (int parameterIndex = 0;
                      parameterIndex < parameters.Length;
                      parameterIndex++)
                 {
-                    if (parameters[parameterIndex].name ==
-                        names[requiredIndex])
+                    if (parameters[parameterIndex].name == names[required])
                     {
-                        found = true;
-                        break;
+                        matches++;
                     }
                 }
 
-                if (!found)
+                if (matches != 1)
                 {
                     return false;
                 }
@@ -195,251 +331,571 @@ namespace SkinnyToBeast.Editor
             return true;
         }
 
+        private static bool HasRealMotionCurves(
+            AnimationClip clip)
+        {
+            if (clip == null)
+            {
+                return false;
+            }
+
+            EditorCurveBinding[] bindings =
+                AnimationUtility.GetCurveBindings(clip);
+            if (bindings.Length == 0)
+            {
+                return false;
+            }
+
+            bool realTarget = false;
+            bool markerOnly = true;
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                realTarget |=
+                    bindings[i].path.Contains(
+                        "Bone.",
+                        StringComparison.Ordinal) ||
+                    bindings[i].path.Contains(
+                        "FaceRig",
+                        StringComparison.Ordinal);
+                markerOnly &=
+                    bindings[i].propertyName ==
+                    "localPosition.z";
+            }
+
+            return realTarget && !markerOnly;
+        }
+
         private static void BuildAssets()
         {
             EnsureFolder("Assets/Resources/UI/Gameplay/Living");
             EnsureFolder(RootFolder);
 
-            AnimationClip idle = CreateMarkerClip(
-                "Idle_Breathe",
-                2.4f,
-                true);
-            AnimationClip tapA = CreateMarkerClip(
-                "TapReact_A",
-                0.28f,
-                false);
-            AnimationClip tapB = CreateMarkerClip(
-                "TapReact_B",
-                0.34f,
-                false);
-            AnimationClip rareLook = CreateMarkerClip(
-                "Idle_LookDown",
-                1.15f,
-                false);
-            AnimationClip rareScratch = CreateMarkerClip(
-                "Idle_Scratch",
-                1.4f,
-                false);
-            AnimationClip upgrade = CreateMarkerClip(
-                "UpgradeReact",
-                0.9f,
-                false);
-            AnimationClip stageChange = CreateMarkerClip(
-                "StageChange",
-                1.1f,
-                false);
-            AnimationClip idleShift = CreateMarkerClip(
-                "Idle_ShiftWeight",
-                1.8f,
-                true);
-            AnimationClip idleLook = CreateMarkerClip(
-                "Idle_LookAround",
-                1.4f,
-                false);
-            AnimationClip idleYawn = CreateMarkerClip(
-                "Idle_Yawn",
-                1.8f,
-                false);
-            AnimationClip idleStretch = CreateMarkerClip(
-                "Idle_Stretch",
-                1.55f,
-                false);
-            AnimationClip idleFlex = CreateMarkerClip(
-                "Idle_Flex",
-                1.35f,
-                false);
-            AnimationClip adjustClothes = CreateMarkerClip(
-                "Idle_AdjustClothes",
-                1.25f,
-                false);
-            AnimationClip warmShoulders = CreateMarkerClip(
-                "Idle_WarmShoulders",
-                1.35f,
-                false);
-            AnimationClip walkFront = CreateMarkerClip(
-                "Walk_Front",
-                0.78f,
-                true);
-            AnimationClip walkSide = CreateMarkerClip(
-                "Walk_Side",
-                0.78f,
-                true);
-            AnimationClip walkBack = CreateMarkerClip(
-                "Walk_Back",
-                0.78f,
-                true);
-            AnimationClip sitDown = CreateMarkerClip(
-                "SitDown",
-                0.72f,
-                false);
-            AnimationClip sitLoop = CreateMarkerClip(
-                "SitLoop",
-                1.7f,
-                true);
-            AnimationClip standUp = CreateMarkerClip(
-                "StandUp",
-                0.68f,
-                false);
-            AnimationClip tapLiftA = CreateMarkerClip(
-                "TapLift_A",
-                0.52f,
-                false);
-            AnimationClip tapLiftB = CreateMarkerClip(
-                "TapLift_B",
-                0.52f,
-                false);
-            AnimationClip tapLiftC = CreateMarkerClip(
-                "TapLift_C",
-                0.52f,
-                false);
+            Dictionary<string, AnimationClip> clips = new();
+            Add(clips, CreateBaseClip("Idle_Breathe", 2.4f, true));
+            Add(clips, CreateBaseClip("Idle_ShiftWeight", 1.8f, true));
+            Add(clips, CreateBaseClip("Walk_Front", 0.78f, true));
+            Add(clips, CreateBaseClip("Walk_Side", 0.78f, true));
+            Add(clips, CreateBaseClip("Walk_Back", 0.78f, true));
+            Add(clips, CreateBaseClip("SitLoop", 1.7f, true));
+
+            Add(clips, CreateUpperClip("Idle_LookAround", 1.4f));
+            Add(clips, CreateUpperClip("Idle_Scratch", 1.4f));
+            Add(clips, CreateUpperClip("Idle_Yawn", 1.8f));
+            Add(clips, CreateUpperClip("Idle_Stretch", 1.55f));
+            Add(clips, CreateUpperClip("Idle_Flex", 1.35f));
+            Add(clips, CreateUpperClip("Idle_AdjustClothes", 1.25f));
+            Add(clips, CreateUpperClip("Idle_WarmShoulders", 1.35f));
+
+            Add(clips, CreateFullBodyClip("SitDown", 0.72f));
+            Add(clips, CreateFullBodyClip("StandUp", 0.68f));
+            Add(clips, CreateFullBodyClip("TapLift_A", 0.52f));
+            Add(clips, CreateFullBodyClip("TapLift_B", 0.52f));
+            Add(clips, CreateFullBodyClip("TapLift_C", 0.52f));
+            Add(clips, CreateFullBodyClip("StageChange", 0.82f));
+            Add(clips, CreateBaseClip("Entry_WalkToDoor", 0.78f, true));
+
+            Add(clips, CreateFaceClip("Face_Blink", 0.13f));
+            Add(clips, CreateFaceClip("Face_Look", 0.8f));
+            Add(clips, CreateFaceClip("Face_Expression", 0.5f));
+            Add(clips, CreateNeutralClip("UpperBody_Idle", 1f));
+            Add(clips, CreateNeutralClip("Face_Idle", 1f));
+            Add(clips, CreateNeutralClip("FullBody_Idle", 1f));
 
             AnimatorController controller =
-                AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
-            controller.AddParameter("TapA", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("TapB", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("RareLook", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("RareScratch", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("Upgrade", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("StageChange", AnimatorControllerParameterType.Trigger);
-            controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
-            controller.AddParameter("Facing", AnimatorControllerParameterType.Int);
-            controller.AddParameter("Sitting", AnimatorControllerParameterType.Bool);
+                AnimatorController.CreateAnimatorControllerAtPath(
+                    ControllerPath);
+            controller.AddParameter(
+                "Speed",
+                AnimatorControllerParameterType.Float);
+            controller.AddParameter(
+                "Facing",
+                AnimatorControllerParameterType.Int);
+            controller.AddParameter(
+                "Sitting",
+                AnimatorControllerParameterType.Bool);
 
-            AnimatorStateMachine machine = controller.layers[0].stateMachine;
-            RenameBaseLayer(controller);
-            machine.name = "Base";
-            AnimatorState idleState = AddState(machine, "Idle_Breathe", idle, new Vector3(260f, 70f));
-            machine.defaultState = idleState;
-            AddState(machine, "Idle_ShiftWeight", idleShift, new Vector3(260f, 190f));
-            AddState(machine, "Walk_Front", walkFront, new Vector3(20f, 300f));
-            AddState(machine, "Walk_Side", walkSide, new Vector3(260f, 300f));
-            AddState(machine, "Walk_Back", walkBack, new Vector3(500f, 300f));
-            AddState(machine, "SitLoop", sitLoop, new Vector3(740f, 300f));
+            AnimatorControllerLayer[] initialLayers =
+                controller.layers;
+            initialLayers[0].name = "Base";
+            initialLayers[0].defaultWeight = 1f;
+            controller.layers = initialLayers;
 
-            AddTriggeredState(
-                machine,
-                idleState,
-                "TapReact_A",
-                tapA,
-                "TapA",
-                new Vector3(520f, -20f),
-                0.02f,
-                true);
+            AnimatorStateMachine baseMachine =
+                controller.layers[0].stateMachine;
+            AddStates(
+                baseMachine,
+                clips,
+                "Idle_Breathe",
+                "Idle_ShiftWeight",
+                "Walk_Front",
+                "Walk_Side",
+                "Walk_Back",
+                "SitLoop",
+                "Entry_WalkToDoor");
+            baseMachine.defaultState =
+                FindState(baseMachine, "Idle_Breathe");
 
-            AnimatorStateMachine upperBody =
-                AddLayer(controller, "UpperBody", 1f);
-            AnimatorState upperIdle = AddState(
-                upperBody,
+            AnimatorStateMachine upperMachine =
+                AddLayer(controller, "UpperBody", 0f);
+            AddStates(
+                upperMachine,
+                clips,
                 "UpperBody_Idle",
-                CreateMarkerClip("UpperBody_Idle", 1f, true),
-                new Vector3(250f, 60f));
-            upperBody.defaultState = upperIdle;
-            AddState(upperBody, "Idle_Scratch", rareScratch, new Vector3(20f, 180f));
-            AddState(upperBody, "Idle_Yawn", idleYawn, new Vector3(180f, 180f));
-            AddState(upperBody, "Idle_Stretch", idleStretch, new Vector3(340f, 180f));
-            AddState(upperBody, "Idle_Flex", idleFlex, new Vector3(500f, 180f));
-            AddState(upperBody, "Idle_AdjustClothes", adjustClothes, new Vector3(660f, 180f));
-            AddState(upperBody, "Idle_WarmShoulders", warmShoulders, new Vector3(820f, 180f));
-
-            AnimatorStateMachine face =
-                AddLayer(controller, "Face", 1f);
-            AnimatorState faceIdle = AddState(
-                face,
-                "Face_Idle",
-                CreateMarkerClip("Face_Idle", 1f, true),
-                new Vector3(250f, 60f));
-            face.defaultState = faceIdle;
-            AddState(face, "Face_Blink", CreateMarkerClip("Face_Blink", 0.12f, false), new Vector3(80f, 190f));
-            AddState(face, "Face_Look", idleLook, new Vector3(250f, 190f));
-            AddState(face, "Face_Expression", CreateMarkerClip("Face_Expression", 0.5f, false), new Vector3(420f, 190f));
-
-            AnimatorStateMachine fullBody =
-                AddLayer(controller, "FullBodyAction", 1f);
-            AnimatorState fullIdle = AddState(
-                fullBody,
-                "FullBody_Idle",
-                CreateMarkerClip("FullBody_Idle", 1f, true),
-                new Vector3(250f, 60f));
-            fullBody.defaultState = fullIdle;
-            AddState(fullBody, "SitDown", sitDown, new Vector3(20f, 190f));
-            AddState(fullBody, "StandUp", standUp, new Vector3(180f, 190f));
-            AddState(fullBody, "TapLift_A", tapLiftA, new Vector3(340f, 190f));
-            AddState(fullBody, "TapLift_B", tapLiftB, new Vector3(500f, 190f));
-            AddState(fullBody, "TapLift_C", tapLiftC, new Vector3(660f, 190f));
-            AddState(fullBody, "StageChange", stageChange, new Vector3(820f, 190f));
-            AddTriggeredState(
-                machine,
-                idleState,
-                "TapReact_B",
-                tapB,
-                "TapB",
-                new Vector3(520f, 90f),
-                0.02f,
-                true);
-            AddTriggeredState(
-                machine,
-                idleState,
-                "Idle_LookDown",
-                rareLook,
-                "RareLook",
-                new Vector3(20f, -70f),
-                0.06f,
-                false);
-            AddTriggeredState(
-                machine,
-                idleState,
+                "Idle_LookAround",
                 "Idle_Scratch",
-                rareScratch,
-                "RareScratch",
-                new Vector3(20f, 170f),
-                0.06f,
-                false);
-            AddTriggeredState(
-                machine,
-                idleState,
-                "UpgradeReact",
-                upgrade,
-                "Upgrade",
-                new Vector3(760f, 40f),
-                0.03f,
-                true);
-            AddTriggeredState(
-                machine,
-                idleState,
-                "StageChange",
-                stageChange,
-                "StageChange",
-                new Vector3(760f, 160f),
-                0.02f,
-                true);
+                "Idle_Yawn",
+                "Idle_Stretch",
+                "Idle_Flex",
+                "Idle_AdjustClothes",
+                "Idle_WarmShoulders");
+            upperMachine.defaultState =
+                FindState(upperMachine, "UpperBody_Idle");
+
+            AnimatorStateMachine faceMachine =
+                AddLayer(controller, "Face", 0f);
+            AddStates(
+                faceMachine,
+                clips,
+                "Face_Idle",
+                "Face_Blink",
+                "Face_Look",
+                "Face_Expression");
+            faceMachine.defaultState =
+                FindState(faceMachine, "Face_Idle");
+
+            AnimatorStateMachine fullMachine =
+                AddLayer(controller, "FullBodyAction", 0f);
+            AddStates(
+                fullMachine,
+                clips,
+                "FullBody_Idle",
+                "SitDown",
+                "StandUp",
+                "TapLift_A",
+                "TapLift_B",
+                "TapLift_C",
+                "StageChange");
+            fullMachine.defaultState =
+                FindState(fullMachine, "FullBody_Idle");
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Patch 2 character Animator generated with Base, UpperBody, " +
-                "Face and FullBodyAction layers.");
+                "Patch 3 Animator generated: four layers and real curves " +
+                "for 20 skeletal bones. No marker-only clips were created.");
         }
 
-        private static AnimationClip CreateMarkerClip(
+        private static AnimationClip CreateBaseClip(
             string name,
             float duration,
             bool loop)
         {
-            AnimationClip clip = CreateClipAsset(name, duration, loop);
-            SetCurve(
+            AnimationClip clip =
+                CreateClipAsset(name, duration, loop);
+            AddNeutralPose(clip, duration);
+
+            switch (name)
+            {
+                case "Idle_Breathe":
+                    SetScaleY(
+                        clip,
+                        Chest,
+                        Curve(
+                            0f, 1f,
+                            0.6f, 1.035f,
+                            1.2f, 1f,
+                            1.8f, 0.988f,
+                            2.4f, 1f));
+                    SetPositionY(
+                        clip,
+                        Root,
+                        Curve(
+                            0f, 0f,
+                            0.6f, 4f,
+                            1.2f, 0f,
+                            1.8f, -2f,
+                            2.4f, 0f));
+                    SetRotation(
+                        clip,
+                        Head,
+                        Curve(0f, -0.8f, 1.2f, 0.8f, 2.4f, -0.8f));
+                    break;
+                case "Idle_ShiftWeight":
+                    SetPositionX(
+                        clip,
+                        Root,
+                        Curve(0f, -12f, 0.9f, 12f, 1.8f, -12f));
+                    SetRotation(
+                        clip,
+                        Pelvis,
+                        Curve(0f, -3f, 0.9f, 3f, 1.8f, -3f));
+                    SetRotation(
+                        clip,
+                        Chest,
+                        Curve(0f, 1.5f, 0.9f, -1.5f, 1.8f, 1.5f));
+                    break;
+                case "Walk_Side":
+                    AddWalkCurves(clip, duration, 25f, 18f, 7f);
+                    break;
+                case "Walk_Back":
+                    AddWalkCurves(clip, duration, 19f, 15f, 6f);
+                    SetRotation(
+                        clip,
+                        Chest,
+                        Curve(0f, -2f, duration * 0.5f, 2f, duration, -2f));
+                    break;
+                case "SitLoop":
+                    SetRotation(
+                        clip,
+                        ThighL,
+                        Curve(0f, -68f, duration, -68f));
+                    SetRotation(
+                        clip,
+                        ThighR,
+                        Curve(0f, 68f, duration, 68f));
+                    SetRotation(
+                        clip,
+                        ShinL,
+                        Curve(0f, 84f, duration, 84f));
+                    SetRotation(
+                        clip,
+                        ShinR,
+                        Curve(0f, -84f, duration, -84f));
+                    SetPositionY(
+                        clip,
+                        Root,
+                        Curve(0f, -112f, duration * 0.5f, -108f, duration, -112f));
+                    break;
+                default:
+                    AddWalkCurves(clip, duration, 21f, 16f, 8f);
+                    break;
+            }
+
+            return clip;
+        }
+
+        private static void AddWalkCurves(
+            AnimationClip clip,
+            float duration,
+            float legAngle,
+            float armAngle,
+            float bob)
+        {
+            float half = duration * 0.5f;
+            SetRotation(
                 clip,
-                "localPosition.z",
+                ThighL,
+                Curve(0f, -legAngle, half, legAngle, duration, -legAngle));
+            SetRotation(
+                clip,
+                ThighR,
+                Curve(0f, legAngle, half, -legAngle, duration, legAngle));
+            SetRotation(
+                clip,
+                ShinL,
+                Curve(0f, 7f, half * 0.5f, 30f, half, 5f, duration, 7f));
+            SetRotation(
+                clip,
+                ShinR,
+                Curve(0f, -5f, half, -7f, half * 1.5f, -30f, duration, -5f));
+            SetRotation(
+                clip,
+                UpperArmL,
+                Curve(0f, armAngle, half, -armAngle, duration, armAngle));
+            SetRotation(
+                clip,
+                UpperArmR,
+                Curve(0f, -armAngle, half, armAngle, duration, -armAngle));
+            SetPositionY(
+                clip,
+                Root,
+                Curve(0f, 0f, duration * 0.25f, bob, half, 0f, duration * 0.75f, bob, duration, 0f));
+            SetRotation(
+                clip,
+                Pelvis,
+                Curve(0f, -3f, half, 3f, duration, -3f));
+        }
+
+        private static AnimationClip CreateUpperClip(
+            string name,
+            float duration)
+        {
+            AnimationClip clip =
+                CreateClipAsset(name, duration, false);
+            float inTime = duration * 0.22f;
+            float holdTime = duration * 0.72f;
+
+            switch (name)
+            {
+                case "Idle_LookAround":
+                    SetRotation(
+                        clip,
+                        Head,
+                        Curve(0f, 0f, inTime, -12f, duration * 0.5f, 12f, holdTime, -7f, duration, 0f));
+                    SetRotation(
+                        clip,
+                        Neck,
+                        Curve(0f, 0f, duration * 0.5f, 4f, duration, 0f));
+                    break;
+                case "Idle_Scratch":
+                    ActionCurve(clip, UpperArmR, 0f, 82f, duration);
+                    ActionCurve(clip, ForearmR, 0f, 118f, duration);
+                    ActionCurve(clip, HandR, 0f, -28f, duration);
+                    ActionCurve(clip, Head, 0f, -5f, duration);
+                    break;
+                case "Idle_Yawn":
+                    ActionCurve(clip, UpperArmL, 0f, -142f, duration);
+                    ActionCurve(clip, UpperArmR, 0f, 142f, duration);
+                    ActionCurve(clip, ForearmL, 0f, -18f, duration);
+                    ActionCurve(clip, ForearmR, 0f, 18f, duration);
+                    break;
+                case "Idle_Stretch":
+                    ActionCurve(clip, UpperArmL, 0f, -158f, duration);
+                    ActionCurve(clip, UpperArmR, 0f, 158f, duration);
+                    ActionCurve(clip, Spine, 0f, 5f, duration);
+                    break;
+                case "Idle_Flex":
+                    ActionCurve(clip, UpperArmL, 0f, -62f, duration);
+                    ActionCurve(clip, UpperArmR, 0f, 62f, duration);
+                    ActionCurve(clip, ForearmL, 0f, -112f, duration);
+                    ActionCurve(clip, ForearmR, 0f, 112f, duration);
+                    break;
+                case "Idle_AdjustClothes":
+                    ActionCurve(clip, UpperArmL, 0f, 42f, duration);
+                    ActionCurve(clip, UpperArmR, 0f, -42f, duration);
+                    ActionCurve(clip, ForearmL, 0f, -88f, duration);
+                    ActionCurve(clip, ForearmR, 0f, 88f, duration);
+                    break;
+                default:
+                    SetRotation(
+                        clip,
+                        ShoulderL,
+                        Curve(0f, 0f, duration * 0.25f, -13f, duration * 0.5f, 13f, duration * 0.75f, -8f, duration, 0f));
+                    SetRotation(
+                        clip,
+                        ShoulderR,
+                        Curve(0f, 0f, duration * 0.25f, 13f, duration * 0.5f, -13f, duration * 0.75f, 8f, duration, 0f));
+                    break;
+            }
+
+            return clip;
+        }
+
+        private static AnimationClip CreateFullBodyClip(
+            string name,
+            float duration)
+        {
+            AnimationClip clip =
+                CreateClipAsset(name, duration, false);
+            if (name == "StageChange")
+            {
+                SetScaleX(
+                    clip,
+                    Root,
+                    Curve(0f, 1f, duration * 0.35f, 0.90f, duration * 0.62f, 1.12f, duration, 1f));
+                SetScaleY(
+                    clip,
+                    Root,
+                    Curve(0f, 1f, duration * 0.35f, 0.92f, duration * 0.62f, 1.10f, duration, 1f));
+                SetPositionY(
+                    clip,
+                    Root,
+                    Curve(0f, 0f, duration * 0.35f, -12f, duration * 0.62f, 28f, duration, 0f));
+                return clip;
+            }
+
+            if (name == "SitDown" || name == "StandUp")
+            {
+                bool standingUp = name == "StandUp";
+                float start = standingUp ? 1f : 0f;
+                float end = standingUp ? 0f : 1f;
+                SetPositionY(
+                    clip,
+                    Root,
+                    Curve(0f, Mathf.Lerp(0f, -112f, start), duration, Mathf.Lerp(0f, -112f, end)));
+                SetRotation(
+                    clip,
+                    ThighL,
+                    Curve(0f, Mathf.Lerp(0f, -68f, start), duration, Mathf.Lerp(0f, -68f, end)));
+                SetRotation(
+                    clip,
+                    ThighR,
+                    Curve(0f, Mathf.Lerp(0f, 68f, start), duration, Mathf.Lerp(0f, 68f, end)));
+                SetRotation(
+                    clip,
+                    ShinL,
+                    Curve(0f, Mathf.Lerp(0f, 84f, start), duration, Mathf.Lerp(0f, 84f, end)));
+                SetRotation(
+                    clip,
+                    ShinR,
+                    Curve(0f, Mathf.Lerp(0f, -84f, start), duration, Mathf.Lerp(0f, -84f, end)));
+                return clip;
+            }
+
+            float arm = name == "TapLift_B" ? 72f : 58f;
+            float forearm = name == "TapLift_C" ? 122f : 102f;
+            ActionCurve(clip, UpperArmL, 0f, arm, duration);
+            ActionCurve(clip, UpperArmR, 0f, -arm, duration);
+            ActionCurve(clip, ForearmL, 0f, -forearm, duration);
+            ActionCurve(clip, ForearmR, 0f, forearm, duration);
+            SetPositionY(
+                clip,
+                Root,
+                Curve(0f, 0f, duration * 0.28f, 17f, duration * 0.62f, -3f, duration, 0f));
+            SetRotation(
+                clip,
+                Chest,
+                Curve(0f, 0f, duration * 0.35f, name == "TapLift_B" ? 4f : -3f, duration, 0f));
+            return clip;
+        }
+
+        private static AnimationClip CreateFaceClip(
+            string name,
+            float duration)
+        {
+            AnimationClip clip =
+                CreateClipAsset(name, duration, false);
+            switch (name)
+            {
+                case "Face_Blink":
+                    SetScaleY(
+                        clip,
+                        EyelidL,
+                        Curve(0f, 0.035f, duration * 0.5f, 1f, duration, 0.035f));
+                    SetScaleY(
+                        clip,
+                        EyelidR,
+                        Curve(0f, 0.035f, duration * 0.5f, 1f, duration, 0.035f));
+                    break;
+                case "Face_Look":
+                    SetPositionX(
+                        clip,
+                        PupilL,
+                        Curve(0f, 0f, duration * 0.4f, -6f, duration * 0.7f, 6f, duration, 0f));
+                    SetPositionX(
+                        clip,
+                        PupilR,
+                        Curve(0f, 0f, duration * 0.4f, -6f, duration * 0.7f, 6f, duration, 0f));
+                    break;
+                default:
+                    SetScaleY(
+                        clip,
+                        Mouth,
+                        Curve(0f, 1f, duration * 0.5f, 1.8f, duration, 1f));
+                    break;
+            }
+
+            return clip;
+        }
+
+        private static AnimationClip CreateNeutralClip(
+            string name,
+            float duration)
+        {
+            AnimationClip clip =
+                CreateClipAsset(name, duration, true);
+            SetRotation(
+                clip,
+                Root,
                 Curve(0f, 0f, duration, 0f));
             return clip;
         }
 
-        private static void RenameBaseLayer(AnimatorController controller)
+        private static void AddNeutralPose(
+            AnimationClip clip,
+            float duration)
         {
-            AnimatorControllerLayer[] layers = controller.layers;
-            layers[0].name = "Base";
-            layers[0].defaultWeight = 1f;
-            controller.layers = layers;
+            for (int i = 0; i < NeutralBones.Length; i++)
+            {
+                SetRotation(
+                    clip,
+                    NeutralBones[i],
+                    Curve(0f, 0f, duration, 0f));
+            }
+
+            SetPositionX(
+                clip,
+                Root,
+                Curve(0f, 0f, duration, 0f));
+            SetPositionY(
+                clip,
+                Root,
+                Curve(0f, 0f, duration, 0f));
+            SetScaleX(
+                clip,
+                Root,
+                Curve(0f, 1f, duration, 1f));
+            SetScaleY(
+                clip,
+                Root,
+                Curve(0f, 1f, duration, 1f));
+            SetScaleX(
+                clip,
+                Chest,
+                Curve(0f, 1f, duration, 1f));
+            SetScaleY(
+                clip,
+                Chest,
+                Curve(0f, 1f, duration, 1f));
+        }
+
+        private static void ActionCurve(
+            AnimationClip clip,
+            string path,
+            float rest,
+            float action,
+            float duration)
+        {
+            SetRotation(
+                clip,
+                path,
+                Curve(
+                    0f, rest,
+                    duration * 0.22f, action,
+                    duration * 0.72f, action,
+                    duration, rest));
+        }
+
+        private static void Add(
+            Dictionary<string, AnimationClip> clips,
+            AnimationClip clip)
+        {
+            clips[clip.name] = clip;
+        }
+
+        private static void AddStates(
+            AnimatorStateMachine machine,
+            Dictionary<string, AnimationClip> clips,
+            params string[] names)
+        {
+            for (int i = 0; i < names.Length; i++)
+            {
+                AnimatorState state = machine.AddState(
+                    names[i],
+                    new Vector3(
+                        120f + (i % 4) * 210f,
+                        70f + (i / 4) * 130f));
+                state.motion = clips[names[i]];
+                state.writeDefaultValues = false;
+            }
+        }
+
+        private static AnimatorState FindState(
+            AnimatorStateMachine machine,
+            string name)
+        {
+            ChildAnimatorState[] states = machine.states;
+            for (int i = 0; i < states.Length; i++)
+            {
+                if (states[i].state != null &&
+                    states[i].state.name == name)
+                {
+                    return states[i].state;
+                }
+            }
+
+            return null;
         }
 
         private static AnimatorStateMachine AddLayer(
@@ -449,185 +905,12 @@ namespace SkinnyToBeast.Editor
         {
             controller.AddLayer(name);
             AnimatorControllerLayer[] layers = controller.layers;
-            AnimatorControllerLayer layer = layers[layers.Length - 1];
+            AnimatorControllerLayer layer =
+                layers[layers.Length - 1];
             layer.defaultWeight = weight;
             layers[layers.Length - 1] = layer;
             controller.layers = layers;
             return layer.stateMachine;
-        }
-
-        private static AnimationClip CreateIdleClip()
-        {
-            AnimationClip clip = CreateClipAsset("Idle_Breathe", 2.4f, true);
-            SetCurve(clip, "localPosition.y", Curve(
-                0f, 0f,
-                0.6f, 4.5f,
-                1.2f, 0f,
-                1.8f, -2.5f,
-                2.4f, 0f));
-            SetCurve(clip, "localScale.x", Curve(
-                0f, 1f,
-                0.6f, 0.996f,
-                1.2f, 1f,
-                1.8f, 1.003f,
-                2.4f, 1f));
-            SetCurve(clip, "localScale.y", Curve(
-                0f, 1f,
-                0.6f, 1.013f,
-                1.2f, 1f,
-                1.8f, 0.994f,
-                2.4f, 1f));
-            SetCurve(clip, "localEulerAnglesRaw.z", Curve(
-                0f, -0.18f,
-                1.2f, 0.18f,
-                2.4f, -0.18f));
-            return clip;
-        }
-
-        private static AnimationClip CreateTapAClip()
-        {
-            AnimationClip clip = CreateClipAsset("TapReact_A", 0.28f, false);
-            SetCurve(clip, "localPosition.y", Curve(
-                0f, 0f,
-                0.07f, 18f,
-                0.16f, -3f,
-                0.28f, 0f));
-            SetCurve(clip, "localScale.x", Curve(
-                0f, 1f,
-                0.07f, 1.045f,
-                0.16f, 0.985f,
-                0.28f, 1f));
-            SetCurve(clip, "localScale.y", Curve(
-                0f, 1f,
-                0.07f, 0.95f,
-                0.16f, 1.025f,
-                0.28f, 1f));
-            SetCurve(clip, "localEulerAnglesRaw.z", Curve(
-                0f, 0f,
-                0.07f, -1.6f,
-                0.16f, 0.7f,
-                0.28f, 0f));
-            return clip;
-        }
-
-        private static AnimationClip CreateTapBClip()
-        {
-            AnimationClip clip = CreateClipAsset("TapReact_B", 0.34f, false);
-            SetCurve(clip, "localPosition.x", Curve(
-                0f, 0f,
-                0.09f, 13f,
-                0.2f, -5f,
-                0.34f, 0f));
-            SetCurve(clip, "localPosition.y", Curve(
-                0f, 0f,
-                0.09f, 12f,
-                0.2f, -2f,
-                0.34f, 0f));
-            SetCurve(clip, "localScale.x", Curve(
-                0f, 1f,
-                0.09f, 1.03f,
-                0.2f, 0.99f,
-                0.34f, 1f));
-            SetCurve(clip, "localScale.y", Curve(
-                0f, 1f,
-                0.09f, 0.965f,
-                0.2f, 1.018f,
-                0.34f, 1f));
-            SetCurve(clip, "localEulerAnglesRaw.z", Curve(
-                0f, 0f,
-                0.09f, 2.1f,
-                0.2f, -0.9f,
-                0.34f, 0f));
-            return clip;
-        }
-
-        private static AnimationClip CreateRareLookClip()
-        {
-            AnimationClip clip = CreateClipAsset("Idle_LookDown", 1.15f, false);
-            SetCurve(clip, "localPosition.y", Curve(
-                0f, 0f,
-                0.35f, -8f,
-                0.8f, -8f,
-                1.15f, 0f));
-            SetCurve(clip, "localScale.y", Curve(
-                0f, 1f,
-                0.35f, 0.985f,
-                0.8f, 0.985f,
-                1.15f, 1f));
-            SetCurve(clip, "localEulerAnglesRaw.z", Curve(
-                0f, 0f,
-                0.35f, 0.7f,
-                0.8f, 0.7f,
-                1.15f, 0f));
-            return clip;
-        }
-
-        private static AnimationClip CreateRareScratchClip()
-        {
-            AnimationClip clip = CreateClipAsset("Idle_Scratch", 1.4f, false);
-            SetCurve(clip, "localScale.x", Curve(
-                0f, 1f,
-                0.25f, 1.012f,
-                0.46f, 0.992f,
-                0.67f, 1.012f,
-                0.88f, 0.992f,
-                1.12f, 1.008f,
-                1.4f, 1f));
-            SetCurve(clip, "localEulerAnglesRaw.z", Curve(
-                0f, 0f,
-                0.35f, -0.55f,
-                0.7f, 0.55f,
-                1.05f, -0.35f,
-                1.4f, 0f));
-            return clip;
-        }
-
-        private static AnimationClip CreateUpgradeClip()
-        {
-            AnimationClip clip = CreateClipAsset("UpgradeReact", 0.9f, false);
-            SetCurve(clip, "localPosition.y", Curve(
-                0f, 0f,
-                0.18f, 26f,
-                0.42f, -4f,
-                0.66f, 12f,
-                0.9f, 0f));
-            SetCurve(clip, "localScale.x", Curve(
-                0f, 1f,
-                0.18f, 1.065f,
-                0.42f, 0.985f,
-                0.66f, 1.025f,
-                0.9f, 1f));
-            SetCurve(clip, "localScale.y", Curve(
-                0f, 1f,
-                0.18f, 0.97f,
-                0.42f, 1.035f,
-                0.66f, 1.012f,
-                0.9f, 1f));
-            return clip;
-        }
-
-        private static AnimationClip CreateStageChangeClip()
-        {
-            AnimationClip clip = CreateClipAsset("StageChange", 1.1f, false);
-            SetCurve(clip, "localPosition.y", Curve(
-                0f, 0f,
-                0.28f, -10f,
-                0.55f, 34f,
-                0.82f, 8f,
-                1.1f, 0f));
-            SetCurve(clip, "localScale.x", Curve(
-                0f, 1f,
-                0.28f, 0.88f,
-                0.55f, 1.13f,
-                0.82f, 1.035f,
-                1.1f, 1f));
-            SetCurve(clip, "localScale.y", Curve(
-                0f, 1f,
-                0.28f, 0.9f,
-                0.55f, 1.1f,
-                0.82f, 1.025f,
-                1.1f, 1f));
-            return clip;
         }
 
         private static AnimationClip CreateClipAsset(
@@ -635,81 +918,104 @@ namespace SkinnyToBeast.Editor
             float duration,
             bool loop)
         {
+            if (duration <= 0f)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(duration));
+            }
+
             string path = $"{RootFolder}/{name}.anim";
-            AnimationClip existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(path);
-            if (existing != null)
+            if (AssetDatabase.LoadAssetAtPath<AnimationClip>(path) != null)
             {
                 AssetDatabase.DeleteAsset(path);
             }
 
-            AnimationClip clip = new AnimationClip
+            AnimationClip clip = new()
             {
                 name = name,
                 frameRate = 60f
             };
-
-            AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(clip);
+            AnimationClipSettings settings =
+                AnimationUtility.GetAnimationClipSettings(clip);
             settings.loopTime = loop;
-            settings.stopTime = duration;
-            AnimationUtility.SetAnimationClipSettings(clip, settings);
+            AnimationUtility.SetAnimationClipSettings(
+                clip,
+                settings);
             AssetDatabase.CreateAsset(clip, path);
             return clip;
         }
 
-        private static AnimatorState AddState(
-            AnimatorStateMachine machine,
-            string name,
-            Motion motion,
-            Vector3 position)
+        private static void SetRotation(
+            AnimationClip clip,
+            string path,
+            AnimationCurve curve)
         {
-            AnimatorState state = machine.AddState(name, position);
-            state.motion = motion;
-            state.writeDefaultValues = true;
-            return state;
+            SetCurve(
+                clip,
+                path,
+                "localEulerAnglesRaw.z",
+                curve);
         }
 
-        private static void AddTriggeredState(
-            AnimatorStateMachine machine,
-            AnimatorState idle,
-            string stateName,
-            Motion motion,
-            string trigger,
-            Vector3 position,
-            float transitionDuration,
-            bool canRestart)
+        private static void SetPositionX(
+            AnimationClip clip,
+            string path,
+            AnimationCurve curve)
         {
-            AnimatorState state = AddState(machine, stateName, motion, position);
-            AnimatorStateTransition enter = machine.AddAnyStateTransition(state);
-            enter.hasExitTime = false;
-            enter.duration = transitionDuration;
-            enter.canTransitionToSelf = canRestart;
-            enter.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+            SetCurve(clip, path, "localPosition.x", curve);
+        }
 
-            AnimatorStateTransition exit = state.AddTransition(idle);
-            exit.hasExitTime = true;
-            exit.exitTime = 0.96f;
-            exit.duration = 0.07f;
+        private static void SetPositionY(
+            AnimationClip clip,
+            string path,
+            AnimationCurve curve)
+        {
+            SetCurve(clip, path, "localPosition.y", curve);
+        }
+
+        private static void SetScaleX(
+            AnimationClip clip,
+            string path,
+            AnimationCurve curve)
+        {
+            SetCurve(clip, path, "localScale.x", curve);
+        }
+
+        private static void SetScaleY(
+            AnimationClip clip,
+            string path,
+            AnimationCurve curve)
+        {
+            SetCurve(clip, path, "localScale.y", curve);
         }
 
         private static void SetCurve(
             AnimationClip clip,
+            string path,
             string property,
             AnimationCurve curve)
         {
-            clip.SetCurve(string.Empty, typeof(Transform), property, curve);
+            clip.SetCurve(
+                path,
+                typeof(Transform),
+                property,
+                curve);
             EditorUtility.SetDirty(clip);
         }
 
-        private static AnimationCurve Curve(params float[] timeValuePairs)
+        private static AnimationCurve Curve(
+            params float[] timeValuePairs)
         {
-            if (timeValuePairs == null || timeValuePairs.Length < 4 ||
+            if (timeValuePairs == null ||
+                timeValuePairs.Length < 4 ||
                 timeValuePairs.Length % 2 != 0)
             {
                 throw new ArgumentException(
-                    "Animation curves require pairs of time and value.");
+                    "Animation curves require time/value pairs.");
             }
 
-            Keyframe[] keys = new Keyframe[timeValuePairs.Length / 2];
+            Keyframe[] keys =
+                new Keyframe[timeValuePairs.Length / 2];
             for (int i = 0; i < keys.Length; i++)
             {
                 keys[i] = new Keyframe(
@@ -717,7 +1023,7 @@ namespace SkinnyToBeast.Editor
                     timeValuePairs[i * 2 + 1]);
             }
 
-            AnimationCurve curve = new AnimationCurve(keys);
+            AnimationCurve curve = new(keys);
             for (int i = 0; i < keys.Length; i++)
             {
                 AnimationUtility.SetKeyLeftTangentMode(

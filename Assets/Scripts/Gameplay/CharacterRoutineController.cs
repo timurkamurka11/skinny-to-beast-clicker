@@ -26,6 +26,19 @@ namespace SkinnyToBeast.Gameplay
         private bool resumingInterruptedBehavior;
         private bool isWalking;
         private bool configured;
+        private int idleActionCursor;
+
+        private static readonly CharacterRoutineAction[] IdleActionCycle =
+        {
+            CharacterRoutineAction.ShiftWeight,
+            CharacterRoutineAction.LookAround,
+            CharacterRoutineAction.Scratch,
+            CharacterRoutineAction.Stretch,
+            CharacterRoutineAction.Yawn,
+            CharacterRoutineAction.AdjustClothes,
+            CharacterRoutineAction.WarmShoulders,
+            CharacterRoutineAction.Flex
+        };
 
         public RoomAnchor CurrentAnchor => currentAnchor;
         public bool IsWalking => isWalking;
@@ -76,7 +89,7 @@ namespace SkinnyToBeast.Gameplay
                          anchors.Count > 0;
             if (configured && isActiveAndEnabled)
             {
-                StartRoutineLoop(Random.Range(10f, 15f));
+                StartRoutineLoop(Random.Range(2.5f, 4.5f));
             }
         }
 
@@ -149,14 +162,14 @@ namespace SkinnyToBeast.Gameplay
             walkingTarget = null;
             isWalking = false;
             rigController.StopLocomotion(rigController.Facing);
-            StartRoutineLoop(Random.Range(10f, 15f));
+            StartRoutineLoop(Random.Range(3f, 5f));
         }
 
         private void OnEnable()
         {
             if (configured && routineLoop == null && tapRoutine == null)
             {
-                StartRoutineLoop(Random.Range(10f, 15f));
+                StartRoutineLoop(Random.Range(2.5f, 4.5f));
             }
         }
 
@@ -225,7 +238,7 @@ namespace SkinnyToBeast.Gameplay
                     }
                 }
 
-                yield return new WaitForSecondsRealtime(Random.Range(10f, 25f));
+                yield return new WaitForSecondsRealtime(Random.Range(4f, 7f));
             }
         }
 
@@ -313,7 +326,7 @@ namespace SkinnyToBeast.Gameplay
 
             resumingInterruptedBehavior = false;
             tapRoutine = null;
-            StartRoutineLoop(Random.Range(10f, 16f));
+            StartRoutineLoop(Random.Range(3f, 5f));
         }
 
         private IEnumerator WalkTo(RoomAnchor destination, float duration)
@@ -328,20 +341,31 @@ namespace SkinnyToBeast.Gameplay
             Vector3 startScale = characterRoot.localScale;
             Vector3 endScale = Vector3.one * destination.CharacterScale;
             Vector2 direction = endPosition - startPosition;
+            float distance = Mathf.Max(1f, direction.magnitude);
+            float normalizedStepSpeed = Mathf.Clamp(
+                (distance / Mathf.Max(0.01f, duration)) / 420f,
+                0.65f,
+                1.75f);
             float elapsed = 0f;
             walkingTarget = destination;
             isWalking = true;
-            rigController.SetLocomotion(direction, 1f);
+            rigController.SetLocomotion(
+                direction,
+                normalizedStepSpeed);
 
             while (elapsed < duration)
             {
                 elapsed += Time.unscaledDeltaTime;
                 float t = Mathf.Clamp01(elapsed / Mathf.Max(0.01f, duration));
-                float eased = Mathf.SmoothStep(0f, 1f, t);
                 characterRoot.anchoredPosition =
-                    Vector2.Lerp(startPosition, endPosition, eased);
-                characterRoot.localScale = Vector3.Lerp(startScale, endScale, eased);
-                rigController.SetLocomotion(direction, 1f);
+                    Vector2.Lerp(startPosition, endPosition, t);
+                characterRoot.localScale = Vector3.Lerp(
+                    startScale,
+                    endScale,
+                    Mathf.SmoothStep(0f, 1f, t));
+                rigController.SetLocomotion(
+                    direction,
+                    normalizedStepSpeed);
                 yield return null;
             }
 
@@ -364,7 +388,7 @@ namespace SkinnyToBeast.Gameplay
                 yield return new WaitForSecondsRealtime(0.72f);
 
                 currentAction = CharacterRoutineAction.SitLoop;
-                float sitDuration = Random.Range(7f, 12f);
+                float sitDuration = Random.Range(5f, 7f);
                 rigController.PlayAction(
                     CharacterRoutineAction.SitLoop,
                     sitDuration);
@@ -422,40 +446,51 @@ namespace SkinnyToBeast.Gameplay
             for (int attempt = 0; attempt < 8; attempt++)
             {
                 RoomAnchor candidate = anchors[Random.Range(0, anchors.Count)];
-                if (candidate != currentAnchor)
+                if (candidate != currentAnchor &&
+                    (rigController == null ||
+                     rigController.ObservedIdleActionCount >= 3 ||
+                     candidate.Kind != RoomAnchorKind.Sofa))
                 {
                     return candidate;
                 }
             }
 
-            int currentIndex = Mathf.Max(0, anchors.IndexOf(currentAnchor));
-            return anchors[(currentIndex + 1) % anchors.Count];
+            int currentIndex =
+                Mathf.Max(0, anchors.IndexOf(currentAnchor));
+            for (int offset = 1; offset <= anchors.Count; offset++)
+            {
+                RoomAnchor candidate =
+                    anchors[(currentIndex + offset) % anchors.Count];
+                if (candidate == currentAnchor)
+                {
+                    continue;
+                }
+
+                if (rigController != null &&
+                    rigController.ObservedIdleActionCount < 3 &&
+                    candidate.Kind == RoomAnchorKind.Sofa)
+                {
+                    continue;
+                }
+
+                return candidate;
+            }
+
+            return currentAnchor;
         }
 
-        private static CharacterRoutineAction ResolveAction(RoomAnchorKind kind)
+        private CharacterRoutineAction ResolveAction(RoomAnchorKind kind)
         {
-            return kind switch
+            if (kind == RoomAnchorKind.Sofa)
             {
-                RoomAnchorKind.Sofa => CharacterRoutineAction.SitDown,
-                RoomAnchorKind.Window => CharacterRoutineAction.LookAround,
-                RoomAnchorKind.Mirror => Random.value < 0.62f
-                    ? CharacterRoutineAction.Flex
-                    : CharacterRoutineAction.AdjustClothes,
-                RoomAnchorKind.Center => Random.Range(0, 4) switch
-                {
-                    0 => CharacterRoutineAction.Stretch,
-                    1 => CharacterRoutineAction.Yawn,
-                    2 => CharacterRoutineAction.AdjustClothes,
-                    _ => CharacterRoutineAction.WarmShoulders
-                },
-                _ => Random.Range(0, 4) switch
-                {
-                    0 => CharacterRoutineAction.Scratch,
-                    1 => CharacterRoutineAction.ShiftWeight,
-                    2 => CharacterRoutineAction.AdjustClothes,
-                    _ => CharacterRoutineAction.WarmShoulders
-                }
-            };
+                return CharacterRoutineAction.SitDown;
+            }
+
+            CharacterRoutineAction action =
+                IdleActionCycle[
+                    idleActionCursor % IdleActionCycle.Length];
+            idleActionCursor++;
+            return action;
         }
     }
 }
