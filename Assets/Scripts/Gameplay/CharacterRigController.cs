@@ -509,6 +509,7 @@ namespace SkinnyToBeast.Gameplay
                 part.gameObject.SetActive(true);
                 part.SetOutline(appearance.outline);
                 part.SetFill(ResolveRoleColor(part.Role, appearance));
+                part.ForceRenderRefresh();
             }
 
             faceController?.ApplyStyle(definition.FaceStyle);
@@ -551,6 +552,7 @@ namespace SkinnyToBeast.Gameplay
             }
 
             ApplySkin(currentDefinition);
+            Canvas.ForceUpdateCanvases();
             return HasVisibleSkin;
         }
 

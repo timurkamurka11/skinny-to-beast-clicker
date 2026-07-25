@@ -76,7 +76,8 @@ namespace SkinnyToBeast.Gameplay
                 if (rigController.GetVisibleGraphicCount() < 18)
                 {
                     errors.AppendLine(
-                        "Fewer than 18 independent mesh parts are visible.");
+                        "Fewer than 18 independent skeletal parts have a " +
+                        "live uGUI render surface.");
                 }
 
                 if (!rigController.AnimatorReady)

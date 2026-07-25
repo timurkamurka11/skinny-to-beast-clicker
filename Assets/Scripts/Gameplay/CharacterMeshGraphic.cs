@@ -48,6 +48,7 @@ namespace SkinnyToBeast.Gameplay
 
         private readonly List<Vector2> boundary = new(32);
         private readonly List<Vector2> insetBoundary = new(32);
+        private CharacterPartSurface stableSurface;
 
         public CharacterMeshShape Shape => shape;
         public CharacterVisualRole Role => role;
@@ -55,7 +56,27 @@ namespace SkinnyToBeast.Gameplay
             isActiveAndEnabled &&
             color.a > 0.001f &&
             rectTransform.rect.width > 0.5f &&
-            rectTransform.rect.height > 0.5f;
+            rectTransform.rect.height > 0.5f &&
+            stableSurface != null &&
+            stableSurface.IsRenderable;
+        public bool HasLiveRenderSurface =>
+            stableSurface != null &&
+            stableSurface.IsRenderable;
+
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            canvasRenderer.cullTransparentMesh = false;
+            EnsureStableSurface().Configure(
+                shape,
+                rectTransform.sizeDelta,
+                color,
+                outlineColor,
+                outlineWidth,
+                topWidth,
+                bottomWidth);
+            SetAllDirty();
+        }
 
         public void Configure(
             CharacterMeshShape nextShape,
@@ -81,19 +102,30 @@ namespace SkinnyToBeast.Gameplay
             color = fill;
             raycastTarget = false;
             maskable = false;
-            SetVerticesDirty();
+            canvasRenderer.cullTransparentMesh = false;
+            EnsureStableSurface().Configure(
+                shape,
+                size,
+                fill,
+                outline,
+                outlineWidth,
+                topWidth,
+                bottomWidth);
+            SetAllDirty();
         }
 
         public void SetFill(Color fill)
         {
             color = fill;
-            SetVerticesDirty();
+            EnsureStableSurface().SetFill(fill);
+            SetAllDirty();
         }
 
         public void SetOutline(Color outline)
         {
             outlineColor = outline;
-            SetVerticesDirty();
+            EnsureStableSurface().SetOutline(outline);
+            SetAllDirty();
         }
 
         public void SetSize(Vector2 size)
@@ -101,14 +133,42 @@ namespace SkinnyToBeast.Gameplay
             rectTransform.sizeDelta = new Vector2(
                 Mathf.Max(1f, size.x),
                 Mathf.Max(1f, size.y));
-            SetVerticesDirty();
+            EnsureStableSurface().SetSize(size);
+            SetAllDirty();
         }
 
         public void SetWidthProfile(float topRatio, float bottomRatio)
         {
             topWidth = Mathf.Clamp(topRatio, 0.35f, 1.5f);
             bottomWidth = Mathf.Clamp(bottomRatio, 0.35f, 1.5f);
-            SetVerticesDirty();
+            EnsureStableSurface().SetWidthProfile(
+                topWidth,
+                bottomWidth);
+            SetAllDirty();
+        }
+
+        public void ForceRenderRefresh()
+        {
+            canvasRenderer.cullTransparentMesh = false;
+            EnsureStableSurface().ForceRefresh();
+            SetAllDirty();
+        }
+
+        private CharacterPartSurface EnsureStableSurface()
+        {
+            if (stableSurface == null)
+            {
+                stableSurface =
+                    GetComponent<CharacterPartSurface>();
+            }
+
+            if (stableSurface == null)
+            {
+                stableSurface =
+                    gameObject.AddComponent<CharacterPartSurface>();
+            }
+
+            return stableSurface;
         }
 
         protected override void OnPopulateMesh(VertexHelper vertexHelper)

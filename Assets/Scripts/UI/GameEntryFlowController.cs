@@ -20,8 +20,8 @@ namespace SkinnyToBeast.UI
         private const string StrengthKey = "game.player.strength";
         private const string GameEntrySceneName = "GameEntry";
         private const string MainMenuSceneName = "MainMenu";
-        private const float EntryStartScale = 0.72f;
-        private const float EntryEndScale = 0.28f;
+        private const float EntryStartScale = 0.84f;
+        private const float EntryEndScale = 0.38f;
 
         private static GameEntryFlowController instance;
 
@@ -33,6 +33,7 @@ namespace SkinnyToBeast.UI
         private CharacterSkinController entrySkin;
         private CharacterRigValidator entryValidator;
         private CharacterVisibilityGate entryVisibilityGate;
+        private GameplayAudioController entryAudio;
         private RectTransform characterShadow;
         private Image characterShadowImage;
         private Image doorwayGlow;
@@ -188,6 +189,10 @@ namespace SkinnyToBeast.UI
             int artIndex = ResolveSavedArtIndex();
             BeginGameplayPreload();
             BuildEntryCharacter(root, artIndex);
+            entryAudio =
+                GetOrAddComponent<GameplayAudioController>(
+                    gameObject);
+            entryAudio.Configure(false);
 
             RectTransform statusPanel = CreateRect(
                 root,
@@ -203,7 +208,7 @@ namespace SkinnyToBeast.UI
             statusText = CreateText(
                 statusPanel,
                 "EntryStatusText",
-                "ENTERING THE GYM",
+                "CHARACTER ENTERING",
                 34f,
                 new Vector2(0f, 17f),
                 new Vector2(760f, 54f),
@@ -341,13 +346,23 @@ namespace SkinnyToBeast.UI
                 yield break;
             }
 
+            Debug.Log(
+                $"Entry character render ready: " +
+                $"{entryRig.GetVisibleGraphicCount()} skeletal parts.",
+                this);
+            entryAudio?.PlayEntryStart();
+            statusText.text = "CHARACTER ENTERING";
+            yield return new WaitForSecondsRealtime(0.22f);
+
             Vector2 characterStart = new Vector2(0f, -260f);
             Vector2 characterEnd = new Vector2(0f, 18f);
             Vector2 shadowStart = new Vector2(0f, -560f);
             Vector2 shadowEnd = new Vector2(0f, -115f);
             float elapsed = 0f;
-            const float walkDuration = 1.35f;
+            const float walkDuration = 1.75f;
             int shownPhase = -1;
+            int stepIndex = 0;
+            float nextStepAt = 0.04f;
             float entryStepSpeed = Mathf.Clamp(
                 Vector2.Distance(
                     characterStart,
@@ -369,6 +384,12 @@ namespace SkinnyToBeast.UI
                     dotsText.text = phase == 0 ? "●  ○  ○" : "●  ●  ○";
                 }
 
+                if (elapsed >= nextStepAt)
+                {
+                    entryAudio?.PlayFootstep(stepIndex++);
+                    nextStepAt += 0.25f;
+                }
+
                 entryCharacterRoot.anchoredPosition =
                     Vector2.Lerp(characterStart, characterEnd, t);
                 characterShadow.anchoredPosition =
@@ -385,6 +406,7 @@ namespace SkinnyToBeast.UI
             entryRig.StopLocomotion(CharacterFacing.Back);
             dotsText.text = "●  ●  ●";
             statusText.text = "PREPARING THE ROOM";
+            entryAudio?.PlayDoorOpen();
             yield return new WaitForSecondsRealtime(0.1f);
 
             elapsed = 0f;
@@ -494,6 +516,7 @@ namespace SkinnyToBeast.UI
             yield return null;
             Canvas.ForceUpdateCanvases();
             yield return new WaitForEndOfFrame();
+            entryAudio?.PlayRoomReveal();
             yield return FadeGroup(1f, 0f, 0.42f);
             opening = false;
             InvokeCompletion(true);

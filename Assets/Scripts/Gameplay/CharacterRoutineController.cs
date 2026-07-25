@@ -12,6 +12,7 @@ namespace SkinnyToBeast.Gameplay
         private RectTransform characterRoot;
         private CharacterRigController rigController;
         private CharacterFaceController faceController;
+        private GameplayAudioController audioController;
         private RoomAnchor currentAnchor;
         private RoomAnchor trainingAnchor;
         private RoomAnchor walkingTarget;
@@ -27,6 +28,7 @@ namespace SkinnyToBeast.Gameplay
         private bool isWalking;
         private bool configured;
         private int idleActionCursor;
+        private int footstepSequence;
 
         private static readonly CharacterRoutineAction[] IdleActionCycle =
         {
@@ -52,6 +54,8 @@ namespace SkinnyToBeast.Gameplay
             characterRoot = root;
             rigController = rig;
             faceController = face;
+            audioController =
+                GetComponentInParent<GameplayAudioController>();
             anchors.Clear();
 
             if (roomAnchors != null)
@@ -347,6 +351,7 @@ namespace SkinnyToBeast.Gameplay
                 0.65f,
                 1.75f);
             float elapsed = 0f;
+            float nextFootstepAt = 0.05f;
             walkingTarget = destination;
             isWalking = true;
             rigController.SetLocomotion(
@@ -366,6 +371,19 @@ namespace SkinnyToBeast.Gameplay
                 rigController.SetLocomotion(
                     direction,
                     normalizedStepSpeed);
+                if (elapsed >= nextFootstepAt)
+                {
+                    if (audioController == null)
+                    {
+                        audioController =
+                            GetComponentInParent<GameplayAudioController>();
+                    }
+
+                    audioController?.PlayFootstep(
+                        footstepSequence++);
+                    nextFootstepAt += 0.27f;
+                }
+
                 yield return null;
             }
 

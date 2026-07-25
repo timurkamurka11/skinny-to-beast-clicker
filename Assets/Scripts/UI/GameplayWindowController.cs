@@ -54,8 +54,7 @@ namespace SkinnyToBeast.UI
         private RectTransform progressFillRect;
         private GameObject upgradeSheet;
         private CanvasGroup toastGroup;
-        private AudioSource tapAudioSource;
-        private AudioClip tapAudioClip;
+        private GameplayAudioController gameplayAudio;
         private Coroutine toastRoutine;
         private GameplayVisualStageController visualStageController;
         private TapFeedbackController tapFeedbackController;
@@ -241,7 +240,7 @@ namespace SkinnyToBeast.UI
                 playerStats.StatsChanged += Refresh;
                 upgradeManager.UpgradesChanged += Refresh;
 
-                CreateTapAudio();
+                CreateGameplayAudio();
                 Refresh();
                 initialized = true;
                 EnsureCharacterReveal();
@@ -324,6 +323,11 @@ namespace SkinnyToBeast.UI
             }
 
             characterReady = true;
+            Debug.Log(
+                $"Gameplay character render ready: " +
+                $"{visualStageController.CharacterRig.GetVisibleGraphicCount()} " +
+                "skeletal parts.",
+                this);
             float elapsed = 0f;
             const float duration = 0.24f;
             while (elapsed < duration)
@@ -709,7 +713,7 @@ namespace SkinnyToBeast.UI
             string gain = $"+{FormatGain(gainedStrength)} POWER";
             visualStageController?.PlayTap();
             tapFeedbackController?.EmitTap(gain, tapChain);
-            PlayTapSound();
+            gameplayAudio?.PlayTap(tapChain);
             HapticsService.Tap();
 
             if (playerStats.BodyStageIndex > previousStage)
@@ -762,6 +766,7 @@ namespace SkinnyToBeast.UI
             UiSoundPlayer.PlayConfirm();
             visualStageController?.PlayUpgrade();
             tapFeedbackController?.EmitUpgrade(GetUpgradeEffectPosition(id));
+            gameplayAudio?.PlayUpgrade();
             HapticsService.Upgrade();
             Refresh();
         }
@@ -805,6 +810,7 @@ namespace SkinnyToBeast.UI
                 playerStats.BodyStageIndex > lastVisualBodyStage)
             {
                 tapFeedbackController?.EmitStageChange();
+                gameplayAudio?.PlayStageChange();
                 HapticsService.StageChange();
             }
 
@@ -950,50 +956,17 @@ namespace SkinnyToBeast.UI
             toastRoutine = null;
         }
 
-        private void CreateTapAudio()
+        private void CreateGameplayAudio()
         {
-            tapAudioSource = gameObject.AddComponent<AudioSource>();
-            tapAudioSource.playOnAwake = false;
-            tapAudioSource.loop = false;
-            tapAudioSource.spatialBlend = 0f;
-            tapAudioSource.priority = 16;
-
-            const int sampleRate = 44100;
-            const float duration = 0.055f;
-            int sampleCount = Mathf.CeilToInt(sampleRate * duration);
-            float[] samples = new float[sampleCount];
-
-            for (int i = 0; i < sampleCount; i++)
+            gameplayAudio =
+                gameObject.GetComponent<GameplayAudioController>();
+            if (gameplayAudio == null)
             {
-                float t = i / (float)sampleRate;
-                float envelope = Mathf.Pow(1f - i / (float)sampleCount, 3f);
-                float tone = Mathf.Sin(2f * Mathf.PI * 145f * t) * 0.68f;
-                tone += Mathf.Sin(2f * Mathf.PI * 290f * t) * 0.22f;
-                samples[i] = tone * envelope;
+                gameplayAudio =
+                    gameObject.AddComponent<GameplayAudioController>();
             }
 
-            tapAudioClip = AudioClip.Create(
-                "GameplayTap",
-                sampleCount,
-                1,
-                sampleRate,
-                false);
-            tapAudioClip.SetData(samples, 0);
-        }
-
-        private void PlayTapSound()
-        {
-            if (PlayerPrefs.GetInt("settings.sfx", 1) == 0 ||
-                tapAudioSource == null ||
-                tapAudioClip == null)
-            {
-                return;
-            }
-
-            float settingVolume = Mathf.Clamp01(
-                PlayerPrefs.GetFloat("settings.sfx.volume", 0.8f));
-            tapAudioSource.pitch = UnityEngine.Random.Range(0.94f, 1.08f);
-            tapAudioSource.PlayOneShot(tapAudioClip, 0.24f * settingVolume);
+            gameplayAudio.Configure(true);
         }
 
         private static Vector2 GetUpgradeEffectPosition(string id)
@@ -1080,11 +1053,6 @@ namespace SkinnyToBeast.UI
             }
 
             ResumeMenuVideo();
-
-            if (tapAudioClip != null)
-            {
-                Destroy(tapAudioClip);
-            }
 
             if (instance == this)
             {
