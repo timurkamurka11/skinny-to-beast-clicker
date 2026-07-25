@@ -45,3 +45,10 @@ crashlytics-build.properties
 *.apk
 *.aab
 *.ipa
+
+# Patch 3 Animator assets are generated locally by Unity Editor.
+/Assets/Resources/UI/Gameplay/Living/Animations/*.anim
+/Assets/Resources/UI/Gameplay/Living/Animations/*.anim.meta
+/Assets/Resources/UI/Gameplay/Living/Animations/LivingCharacter.controller
+/Assets/Resources/UI/Gameplay/Living/Animations/LivingCharacter.controller.meta
+/Assets/Resources/UI/Gameplay/Living/Animations/.gitkeep.meta

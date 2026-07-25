@@ -11,7 +11,7 @@ namespace SkinnyToBeast.Editor
     internal static class LivingGameplayAnimatorAssetBuilder
     {
         private const string SessionKey =
-            "SkinnyToBeast.LivingAnimatorBuilt.Patch3";
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.AssetTransactionV2";
         private const string RootFolder =
             "Assets/Resources/UI/Gameplay/Living/Animations";
         private const string ControllerPath =
@@ -327,6 +327,11 @@ namespace SkinnyToBeast.Editor
                     if (states[stateIndex].state != null &&
                         states[stateIndex].state.name == names[required])
                     {
+                        if (states[stateIndex].state.motion == null)
+                        {
+                            return false;
+                        }
+
                         matches++;
                     }
                 }
@@ -436,6 +441,14 @@ namespace SkinnyToBeast.Editor
             Add(clips, CreateNeutralClip("UpperBody_Idle", 1f));
             Add(clips, CreateNeutralClip("Face_Idle", 1f));
             Add(clips, CreateNeutralClip("FullBody_Idle", 1f));
+            int expectedClipCount =
+                RequiredMotionClips.Length + NeutralClips.Length;
+            if (clips.Count != expectedClipCount)
+            {
+                throw new InvalidOperationException(
+                    $"Expected {expectedClipCount} generated clips, " +
+                    $"created {clips.Count}.");
+            }
 
             EnsureFolder(RootFolder);
             AnimatorController controller =
@@ -529,12 +542,7 @@ namespace SkinnyToBeast.Editor
             AnimatorController persistedController =
                 AssetDatabase.LoadAssetAtPath<AnimatorController>(
                     ControllerPath);
-            if (NeedsPatchThreeRebuild(persistedController))
-            {
-                throw new InvalidOperationException(
-                    "Patch 3 Animator assets were written but failed their " +
-                    "post-build validation.");
-            }
+            ValidatePersistedAssets(persistedController);
 
             Debug.Log(
                 "Patch 3 Animator generated: four layers and real curves " +
@@ -547,7 +555,7 @@ namespace SkinnyToBeast.Editor
             bool loop)
         {
             AnimationClip clip =
-                CreateClipAsset(name, duration, loop);
+                CreateClip(name, duration, loop);
             AddNeutralPose(clip, duration);
 
             switch (name)
@@ -677,7 +685,7 @@ namespace SkinnyToBeast.Editor
             float duration)
         {
             AnimationClip clip =
-                CreateClipAsset(name, duration, false);
+                CreateClip(name, duration, false);
             float inTime = duration * 0.22f;
             float holdTime = duration * 0.72f;
 
@@ -742,7 +750,7 @@ namespace SkinnyToBeast.Editor
             float duration)
         {
             AnimationClip clip =
-                CreateClipAsset(name, duration, false);
+                CreateClip(name, duration, false);
             if (name == "StageChange")
             {
                 SetScaleX(
@@ -810,7 +818,7 @@ namespace SkinnyToBeast.Editor
             float duration)
         {
             AnimationClip clip =
-                CreateClipAsset(name, duration, false);
+                CreateClip(name, duration, false);
             switch (name)
             {
                 case "Face_Blink":
@@ -849,7 +857,7 @@ namespace SkinnyToBeast.Editor
             float duration)
         {
             AnimationClip clip =
-                CreateClipAsset(name, duration, true);
+                CreateClip(name, duration, true);
             SetRotation(
                 clip,
                 Root,
@@ -916,7 +924,19 @@ namespace SkinnyToBeast.Editor
             Dictionary<string, AnimationClip> clips,
             AnimationClip clip)
         {
-            clips[clip.name] = clip;
+            if (clip == null)
+            {
+                throw new ArgumentNullException(nameof(clip));
+            }
+
+            if (clips.ContainsKey(clip.name))
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate generated animation clip: {clip.name}");
+            }
+
+            PersistClipAsset(clip);
+            clips.Add(clip.name, clip);
         }
 
         private static void AddStates(
@@ -968,7 +988,7 @@ namespace SkinnyToBeast.Editor
             return layer.stateMachine;
         }
 
-        private static AnimationClip CreateClipAsset(
+        private static AnimationClip CreateClip(
             string name,
             float duration,
             bool loop)
@@ -977,13 +997,6 @@ namespace SkinnyToBeast.Editor
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(duration));
-            }
-
-            EnsureFolder(RootFolder);
-            string path = $"{RootFolder}/{name}.anim";
-            if (AssetDatabase.LoadAssetAtPath<AnimationClip>(path) != null)
-            {
-                AssetDatabase.DeleteAsset(path);
             }
 
             AnimationClip clip = new()
@@ -997,15 +1010,94 @@ namespace SkinnyToBeast.Editor
             AnimationUtility.SetAnimationClipSettings(
                 clip,
                 settings);
-            AssetDatabase.CreateAsset(clip, path);
-            if (AssetDatabase.LoadAssetAtPath<AnimationClip>(path) == null)
+            return clip;
+        }
+
+        private static void PersistClipAsset(AnimationClip clip)
+        {
+            EnsureFolder(RootFolder);
+            string path = $"{RootFolder}/{clip.name}.anim";
+            string absolutePath = ToAbsoluteAssetPath(path);
+            if (AssetDatabase.LoadMainAssetAtPath(path) != null ||
+                File.Exists(absolutePath))
             {
-                throw new InvalidOperationException(
-                    $"Unity did not persist animation clip '{name}' at " +
-                    $"'{path}'.");
+                throw new IOException(
+                    "Generated animation target was not cleared before " +
+                    $"creation: '{path}'.");
             }
 
-            return clip;
+            // Build every curve before CreateAsset. LoadAssetAtPath only
+            // exposes objects that are already visible in the Project view,
+            // which is not guaranteed in the same callback that creates the
+            // native asset. GetAssetPath checks the new object's association
+            // immediately; the full load/curve validation happens after the
+            // single synchronous save-and-import at the end of BuildAssets.
+            AssetDatabase.CreateAsset(clip, path);
+            string createdPath =
+                (AssetDatabase.GetAssetPath(clip) ?? string.Empty)
+                .Replace('\\', '/');
+            if (!string.Equals(
+                    createdPath,
+                    path,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Unity did not associate animation clip '{clip.name}' " +
+                    $"with '{path}'. Actual path: '{createdPath}'.");
+            }
+
+            EditorUtility.SetDirty(clip);
+            AssetDatabase.SaveAssetIfDirty(clip);
+        }
+
+        private static void ValidatePersistedAssets(
+            AnimatorController controller)
+        {
+            List<string> failures = new();
+            if (controller == null)
+            {
+                failures.Add("missing LivingCharacter.controller");
+            }
+
+            for (int i = 0; i < RequiredMotionClips.Length; i++)
+            {
+                string name = RequiredMotionClips[i];
+                AnimationClip clip =
+                    AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                        $"{RootFolder}/{name}.anim");
+                if (clip == null)
+                {
+                    failures.Add($"missing {name}.anim");
+                }
+                else if (!HasRealMotionCurves(clip))
+                {
+                    failures.Add($"{name}.anim has no skeletal curves");
+                }
+            }
+
+            for (int i = 0; i < NeutralClips.Length; i++)
+            {
+                string name = NeutralClips[i];
+                if (AssetDatabase.LoadAssetAtPath<AnimationClip>(
+                        $"{RootFolder}/{name}.anim") == null)
+                {
+                    failures.Add($"missing {name}.anim");
+                }
+            }
+
+            if (failures.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Patch 3 Animator persistence validation failed: " +
+                    string.Join(", ", failures));
+            }
+
+            if (NeedsPatchThreeRebuild(controller))
+            {
+                throw new InvalidOperationException(
+                    "Patch 3 Animator assets persisted, but the controller " +
+                    "layers, parameters, states, or motion links are invalid.");
+            }
         }
 
         private static void SetRotation(
@@ -1188,20 +1280,49 @@ namespace SkinnyToBeast.Editor
             }
 
             AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(FolderSyncOptions);
         }
 
         private static void DeleteAssetIfPresent(string path)
         {
-            if (AssetDatabase.LoadMainAssetAtPath(path) == null &&
-                !File.Exists(ToAbsoluteAssetPath(path)))
+            string absolutePath = ToAbsoluteAssetPath(path);
+            string metaPath = absolutePath + ".meta";
+            bool knownToAssetDatabase =
+                AssetDatabase.LoadMainAssetAtPath(path) != null;
+            if (!knownToAssetDatabase &&
+                !File.Exists(absolutePath) &&
+                !File.Exists(metaPath))
             {
                 return;
             }
 
-            if (!AssetDatabase.DeleteAsset(path))
+            if (knownToAssetDatabase &&
+                AssetDatabase.DeleteAsset(path))
+            {
+                return;
+            }
+
+            // A failed CreateAsset can leave a native file that is not visible
+            // to AssetDatabase yet. This fallback is restricted to the exact
+            // generated controller/clip paths passed by this builder.
+            AssetDatabase.ReleaseCachedFileHandles();
+            if (File.Exists(absolutePath))
+            {
+                File.Delete(absolutePath);
+            }
+
+            if (File.Exists(metaPath))
+            {
+                File.Delete(metaPath);
+            }
+
+            AssetDatabase.Refresh(FolderSyncOptions);
+            if (AssetDatabase.LoadMainAssetAtPath(path) != null ||
+                File.Exists(absolutePath) ||
+                File.Exists(metaPath))
             {
                 throw new IOException(
-                    $"Unity could not delete generated asset '{path}'.");
+                    $"Unity could not clear generated asset '{path}'.");
             }
         }
     }
