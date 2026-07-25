@@ -539,6 +539,9 @@ namespace SkinnyToBeast.Gameplay
             float outline)
         {
             RectTransform rect = CreateRect(parent, name, position, size);
+            CanvasRenderer renderer =
+                rect.gameObject.AddComponent<CanvasRenderer>();
+            renderer.cullTransparentMesh = false;
             CharacterMeshGraphic graphic =
                 rect.gameObject.AddComponent<CharacterMeshGraphic>();
             graphic.Configure(

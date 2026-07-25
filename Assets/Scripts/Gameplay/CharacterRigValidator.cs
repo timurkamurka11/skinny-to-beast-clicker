@@ -80,6 +80,12 @@ namespace SkinnyToBeast.Gameplay
                         "live uGUI render surface.");
                 }
 
+                if (!rigController.ValidateCanvasRendererCoverage(
+                        out string rendererError))
+                {
+                    errors.AppendLine(rendererError);
+                }
+
                 if (!rigController.AnimatorReady)
                 {
                     errors.AppendLine(

@@ -36,6 +36,7 @@ namespace SkinnyToBeast.Gameplay
     /// by the bone hierarchy rather than by swapping raster frames.
     /// </summary>
     [DisallowMultipleComponent]
+    [RequireComponent(typeof(CanvasRenderer))]
     public sealed class CharacterMeshGraphic : MaskableGraphic
     {
         [SerializeField] private CharacterMeshShape shape;
@@ -57,16 +58,20 @@ namespace SkinnyToBeast.Gameplay
             color.a > 0.001f &&
             rectTransform.rect.width > 0.5f &&
             rectTransform.rect.height > 0.5f &&
+            HasRequiredCanvasRenderer &&
             stableSurface != null &&
             stableSurface.IsRenderable;
         public bool HasLiveRenderSurface =>
             stableSurface != null &&
             stableSurface.IsRenderable;
+        public bool HasRequiredCanvasRenderer =>
+            GetComponent<CanvasRenderer>() != null;
 
         protected override void OnEnable()
         {
+            CanvasRenderer renderer = EnsureCanvasRenderer();
             base.OnEnable();
-            canvasRenderer.cullTransparentMesh = false;
+            renderer.cullTransparentMesh = false;
             EnsureStableSurface().Configure(
                 shape,
                 rectTransform.sizeDelta,
@@ -102,7 +107,7 @@ namespace SkinnyToBeast.Gameplay
             color = fill;
             raycastTarget = false;
             maskable = false;
-            canvasRenderer.cullTransparentMesh = false;
+            EnsureCanvasRenderer().cullTransparentMesh = false;
             EnsureStableSurface().Configure(
                 shape,
                 size,
@@ -149,9 +154,22 @@ namespace SkinnyToBeast.Gameplay
 
         public void ForceRenderRefresh()
         {
-            canvasRenderer.cullTransparentMesh = false;
+            EnsureCanvasRenderer().cullTransparentMesh = false;
             EnsureStableSurface().ForceRefresh();
             SetAllDirty();
+        }
+
+        private CanvasRenderer EnsureCanvasRenderer()
+        {
+            CanvasRenderer renderer =
+                GetComponent<CanvasRenderer>();
+            if (renderer == null)
+            {
+                renderer =
+                    gameObject.AddComponent<CanvasRenderer>();
+            }
+
+            return renderer;
         }
 
         private CharacterPartSurface EnsureStableSurface()

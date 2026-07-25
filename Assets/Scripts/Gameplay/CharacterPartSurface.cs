@@ -10,6 +10,8 @@ namespace SkinnyToBeast.Gameplay
     /// output on every supported render pipeline.
     /// </summary>
     [DisallowMultipleComponent]
+    [RequireComponent(typeof(RectTransform))]
+    [RequireComponent(typeof(CanvasRenderer))]
     internal sealed class CharacterPartSurface : MonoBehaviour
     {
         private const string OutlineName = "VisibleOutline";
@@ -127,34 +129,47 @@ namespace SkinnyToBeast.Gameplay
 
             if (outlineImage == null)
             {
-                Transform existing = transform.Find(OutlineName);
-                outlineImage = existing != null
-                    ? existing.GetComponent<Image>()
-                    : CreateImage(OutlineName);
+                outlineImage = GetOrCreateImage(OutlineName);
             }
 
             if (fillImage == null)
             {
-                Transform existing = transform.Find(FillName);
-                fillImage = existing != null
-                    ? existing.GetComponent<Image>()
-                    : CreateImage(FillName);
+                fillImage = GetOrCreateImage(FillName);
             }
 
             ApplyShape();
         }
 
-        private Image CreateImage(string objectName)
+        private Image GetOrCreateImage(string objectName)
         {
-            GameObject target = new GameObject(
-                objectName,
-                typeof(RectTransform),
-                typeof(CanvasRenderer),
-                typeof(Image));
-            target.layer = gameObject.layer;
-            target.transform.SetParent(transform, false);
+            Transform existing = transform.Find(objectName);
+            GameObject target;
+            if (existing == null)
+            {
+                target = new GameObject(
+                    objectName,
+                    typeof(RectTransform),
+                    typeof(CanvasRenderer));
+                target.layer = gameObject.layer;
+                target.transform.SetParent(transform, false);
+            }
+            else
+            {
+                target = existing.gameObject;
+                target.layer = gameObject.layer;
+                if (target.GetComponent<CanvasRenderer>() == null)
+                {
+                    target.AddComponent<CanvasRenderer>();
+                }
+            }
 
             RectTransform rect = target.GetComponent<RectTransform>();
+            if (rect == null)
+            {
+                throw new MissingComponentException(
+                    $"{target.name} requires a RectTransform.");
+            }
+
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.pivot = new Vector2(0.5f, 0.5f);
@@ -164,6 +179,11 @@ namespace SkinnyToBeast.Gameplay
             rect.localScale = Vector3.one;
 
             Image image = target.GetComponent<Image>();
+            if (image == null)
+            {
+                image = target.AddComponent<Image>();
+            }
+
             image.raycastTarget = false;
             image.maskable = false;
             image.preserveAspect = false;

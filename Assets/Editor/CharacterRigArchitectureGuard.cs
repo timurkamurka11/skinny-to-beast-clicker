@@ -165,6 +165,7 @@ namespace SkinnyToBeast.Editor
         private static void ValidateOrThrow()
         {
             ValidateForbiddenRuntimeTokens();
+            ValidateCanvasRendererContract();
             ValidateCharacterPrefabAndAssets();
             EnsureAnimatorAssets();
             ValidateMotionClips();
@@ -208,6 +209,77 @@ namespace SkinnyToBeast.Editor
                     throw new BuildFailedException(
                         $"Entry and room must both load the shared rig: {path}");
                 }
+            }
+        }
+
+        private static void ValidateCanvasRendererContract()
+        {
+            const string meshPath =
+                "Assets/Scripts/Gameplay/CharacterMeshGraphic.cs";
+            const string surfacePath =
+                "Assets/Scripts/Gameplay/CharacterPartSurface.cs";
+            const string rigPath =
+                "Assets/Scripts/Gameplay/CharacterRigController.cs";
+            const string facePath =
+                "Assets/Scripts/Gameplay/CharacterFaceController.cs";
+
+            string meshSource = File.ReadAllText(meshPath);
+            string surfaceSource = File.ReadAllText(surfacePath);
+            string rigSource = File.ReadAllText(rigPath);
+            string faceSource = File.ReadAllText(facePath);
+
+            if (!meshSource.Contains(
+                    "[RequireComponent(typeof(CanvasRenderer))]",
+                    StringComparison.Ordinal) ||
+                !surfaceSource.Contains(
+                    "[RequireComponent(typeof(CanvasRenderer))]",
+                    StringComparison.Ordinal))
+            {
+                throw new BuildFailedException(
+                    "Every procedural skeletal graphic must require its own " +
+                    "CanvasRenderer.");
+            }
+
+            int rigRenderer = rigSource.IndexOf(
+                "GetOrAdd<CanvasRenderer>(rect.gameObject)",
+                StringComparison.Ordinal);
+            int rigGraphic = rigSource.IndexOf(
+                "AddComponent<CharacterMeshGraphic>()",
+                StringComparison.Ordinal);
+            if (rigRenderer < 0 ||
+                rigGraphic < 0 ||
+                rigRenderer > rigGraphic)
+            {
+                throw new BuildFailedException(
+                    "Body parts must receive CanvasRenderer before " +
+                    "CharacterMeshGraphic is enabled.");
+            }
+
+            int faceRenderer = faceSource.IndexOf(
+                "AddComponent<CanvasRenderer>()",
+                StringComparison.Ordinal);
+            int faceGraphic = faceSource.IndexOf(
+                "AddComponent<CharacterMeshGraphic>()",
+                StringComparison.Ordinal);
+            if (faceRenderer < 0 ||
+                faceGraphic < 0 ||
+                faceRenderer > faceGraphic)
+            {
+                throw new BuildFailedException(
+                    "Face parts must receive CanvasRenderer before " +
+                    "CharacterMeshGraphic is enabled.");
+            }
+
+            if (!surfaceSource.Contains(
+                    "GetOrCreateImage",
+                    StringComparison.Ordinal) ||
+                !surfaceSource.Contains(
+                    "target.AddComponent<CanvasRenderer>()",
+                    StringComparison.Ordinal))
+            {
+                throw new BuildFailedException(
+                    "The stable character surface cannot repair a partial " +
+                    "uGUI render hierarchy.");
             }
         }
 

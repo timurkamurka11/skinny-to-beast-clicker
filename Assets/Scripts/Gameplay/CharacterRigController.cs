@@ -1066,6 +1066,9 @@ namespace SkinnyToBeast.Gameplay
                 name,
                 position,
                 size);
+            CanvasRenderer renderer =
+                GetOrAdd<CanvasRenderer>(rect.gameObject);
+            renderer.cullTransparentMesh = false;
             CharacterMeshGraphic graphic =
                 rect.gameObject.AddComponent<CharacterMeshGraphic>();
             graphic.Configure(
@@ -1081,6 +1084,45 @@ namespace SkinnyToBeast.Gameplay
             meshRenderers.Add(graphic);
             namedParts[name] = graphic;
             return graphic;
+        }
+
+        public bool ValidateCanvasRendererCoverage(
+            out string error)
+        {
+            if (characterRoot == null)
+            {
+                error =
+                    "CharacterRoot is unavailable for renderer validation.";
+                return false;
+            }
+
+            CharacterMeshGraphic[] graphics =
+                characterRoot.GetComponentsInChildren<
+                    CharacterMeshGraphic>(true);
+            if (graphics.Length < 18)
+            {
+                error =
+                    $"Expected at least 18 skeletal graphics, found " +
+                    $"{graphics.Length}.";
+                return false;
+            }
+
+            for (int i = 0; i < graphics.Length; i++)
+            {
+                CharacterMeshGraphic graphic = graphics[i];
+                if (graphic == null ||
+                    !graphic.HasRequiredCanvasRenderer)
+                {
+                    error =
+                        $"Skeletal graphic " +
+                        $"'{(graphic != null ? graphic.name : "<missing>")}' " +
+                        "has no CanvasRenderer.";
+                    return false;
+                }
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         private static RectTransform CreateRect(

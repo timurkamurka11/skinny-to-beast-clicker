@@ -112,6 +112,17 @@ namespace SkinnyToBeast.Gameplay
                 CharacterRigController probeRig =
                     GetOrAdd<CharacterRigController>(probe);
                 probeRig.Build(probeRoot, probeFace);
+                if (!probeRig.ValidateCanvasRendererCoverage(
+                        out string rendererError))
+                {
+                    Fail(
+                        $"CanvasRenderer coverage failed on real prefab " +
+                        $"launch {launch + 1}: {rendererError}");
+                    Destroy(probe);
+                    skinController.ApplySkin(originalStage, false);
+                    yield break;
+                }
+
                 CharacterSkinController probeSkin =
                     GetOrAdd<CharacterSkinController>(probe);
                 probeSkin.Configure(
@@ -448,9 +459,10 @@ namespace SkinnyToBeast.Gameplay
             skinController.ApplySkin(originalStage, false);
             LastRunPassed = true;
             LastResult =
-                "PASS: 100 visibility starts, 50 immediate + 50 animated " +
-                "stage swaps, 300 taps, four-direction travel with planted " +
-                "feet, independent bones and three idle actions.";
+                "PASS: 100 visibility starts with complete CanvasRenderer " +
+                "coverage, 50 immediate + 50 animated stage swaps, 300 taps, " +
+                "four-direction travel with planted feet, independent bones " +
+                "and three idle actions.";
             Debug.Log(LastResult, this);
             suite = null;
         }
