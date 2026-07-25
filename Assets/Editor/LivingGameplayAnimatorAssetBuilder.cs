@@ -11,7 +11,7 @@ namespace SkinnyToBeast.Editor
     internal static class LivingGameplayAnimatorAssetBuilder
     {
         private const string SessionKey =
-            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.AssetTransactionV2";
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.AssetTransactionV3";
         private const string RootFolder =
             "Assets/Resources/UI/Gameplay/Living/Animations";
         private const string ControllerPath =
@@ -174,8 +174,6 @@ namespace SkinnyToBeast.Editor
             isBuildingAssets = true;
             try
             {
-                EnsureFolder(RootFolder);
-                DeleteGeneratedAssets();
                 EnsureFolder(RootFolder);
                 BuildAssets();
             }
@@ -451,6 +449,7 @@ namespace SkinnyToBeast.Editor
             }
 
             EnsureFolder(RootFolder);
+            ClearGeneratedAssetPath(ControllerPath);
             AnimatorController controller =
                 AnimatorController.CreateAnimatorControllerAtPath(
                     ControllerPath);
@@ -935,8 +934,9 @@ namespace SkinnyToBeast.Editor
                     $"Duplicate generated animation clip: {clip.name}");
             }
 
-            PersistClipAsset(clip);
-            clips.Add(clip.name, clip);
+            AnimationClip persistedClip =
+                PersistClipAsset(clip);
+            clips.Add(persistedClip.name, persistedClip);
         }
 
         private static void AddStates(
@@ -1013,18 +1013,52 @@ namespace SkinnyToBeast.Editor
             return clip;
         }
 
-        private static void PersistClipAsset(AnimationClip clip)
+        private static AnimationClip PersistClipAsset(
+            AnimationClip clip)
         {
             EnsureFolder(RootFolder);
             string path = $"{RootFolder}/{clip.name}.anim";
             string absolutePath = ToAbsoluteAssetPath(path);
-            if (AssetDatabase.LoadMainAssetAtPath(path) != null ||
-                File.Exists(absolutePath))
+            AnimationClip persistedClip =
+                LoadGeneratedClipForUpdate(path, absolutePath);
+            if (persistedClip != null)
             {
-                throw new IOException(
-                    "Generated animation target was not cleared before " +
-                    $"creation: '{path}'.");
+                // Generated clips are updated in place. Reusing the existing
+                // native asset keeps its GUID stable and avoids depending on
+                // DeleteAsset becoming physically visible in the same Unity
+                // editor callback on Windows.
+                EditorUtility.CopySerialized(
+                    clip,
+                    persistedClip);
+                persistedClip.name = clip.name;
+                EditorUtility.SetDirty(persistedClip);
+                AssetDatabase.SaveAssetIfDirty(persistedClip);
+                string persistedPath =
+                    (AssetDatabase.GetAssetPath(persistedClip) ??
+                     string.Empty)
+                    .Replace('\\', '/');
+                if (string.Equals(
+                        persistedPath,
+                        path,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    File.Exists(absolutePath))
+                {
+                    UnityEngine.Object.DestroyImmediate(clip);
+                    return persistedClip;
+                }
+
+                // A cached object can outlive its deleted native file. If
+                // saving it did not restore the file, discard that stale
+                // association and create the already completed source clip
+                // as a new native asset below.
+                ClearGeneratedAssetPath(path);
             }
+
+            // A non-AnimationClip main object, an orphaned .meta, or a
+            // partially written native file cannot be updated safely. These
+            // paths are generated exclusively by this builder, so clear only
+            // this exact target before creating the replacement.
+            ClearGeneratedAssetPath(path);
 
             // Build every curve before CreateAsset. LoadAssetAtPath only
             // exposes objects that are already visible in the Project view,
@@ -1048,6 +1082,37 @@ namespace SkinnyToBeast.Editor
 
             EditorUtility.SetDirty(clip);
             AssetDatabase.SaveAssetIfDirty(clip);
+            return clip;
+        }
+
+        private static AnimationClip LoadGeneratedClipForUpdate(
+            string path,
+            string absolutePath)
+        {
+            UnityEngine.Object mainAsset =
+                AssetDatabase.LoadMainAssetAtPath(path);
+            if (mainAsset is AnimationClip animationClip)
+            {
+                return animationClip;
+            }
+
+            // A previous interrupted CreateAsset can leave a valid .anim on
+            // disk before it appears in the Project view. Import that exact
+            // generated path synchronously and reuse it when possible.
+            if (mainAsset == null && File.Exists(absolutePath))
+            {
+                AssetDatabase.ImportAsset(
+                    path,
+                    FolderSyncOptions);
+                mainAsset =
+                    AssetDatabase.LoadMainAssetAtPath(path);
+                if (mainAsset is AnimationClip importedClip)
+                {
+                    return importedClip;
+                }
+            }
+
+            return null;
         }
 
         private static void ValidatePersistedAssets(
@@ -1262,28 +1327,7 @@ namespace SkinnyToBeast.Editor
                     Path.DirectorySeparatorChar));
         }
 
-        private static void DeleteGeneratedAssets()
-        {
-            EnsureFolder(RootFolder);
-            DeleteAssetIfPresent(ControllerPath);
-
-            for (int i = 0; i < RequiredMotionClips.Length; i++)
-            {
-                DeleteAssetIfPresent(
-                    $"{RootFolder}/{RequiredMotionClips[i]}.anim");
-            }
-
-            for (int i = 0; i < NeutralClips.Length; i++)
-            {
-                DeleteAssetIfPresent(
-                    $"{RootFolder}/{NeutralClips[i]}.anim");
-            }
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh(FolderSyncOptions);
-        }
-
-        private static void DeleteAssetIfPresent(string path)
+        private static void ClearGeneratedAssetPath(string path)
         {
             string absolutePath = ToAbsoluteAssetPath(path);
             string metaPath = absolutePath + ".meta";
@@ -1296,15 +1340,14 @@ namespace SkinnyToBeast.Editor
                 return;
             }
 
-            if (knownToAssetDatabase &&
-                AssetDatabase.DeleteAsset(path))
+            if (knownToAssetDatabase)
             {
-                return;
+                AssetDatabase.DeleteAsset(path);
             }
 
-            // A failed CreateAsset can leave a native file that is not visible
-            // to AssetDatabase yet. This fallback is restricted to the exact
-            // generated controller/clip paths passed by this builder.
+            // DeleteAsset can report success before the filesystem view is
+            // synchronized. Always release Unity's cached handles and verify
+            // the exact generated file and .meta physically as well.
             AssetDatabase.ReleaseCachedFileHandles();
             if (File.Exists(absolutePath))
             {
