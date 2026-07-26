@@ -1,5 +1,6 @@
 name: Generate Fat Man Layered Art 3.6
 
+# The workflow is branch-scoped so generated PNG commits cannot affect main.
 on:
   push:
     branches:
