@@ -10,27 +10,37 @@ namespace SkinnyToBeast.Editor
     internal sealed class RealFatManSpriteArchitectureGuard :
         IPreprocessBuildWithReport
     {
-        private const string TexturePath =
-            "Assets/Resources/Characters/FatMan/" +
-            "fat-man-turnaround-reference.png";
-        private const string CatalogPath =
-            "Assets/Resources/Characters/FatMan/" +
-            "FatManSpriteCatalog.asset";
-        private const string SpriteControllerPath =
-            "Assets/Scripts/Gameplay/" +
-            "CharacterSpriteRigController.cs";
-        private const string PuppetControllerPath =
-            "Assets/Scripts/Gameplay/" +
-            "CharacterLayeredRigController.cs";
-        private const string PuppetGraphicPath =
-            "Assets/Scripts/Gameplay/" +
-            "CharacterSkinnedSpriteGraphic.cs";
+        private const string ManifestPath =
+            "Assets/Resources/Characters/FatManLayered/Generated/manifest.json";
+        private const string GeneratorPath =
+            "Tools/FatManLayeredArt/generate_layered_art.py";
+        private const string LayeredControllerPath =
+            "Assets/Scripts/Gameplay/CharacterLayeredRigController.cs";
         private const string VisibilityGatePath =
-            "Assets/Scripts/Gameplay/" +
-            "CharacterVisibilityGate.cs";
+            "Assets/Scripts/Gameplay/CharacterVisibilityGate.cs";
+        private const string ViewControllerPath =
+            "Assets/Scripts/Gameplay/CharacterViewController.cs";
+        private const string ObsoleteSkinnedGraphicPath =
+            "Assets/Scripts/Gameplay/CharacterSkinnedSpriteGraphic.cs";
         private const string PrefabPath =
-            "Assets/Resources/UI/Gameplay/Living/" +
-            "CharacterRig2D.prefab";
+            "Assets/Resources/UI/Gameplay/Living/CharacterRig2D.prefab";
+
+        private static readonly string[] RequiredRepresentativeLayers =
+        {
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Pelvis.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Belly.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Head.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/UpperArm_L.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Forearm_R.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Thigh_L.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Shin_R.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/EyeL_Closed.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Mouth_Yawn.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Side/Chest.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Side/Foot_R.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Back/Chest.png",
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Back/Foot_L.png"
+        };
 
         public int callbackOrder => -950;
 
@@ -40,157 +50,126 @@ namespace SkinnyToBeast.Editor
         }
 
         [MenuItem(
-            "Tools/Skinny to Beast/Validate Real Fat Man Rig Rebuild 3.5")]
+            "Tools/Skinny to Beast/Validate Real Fat Man Layered Art 3.6")]
         private static void ValidateFromMenu()
         {
             ValidateOrThrow();
             Debug.Log(
-                "Real Fat Man Rig Rebuild Patch 3.5 guard passed: the old " +
-                "skeleton is an animation signal only; directional art anchors, " +
-                "bounded motion, displacement clamping, fold repair, stable " +
-                "facial attachment and black-screen protection are present.");
+                "Real Fat Man Layered Art Patch 3.6 guard passed: separate " +
+                "transparent body parts, proxy-bone animation, facial states, " +
+                "three directions, four stages and black-screen protection " +
+                "are installed.");
         }
 
         private static void ValidateOrThrow()
         {
             string[] requiredFiles =
             {
-                TexturePath,
-                CatalogPath,
-                SpriteControllerPath,
-                PuppetControllerPath,
-                PuppetGraphicPath,
+                ManifestPath,
+                GeneratorPath,
+                LayeredControllerPath,
                 VisibilityGatePath,
+                ViewControllerPath,
                 PrefabPath
             };
             for (int i = 0; i < requiredFiles.Length; i++)
             {
-                if (!File.Exists(requiredFiles[i]))
-                {
-                    throw new BuildFailedException(
-                        "Real Fat Man Rig Rebuild 3.5 file is missing: " +
-                        requiredFiles[i]);
-                }
+                RequireFile(requiredFiles[i]);
+            }
+            for (int i = 0; i < RequiredRepresentativeLayers.Length; i++)
+            {
+                RequireFile(RequiredRepresentativeLayers[i]);
             }
 
-            TextureImporter importer =
-                AssetImporter.GetAtPath(TexturePath) as TextureImporter;
-            if (importer == null ||
-                !importer.isReadable ||
-                !importer.alphaIsTransparency)
+            if (File.Exists(ObsoleteSkinnedGraphicPath))
             {
                 throw new BuildFailedException(
-                    "The real fat-man PNG must be readable and imported " +
-                    "with alpha transparency.");
-            }
-
-            FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
-            if (catalog == null || !catalog.IsValid)
-            {
-                throw new BuildFailedException(
-                    "FatManSpriteCatalog must reference the real PNG and " +
-                    "contain four stage scales.");
+                    "Patch 3.6 forbids CharacterSkinnedSpriteGraphic. The " +
+                    "whole-PNG deformation script must be removed.");
             }
 
             GameObject prefab =
                 AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             if (prefab == null ||
-                prefab.GetComponent<CharacterSpriteRigController>() == null ||
                 prefab.GetComponent<CharacterLayeredRigController>() == null)
             {
                 throw new BuildFailedException(
-                    "CharacterRig2D.prefab must contain both " +
-                    "CharacterSpriteRigController and " +
+                    "CharacterRig2D.prefab must contain " +
                     "CharacterLayeredRigController.");
             }
 
-            string controllerSource =
-                File.ReadAllText(PuppetControllerPath);
-            RequireTokens(
-                controllerSource,
-                new[]
-                {
-                    "Sprite.RealFatManBoundedPuppet",
-                    "CharacterSkinnedSpriteGraphic",
-                    "BuildBoneMap",
-                    "RefreshDeformation",
-                    "TryGetDrivenPoint",
-                    "flatBodyImage.enabled = false",
-                    "Bone.Belly",
-                    "Bone.ChestSoft",
-                    "Bone.UpperArm.L",
-                    "Bone.Forearm.R",
-                    "Bone.Thigh.L",
-                    "Bone.Shin.R",
-                    "BoundedPaintedFaceOverlay",
-                    "ScheduleBlink",
-                    "FoldRepairCount",
-                    "SafetyClampCount"
-                },
-                "Bounded puppet controller is missing required 3.5 token: ");
-            ForbidTokens(
-                controllerSource,
-                new[]
-                {
-                    "Sprite.RealFatManLayeredSurface",
-                    "LayeredPaintedFaceOverlay",
-                    "skinnedGraphic.CaptureBindPose()",
-                    "PartSpec",
-                    "12 bone-bound parts"
-                },
-                "Unstable 3.2/3.4 controller logic returned: ");
+            CharacterSpriteRigController flat =
+                prefab.GetComponent<CharacterSpriteRigController>();
+            if (flat != null && flat.enabled)
+            {
+                throw new BuildFailedException(
+                    "The flat CharacterSpriteRigController must be disabled " +
+                    "in the Patch 3.6 prefab. Run the 3.6 baker.");
+            }
 
-            string graphicSource =
-                File.ReadAllText(PuppetGraphicPath);
+            string layeredSource =
+                File.ReadAllText(LayeredControllerPath);
             RequireTokens(
-                graphicSource,
+                layeredSource,
                 new[]
                 {
-                    "MinimumRootWeight",
-                    "GetDirectionalAnchor",
-                    "GetFrontBackAnchor",
-                    "GetSideAnchor",
-                    "GetMotionRule",
-                    "GetMaximumVertexDisplacement",
-                    "Vector2.ClampMagnitude",
-                    "SmoothDisplacements",
-                    "ApplySafetyEnvelope",
-                    "RepairFoldedCells",
-                    "IsValidCell",
-                    "TryGetDrivenPoint",
-                    "FatManSkinBone.Belly",
-                    "FatManSkinBone.ChestSoft",
-                    "FatManSkinBone.UpperArmLeft",
-                    "FatManSkinBone.ForearmRight",
-                    "FatManSkinBone.ThighLeft",
-                    "FatManSkinBone.ShinRight"
+                    "RealFatMan.LayeredArt3_6",
+                    "Resources.Load<Texture2D>",
+                    "ArtBone.",
+                    "Layer.Pelvis",
+                    "SuppressLegacyVisuals",
+                    "SetFaceGroup",
+                    "ScheduleBlink",
+                    "TryGetWorldBounds",
+                    "FitToScreenHeight",
+                    "UsesNativeSideProfile"
                 },
-                "Bounded puppet mesh is missing required 3.5 token: ");
+                "Patch 3.6 layered controller is missing token: ");
             ForbidTokens(
-                graphicSource,
+                layeredSource,
                 new[]
                 {
-                    "bindInverse",
-                    "boneDeltas",
-                    "AddSideProfileInfluences",
-                    "GridColumns = 24",
-                    "GridRows = 38"
+                    "CharacterSkinnedSpriteGraphic",
+                    "Sprite.RealFatManLayeredSurface",
+                    "RefreshDeformation",
+                    "CaptureBindPose",
+                    "GridColumns",
+                    "whole-body mesh"
                 },
-                "Unrestricted Patch 3.4 matrix skinning returned: ");
+                "Obsolete whole-PNG skinning returned in Patch 3.6: ");
 
             string gateSource = File.ReadAllText(VisibilityGatePath);
             RequireTokens(
                 gateSource,
                 new[]
                 {
-                    "CharacterSpriteRigController",
-                    "TryGetWorldBounds",
-                    "FitToScreenHeight",
+                    "CharacterLayeredRigController",
+                    "layeredRigController.TryGetWorldBounds",
+                    "layeredRigController.FitToScreenHeight",
                     "SafeVisibleMinimum",
                     "UsedVisibleSpriteFallback"
                 },
-                "CharacterVisibilityGate is missing 3.5 protection: ");
+                "Patch 3.6 visibility protection is missing token: ");
+
+            string viewSource = File.ReadAllText(ViewControllerPath);
+            RequireTokens(
+                viewSource,
+                new[]
+                {
+                    "UsesNativeSideProfile",
+                    "facing == CharacterFacing.SideLeft",
+                    "horizontal *= -1f"
+                },
+                "Patch 3.6 native side-view handling is missing token: ");
+        }
+
+        private static void RequireFile(string path)
+        {
+            if (!File.Exists(path))
+            {
+                throw new BuildFailedException(
+                    "Patch 3.6 required file is missing: " + path);
+            }
         }
 
         private static void RequireTokens(
