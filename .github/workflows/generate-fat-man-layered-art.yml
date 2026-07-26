@@ -8,6 +8,7 @@ on:
     paths:
       - Tools/FatManLayeredArt/generate_layered_art.py
       - Tools/FatManLayeredArt/refine_layered_art.py
+      - Tools/FatManLayeredArt/validate_layered_art.py
       - Assets/Resources/Characters/FatMan/fat-man-turnaround-reference.png
       - .github/workflows/generate-fat-man-layered-art.yml
   pull_request:
@@ -16,6 +17,7 @@ on:
     paths:
       - Tools/FatManLayeredArt/generate_layered_art.py
       - Tools/FatManLayeredArt/refine_layered_art.py
+      - Tools/FatManLayeredArt/validate_layered_art.py
       - .github/workflows/generate-fat-man-layered-art.yml
       - Assets/Scripts/Gameplay/CharacterLayeredRigController.cs
   workflow_dispatch:
@@ -48,6 +50,9 @@ jobs:
       - name: Enforce anatomical bounds and remove stray fragments
         run: python Tools/FatManLayeredArt/refine_layered_art.py
 
+      - name: Validate layered-art contract
+        run: python Tools/FatManLayeredArt/validate_layered_art.py
+
       - name: Commit generated assets
         shell: bash
         run: |
@@ -58,5 +63,5 @@ jobs:
             echo "Generated art is already current."
             exit 0
           fi
-          git commit -m "Generate refined Patch 3.6 layered PNG assets [skip ci]"
+          git commit -m "Generate validated Patch 3.6 layered PNG assets [skip ci]"
           git push origin HEAD:fix/real-fat-man-layered-art-3-6
