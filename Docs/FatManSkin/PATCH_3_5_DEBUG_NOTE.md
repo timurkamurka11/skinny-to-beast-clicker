@@ -1,1 +1,0 @@
-The rebuild must not reuse unrestricted four-bone skinning from Patch 3.4.
