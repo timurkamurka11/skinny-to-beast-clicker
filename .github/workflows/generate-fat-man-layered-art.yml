@@ -51,9 +51,14 @@ jobs:
         run: python Tools/FatManLayeredArt/refine_layered_art.py
 
       - name: Validate layered-art contract
-        run: python Tools/FatManLayeredArt/validate_layered_art.py
+        id: validate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python Tools/FatManLayeredArt/validate_layered_art.py 2>&1 | tee Assets/Resources/Characters/FatManLayered/Generated/validation-report.txt
 
-      - name: Commit generated assets
+      - name: Commit generated assets and validation report
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -61,7 +66,11 @@ jobs:
           git add Assets/Resources/Characters/FatManLayered/Generated
           if git diff --cached --quiet; then
             echo "Generated art is already current."
-            exit 0
+          else
+            git commit -m "Generate inspected Patch 3.6 layered PNG assets [skip ci]"
+            git push origin HEAD:fix/real-fat-man-layered-art-3-6
           fi
-          git commit -m "Generate validated Patch 3.6 layered PNG assets [skip ci]"
-          git push origin HEAD:fix/real-fat-man-layered-art-3-6
+
+      - name: Fail when layered-art validation failed
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
