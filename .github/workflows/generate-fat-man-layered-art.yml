@@ -1,0 +1,48 @@
+name: Generate Fat Man Layered Art 3.6
+
+on:
+  push:
+    branches:
+      - fix/real-fat-man-layered-art-3-6
+    paths:
+      - Tools/FatManLayeredArt/generate_layered_art.py
+      - Assets/Resources/Characters/FatMan/fat-man-turnaround-reference.png
+      - .github/workflows/generate-fat-man-layered-art.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-layered-art:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/real-fat-man-layered-art-3-6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install image tools
+        run: python -m pip install --disable-pip-version-check pillow numpy
+
+      - name: Generate separate transparent body layers
+        run: python Tools/FatManLayeredArt/generate_layered_art.py
+
+      - name: Commit generated assets
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Assets/Resources/Characters/FatManLayered/Generated
+          if git diff --cached --quiet; then
+            echo "Generated art is already current."
+            exit 0
+          fi
+          git commit -m "Generate Patch 3.6 layered PNG assets [skip ci]"
+          git push origin HEAD:fix/real-fat-man-layered-art-3-6
