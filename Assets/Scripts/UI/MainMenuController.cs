@@ -1,3 +1,4 @@
+using System.Collections;
 using TMPro;
 using UnityEngine;
 
@@ -28,6 +29,7 @@ namespace SkinnyToBeast.UI
         private bool sfxEnabled;
         private bool vibrationEnabled;
         private bool startInProgress;
+        private Coroutine settingsOpenRoutine;
 
         private void Awake()
         {
@@ -45,6 +47,10 @@ namespace SkinnyToBeast.UI
             HidePanelImmediate(settingsPanel);
             HidePanelImmediate(shopPanel);
             HidePanelImmediate(messagePanel);
+            if (settingsPanel != null)
+            {
+                settingsPanel.gameObject.SetActive(false);
+            }
             RefreshSettingsLabels();
         }
 
@@ -98,17 +104,42 @@ namespace SkinnyToBeast.UI
 
         public void OpenSettings()
         {
-            // The exact reference-image popup is the only approved Settings UI.
-            // Serialized scene buttons may still call this legacy method, so
-            // route them to the runtime reference controller instead of opening
-            // the old four-button panel.
+            HidePanelImmediate(settingsPanel);
+            if (settingsPanel != null)
+            {
+                settingsPanel.gameObject.SetActive(false);
+            }
+
             if (SettingsMenuController.TryOpenCurrent())
             {
-                HidePanel(settingsPanel);
                 return;
             }
 
-            OpenSinglePanel(settingsPanel);
+            if (settingsOpenRoutine != null)
+            {
+                StopCoroutine(settingsOpenRoutine);
+            }
+            settingsOpenRoutine = StartCoroutine(OpenExactSettingsWhenReady());
+        }
+
+        private IEnumerator OpenExactSettingsWhenReady()
+        {
+            float deadline = Time.unscaledTime + 2f;
+            while (Time.unscaledTime < deadline)
+            {
+                if (SettingsMenuController.TryOpenCurrent())
+                {
+                    settingsOpenRoutine = null;
+                    yield break;
+                }
+                yield return null;
+            }
+
+            settingsOpenRoutine = null;
+            Debug.LogError(
+                "Exact reference Settings UI was not created. The legacy " +
+                "four-button settings panel is intentionally disabled.",
+                this);
         }
 
         public void OpenShop()
@@ -252,10 +283,6 @@ namespace SkinnyToBeast.UI
 
         private static void HidePanel(PopupPanelAnimator panel)
         {
-            // Unity keeps a managed reference after the native object is destroyed.
-            // A null-conditional call (panel?.Hide()) only checks the managed
-            // reference and therefore throws MissingReferenceException. The
-            // explicit Unity null comparison correctly treats it as destroyed.
             if (panel != null)
             {
                 panel.Hide();
