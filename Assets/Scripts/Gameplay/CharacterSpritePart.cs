@@ -74,8 +74,7 @@ namespace SkinnyToBeast.Gameplay
             targetRect.localScale = Vector3.one;
             targetRect.sizeDelta = baseSize;
 
-            targetCanvas.overrideSorting = true;
-            targetCanvas.sortingOrder = sortingOrder;
+            targetCanvas.overrideSorting = false;
 
             targetImage.raycastTarget = false;
             targetImage.maskable = false;
