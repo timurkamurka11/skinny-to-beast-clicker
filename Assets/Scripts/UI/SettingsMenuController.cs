@@ -20,6 +20,8 @@ namespace SkinnyToBeast.UI
         private const string LanguageKey = "settings.language";
         private const string NotificationsKey = "settings.notifications";
 
+        private static SettingsMenuController current;
+
         private GameObject popupRoot;
         private Button backdropButton;
         private Slider musicSlider;
@@ -38,6 +40,41 @@ namespace SkinnyToBeast.UI
         private bool configured;
         private bool suppressEvents;
         private int languageIndex;
+
+        [RuntimeInitializeOnLoadMethod(
+            RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            current = null;
+        }
+
+        internal static bool TryOpenCurrent()
+        {
+            if (current == null || !current.configured)
+            {
+                SettingsMenuController[] controllers =
+                    Resources.FindObjectsOfTypeAll<SettingsMenuController>();
+                for (int i = 0; i < controllers.Length; i++)
+                {
+                    SettingsMenuController candidate = controllers[i];
+                    if (candidate != null &&
+                        candidate.configured &&
+                        candidate.gameObject.scene.IsValid())
+                    {
+                        current = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (current == null || !current.configured)
+            {
+                return false;
+            }
+
+            current.Open();
+            return true;
+        }
 
         public void Configure(
             GameObject root,
@@ -73,6 +110,7 @@ namespace SkinnyToBeast.UI
             BindEvents();
             LoadSettings();
             configured = true;
+            current = this;
             popupRoot.SetActive(false);
         }
 
@@ -83,6 +121,7 @@ namespace SkinnyToBeast.UI
                 return;
             }
 
+            current = this;
             LoadSettings();
             popupRoot.SetActive(true);
             popupRoot.transform.SetAsLastSibling();
@@ -131,10 +170,40 @@ namespace SkinnyToBeast.UI
         {
             suppressEvents = true;
 
-            if (musicToggle != null) musicToggle.isOn = PlayerPrefs.GetInt(MusicEnabledKey, 1) == 1;
-            if (musicSlider != null) musicSlider.value = PlayerPrefs.GetFloat(MusicVolumeKey, 0.7f);
-            if (sfxToggle != null) sfxToggle.isOn = PlayerPrefs.GetInt(SfxEnabledKey, 1) == 1;
-            if (sfxSlider != null) sfxSlider.value = PlayerPrefs.GetFloat(SfxVolumeKey, 0.8f);
+            bool musicEnabled =
+                PlayerPrefs.GetInt(MusicEnabledKey, 1) == 1;
+            float musicVolume =
+                PlayerPrefs.GetFloat(MusicVolumeKey, 0.7f);
+            bool sfxEnabled =
+                PlayerPrefs.GetInt(SfxEnabledKey, 1) == 1;
+            float sfxVolume =
+                PlayerPrefs.GetFloat(SfxVolumeKey, 0.8f);
+
+            bool preferencesChanged = false;
+            if (musicEnabled && musicVolume <= 0.001f)
+            {
+                musicVolume = 0.12f;
+                PlayerPrefs.SetFloat(MusicVolumeKey, musicVolume);
+                preferencesChanged = true;
+            }
+            if (sfxEnabled && sfxVolume <= 0.01f)
+            {
+                sfxVolume = 1f;
+                PlayerPrefs.SetFloat(SfxVolumeKey, sfxVolume);
+                preferencesChanged = true;
+            }
+            if (preferencesChanged)
+            {
+                PlayerPrefs.Save();
+            }
+
+            AudioListener.pause = false;
+            AudioListener.volume = 1f;
+
+            if (musicToggle != null) musicToggle.isOn = musicEnabled;
+            if (musicSlider != null) musicSlider.value = musicVolume;
+            if (sfxToggle != null) sfxToggle.isOn = sfxEnabled;
+            if (sfxSlider != null) sfxSlider.value = sfxVolume;
             if (voiceToggle != null) voiceToggle.isOn = PlayerPrefs.GetInt(VoiceEnabledKey, 1) == 1;
             if (voiceSlider != null) voiceSlider.value = PlayerPrefs.GetFloat(VoiceVolumeKey, 0.8f);
             if (vibrationToggle != null) vibrationToggle.isOn = PlayerPrefs.GetInt(VibrationKey, 1) == 1;
@@ -158,7 +227,17 @@ namespace SkinnyToBeast.UI
                 if (enabled)
                 {
                     PlayerPrefs.SetInt(key, 1);
+                    if (PlayerPrefs.GetFloat(SfxVolumeKey, 1f) <= 0.01f)
+                    {
+                        PlayerPrefs.SetFloat(SfxVolumeKey, 1f);
+                        if (sfxSlider != null)
+                        {
+                            sfxSlider.SetValueWithoutNotify(1f);
+                        }
+                    }
                     PlayerPrefs.Save();
+                    AudioListener.pause = false;
+                    AudioListener.volume = 1f;
                     UiSoundPlayer.PlayToggleOn(force: true);
                 }
                 else
@@ -287,6 +366,14 @@ namespace SkinnyToBeast.UI
             }
 
             return null;
+        }
+
+        private void OnDestroy()
+        {
+            if (current == this)
+            {
+                current = null;
+            }
         }
     }
 }
