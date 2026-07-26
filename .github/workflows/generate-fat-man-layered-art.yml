@@ -1,6 +1,6 @@
 name: Generate Fat Man Layered Art 3.6
 
-# The workflow is branch-scoped so generated PNG commits cannot affect main.
+# Branch-scoped authoring workflow. It never writes to main.
 on:
   push:
     branches:
@@ -11,23 +11,17 @@ on:
       - Tools/FatManLayeredArt/validate_layered_art.py
       - Assets/Resources/Characters/FatMan/fat-man-turnaround-reference.png
       - .github/workflows/generate-fat-man-layered-art.yml
-  pull_request:
-    branches:
-      - main
-    paths:
-      - Tools/FatManLayeredArt/generate_layered_art.py
-      - Tools/FatManLayeredArt/refine_layered_art.py
-      - Tools/FatManLayeredArt/validate_layered_art.py
-      - .github/workflows/generate-fat-man-layered-art.yml
-      - Assets/Scripts/Gameplay/CharacterLayeredRigController.cs
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: fat-man-layered-art-3-6
+  cancel-in-progress: true
+
 jobs:
   generate-layered-art:
-    if: github.head_ref == 'fix/real-fat-man-layered-art-3-6' || github.ref_name == 'fix/real-fat-man-layered-art-3-6'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -51,8 +45,6 @@ jobs:
         run: python Tools/FatManLayeredArt/refine_layered_art.py
 
       - name: Validate layered-art contract
-        id: validate
-        continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
@@ -66,11 +58,7 @@ jobs:
           git add Assets/Resources/Characters/FatManLayered/Generated
           if git diff --cached --quiet; then
             echo "Generated art is already current."
-          else
-            git commit -m "Generate inspected Patch 3.6 layered PNG assets [skip ci]"
-            git push origin HEAD:fix/real-fat-man-layered-art-3-6
+            exit 0
           fi
-
-      - name: Fail when layered-art validation failed
-        if: steps.validate.outcome == 'failure'
-        run: exit 1
+          git commit -m "Generate validated Patch 3.6 layered PNG assets [skip ci]"
+          git push origin HEAD:fix/real-fat-man-layered-art-3-6
