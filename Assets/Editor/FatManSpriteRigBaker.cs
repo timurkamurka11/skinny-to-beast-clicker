@@ -1,3 +1,4 @@
+using System.IO;
 using SkinnyToBeast.Gameplay;
 using UnityEditor;
 using UnityEngine;
@@ -6,65 +7,41 @@ namespace SkinnyToBeast.Editor
 {
     internal static class FatManSpriteRigBaker
     {
-        private const string TexturePath =
-            "Assets/Resources/Characters/FatMan/" +
-            "fat-man-turnaround-reference.png";
-        private const string CatalogPath =
-            "Assets/Resources/Characters/FatMan/" +
-            "FatManSpriteCatalog.asset";
+        private const string ManifestPath =
+            "Assets/Resources/Characters/FatManLayered/Generated/manifest.json";
+        private const string FrontChestPath =
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Front/Chest.png";
+        private const string SideChestPath =
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Side/Chest.png";
+        private const string BackChestPath =
+            "Assets/Resources/Characters/FatManLayered/Generated/Common/Back/Chest.png";
         private const string PrefabPath =
-            "Assets/Resources/UI/Gameplay/Living/" +
-            "CharacterRig2D.prefab";
+            "Assets/Resources/UI/Gameplay/Living/CharacterRig2D.prefab";
 
         [MenuItem(
-            "Tools/Skinny to Beast/Bake Real Fat Man Rig Rebuild 3.5")]
+            "Tools/Skinny to Beast/Bake Real Fat Man Layered Art 3.6")]
         private static void Bake()
         {
-            TextureImporter importer =
-                AssetImporter.GetAtPath(TexturePath) as TextureImporter;
-            if (importer == null)
+            string[] required =
             {
-                Debug.LogError(
-                    $"Real fat-man PNG is missing: {TexturePath}");
-                return;
-            }
-
-            bool importerChanged = false;
-            if (!importer.isReadable)
+                ManifestPath,
+                FrontChestPath,
+                SideChestPath,
+                BackChestPath
+            };
+            for (int i = 0; i < required.Length; i++)
             {
-                importer.isReadable = true;
-                importerChanged = true;
-            }
-            if (!importer.alphaIsTransparency)
-            {
-                importer.alphaIsTransparency = true;
-                importerChanged = true;
-            }
-            if (importer.mipmapEnabled)
-            {
-                importer.mipmapEnabled = false;
-                importerChanged = true;
-            }
-            if (importer.textureCompression !=
-                TextureImporterCompression.Uncompressed)
-            {
-                importer.textureCompression =
-                    TextureImporterCompression.Uncompressed;
-                importerChanged = true;
-            }
-            if (importerChanged)
-            {
-                importer.SaveAndReimport();
-            }
-
-            FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
-            if (catalog == null || !catalog.IsValid)
-            {
-                Debug.LogError(
-                    "FatManSpriteCatalog is missing or invalid: " +
-                    CatalogPath);
-                return;
+                if (!File.Exists(required[i]))
+                {
+                    Debug.LogError(
+                        "Patch 3.6 layered asset is missing: " + required[i] +
+                        ". Pull the generated-art commit or run " +
+                        "Tools/FatManLayeredArt/generate_layered_art.py.");
+                    return;
+                }
+                AssetDatabase.ImportAsset(
+                    required[i],
+                    ImportAssetOptions.ForceUpdate);
             }
 
             GameObject root =
@@ -72,21 +49,24 @@ namespace SkinnyToBeast.Editor
             if (root == null)
             {
                 Debug.LogError(
-                    $"Character prefab is missing: {PrefabPath}");
+                    "Character prefab is missing: " + PrefabPath);
                 return;
             }
 
             try
             {
-                if (root.GetComponent<
-                        CharacterSpriteRigController>() == null)
-                {
-                    root.AddComponent<CharacterSpriteRigController>();
-                }
-                if (root.GetComponent<
-                        CharacterLayeredRigController>() == null)
+                if (root.GetComponent<CharacterLayeredRigController>() == null)
                 {
                     root.AddComponent<CharacterLayeredRigController>();
+                }
+
+                CharacterSpriteRigController flat =
+                    root.GetComponent<CharacterSpriteRigController>();
+                if (flat != null)
+                {
+                    // The full-body source remains available for old saves but
+                    // may not render in Patch 3.6.
+                    flat.enabled = false;
                 }
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -99,10 +79,9 @@ namespace SkinnyToBeast.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Real Fat Man Rig Rebuild 3.5 baked: the prefab uses a " +
-                "bounded directional puppet with art-specific anchors, " +
-                "soft-body breathing, facial animation, displacement limits " +
-                "and fold repair instead of unrestricted old-rig skinning.");
+                "Real Fat Man Layered Art 3.6 baked: separate transparent " +
+                "body parts and face states are attached to art-specific " +
+                "proxy bones; the flat full-body renderer is disabled.");
         }
     }
 }
