@@ -17,7 +17,7 @@ namespace SkinnyToBeast.Editor
             "CharacterRig2D.prefab";
 
         [MenuItem(
-            "Tools/Skinny to Beast/Bake Real Fat Man Sprite Rig 3.3")]
+            "Tools/Skinny to Beast/Bake Real Fat Man Layered Rig 3.4")]
         private static void Bake()
         {
             TextureImporter importer =
@@ -58,7 +58,8 @@ namespace SkinnyToBeast.Editor
             }
 
             FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
+                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(
+                    CatalogPath);
             if (catalog == null || !catalog.IsValid)
             {
                 Debug.LogError(
@@ -78,9 +79,15 @@ namespace SkinnyToBeast.Editor
 
             try
             {
-                if (root.GetComponent<CharacterSpriteRigController>() == null)
+                if (root.GetComponent<
+                        CharacterSpriteRigController>() == null)
                 {
                     root.AddComponent<CharacterSpriteRigController>();
+                }
+                if (root.GetComponent<
+                        CharacterLayeredRigController>() == null)
+                {
+                    root.AddComponent<CharacterLayeredRigController>();
                 }
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -93,9 +100,9 @@ namespace SkinnyToBeast.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Real Fat Man Sprite Rig 3.3 baked: the prefab renders one " +
-                "intact painted body for front, side and back, while the old " +
-                "skeleton remains an invisible animation driver.");
+                "Real Fat Man Layered Rig 3.4 baked: the prefab uses one " +
+                "continuous painted mesh weighted to the existing animated " +
+                "skeleton, including arms, legs, belly, chest, head and face.");
         }
     }
 }
