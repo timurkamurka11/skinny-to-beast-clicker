@@ -6,21 +6,23 @@ namespace SkinnyToBeast.Gameplay
 {
     /// <summary>
     /// Opens the room after the actual rendered character has stable bounds.
-    /// Patch 3.6 measures the layered-art rig first and only falls back to the
-    /// legacy flat sprite path for older prefabs.
+    /// The production SpriteSkin host is authoritative. The intact whole-body
+    /// sprite is accepted only as a temporary fallback while authored rig art is
+    /// unavailable. Broken Patch 3.6 cut-outs are never a required path.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(9000)]
     public sealed class CharacterVisibilityGate : MonoBehaviour
     {
         private const int MaximumFitAttempts = 4;
-        private const float SafeVisibleMinimum = 0.075f;
-        private const float SafeVisibleMaximum = 0.92f;
+        private const float SafeVisibleMinimum = 0.06f;
+        private const float SafeVisibleMaximum = 0.94f;
 
         private RectTransform characterRoot;
         private CharacterRigController rigController;
         private CharacterSkinController skinController;
         private CharacterRigValidator validator;
+        private ProductionFatManRigHost productionRigHost;
         private CharacterLayeredRigController layeredRigController;
         private CharacterSpriteRigController spriteRigController;
         private float minimumHeightFraction = 0.34f;
@@ -48,6 +50,9 @@ namespace SkinnyToBeast.Gameplay
             rigController = rig;
             skinController = skin;
             validator = rigValidator;
+            productionRigHost = root != null
+                ? root.GetComponent<ProductionFatManRigHost>()
+                : null;
             layeredRigController = root != null
                 ? root.GetComponent<CharacterLayeredRigController>()
                 : null;
@@ -103,26 +108,40 @@ namespace SkinnyToBeast.Gameplay
                 return false;
             }
 
+            productionRigHost ??=
+                characterRoot.GetComponent<ProductionFatManRigHost>();
             layeredRigController ??=
                 characterRoot.GetComponent<CharacterLayeredRigController>();
             spriteRigController ??=
                 characterRoot.GetComponent<CharacterSpriteRigController>();
 
             Bounds worldBounds;
+            bool productionPath =
+                productionRigHost != null && productionRigHost.IsReady;
             bool layeredPath =
+                !productionPath &&
                 layeredRigController != null &&
+                layeredRigController.enabled &&
                 layeredRigController.IsReady;
             bool flatSpritePath =
+                !productionPath &&
                 !layeredPath &&
                 spriteRigController != null &&
                 spriteRigController.IsReady;
 
-            if (layeredPath)
+            if (productionPath)
+            {
+                if (!productionRigHost.TryGetWorldBounds(out worldBounds))
+                {
+                    error = "The production fat-man rig has no visible bounds.";
+                    return false;
+                }
+            }
+            else if (layeredPath)
             {
                 if (!layeredRigController.TryGetWorldBounds(out worldBounds))
                 {
-                    error =
-                        "The Patch 3.6 layered character has no visible bounds.";
+                    error = "The layered character has no visible bounds.";
                     return false;
                 }
             }
@@ -130,16 +149,15 @@ namespace SkinnyToBeast.Gameplay
             {
                 if (!spriteRigController.TryGetWorldBounds(out worldBounds))
                 {
-                    error = "The fallback fat-man sprite has no visible bounds.";
+                    error = "The temporary whole-body fallback has no visible bounds.";
                     return false;
                 }
             }
             else
             {
-                if (layeredRigController != null &&
-                    !layeredRigController.IsReady)
+                if (productionRigHost != null && !productionRigHost.IsReady)
                 {
-                    error = "Waiting for Patch 3.6 layered body parts.";
+                    error = "Waiting for the production rig host or its safe fallback.";
                     return false;
                 }
                 if (validator == null || !validator.ValidateNow(false))
@@ -153,7 +171,7 @@ namespace SkinnyToBeast.Gameplay
                 if (worldBounds.size.x <= 10f ||
                     worldBounds.size.y <= 10f)
                 {
-                    error = "Character mesh bounds are empty.";
+                    error = "Character bounds are empty.";
                     return false;
                 }
             }
@@ -201,15 +219,18 @@ namespace SkinnyToBeast.Gameplay
                 return true;
             }
 
-            if ((layeredPath || flatSpritePath) &&
-                fitAttempts < MaximumFitAttempts)
+            bool visibleArtPath =
+                productionPath || layeredPath || flatSpritePath;
+            if (visibleArtPath && fitAttempts < MaximumFitAttempts)
             {
                 fitAttempts++;
                 float target =
                     (minimumHeightFraction + maximumHeightFraction) * 0.5f;
-                bool fitted = layeredPath
-                    ? layeredRigController.FitToScreenHeight(target)
-                    : spriteRigController.FitToScreenHeight(target);
+                bool fitted = productionPath
+                    ? productionRigHost.FitToScreenHeight(target)
+                    : layeredPath
+                        ? layeredRigController.FitToScreenHeight(target)
+                        : spriteRigController.FitToScreenHeight(target);
                 if (fitted)
                 {
                     error =
@@ -219,9 +240,8 @@ namespace SkinnyToBeast.Gameplay
                 }
             }
 
-            // Never leave the player behind a black cover if a real painted
-            // character is already visible. Keep the diagnostic but fail open.
-            if ((layeredPath || flatSpritePath) &&
+            // A character validation issue must never keep the entire room black.
+            if (visibleArtPath &&
                 LastHeightFraction >= SafeVisibleMinimum &&
                 LastHeightFraction <= SafeVisibleMaximum)
             {
