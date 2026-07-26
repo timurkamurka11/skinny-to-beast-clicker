@@ -8,6 +8,7 @@ namespace SkinnyToBeast.UI
         private const string MusicKey = "settings.music";
         private const string SfxKey = "settings.sfx";
         private const string VibrationKey = "settings.vibration";
+        private const string SfxVolumeKey = "settings.sfx.volume";
 
         [Header("Animated Popups")]
         [SerializeField] private PopupPanelAnimator settingsPanel;
@@ -33,6 +34,13 @@ namespace SkinnyToBeast.UI
             musicEnabled = PlayerPrefs.GetInt(MusicKey, 1) == 1;
             sfxEnabled = PlayerPrefs.GetInt(SfxKey, 1) == 1;
             vibrationEnabled = PlayerPrefs.GetInt(VibrationKey, 1) == 1;
+
+            if (sfxEnabled &&
+                PlayerPrefs.GetFloat(SfxVolumeKey, 1f) <= 0.01f)
+            {
+                PlayerPrefs.SetFloat(SfxVolumeKey, 1f);
+                PlayerPrefs.Save();
+            }
 
             HidePanelImmediate(settingsPanel);
             HidePanelImmediate(shopPanel);
@@ -90,6 +98,16 @@ namespace SkinnyToBeast.UI
 
         public void OpenSettings()
         {
+            // The exact reference-image popup is the only approved Settings UI.
+            // Serialized scene buttons may still call this legacy method, so
+            // route them to the runtime reference controller instead of opening
+            // the old four-button panel.
+            if (SettingsMenuController.TryOpenCurrent())
+            {
+                HidePanel(settingsPanel);
+                return;
+            }
+
             OpenSinglePanel(settingsPanel);
         }
 
@@ -131,6 +149,12 @@ namespace SkinnyToBeast.UI
         {
             sfxEnabled = !sfxEnabled;
             SaveSetting(SfxKey, sfxEnabled);
+            if (sfxEnabled &&
+                PlayerPrefs.GetFloat(SfxVolumeKey, 1f) <= 0.01f)
+            {
+                PlayerPrefs.SetFloat(SfxVolumeKey, 1f);
+                PlayerPrefs.Save();
+            }
             RefreshSettingsLabels();
         }
 
