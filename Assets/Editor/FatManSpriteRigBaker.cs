@@ -17,7 +17,7 @@ namespace SkinnyToBeast.Editor
             "CharacterRig2D.prefab";
 
         [MenuItem(
-            "Tools/Skinny to Beast/Bake Real Fat Man Sprite Rig 3.2")]
+            "Tools/Skinny to Beast/Bake Real Fat Man Sprite Rig 3.3")]
         private static void Bake()
         {
             TextureImporter importer =
@@ -58,8 +58,7 @@ namespace SkinnyToBeast.Editor
             }
 
             FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(
-                    CatalogPath);
+                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
             if (catalog == null || !catalog.IsValid)
             {
                 Debug.LogError(
@@ -79,8 +78,7 @@ namespace SkinnyToBeast.Editor
 
             try
             {
-                if (root.GetComponent<
-                        CharacterSpriteRigController>() == null)
+                if (root.GetComponent<CharacterSpriteRigController>() == null)
                 {
                     root.AddComponent<CharacterSpriteRigController>();
                 }
@@ -95,8 +93,9 @@ namespace SkinnyToBeast.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Real Fat Man Sprite Rig 3.2 baked: the prefab owns the " +
-                "PNG sprite controller and all four stages use it.");
+                "Real Fat Man Sprite Rig 3.3 baked: the prefab renders one " +
+                "intact painted body for front, side and back, while the old " +
+                "skeleton remains an invisible animation driver.");
         }
     }
 }
