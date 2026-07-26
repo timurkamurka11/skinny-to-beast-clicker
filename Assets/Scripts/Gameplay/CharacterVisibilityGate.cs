@@ -5,11 +5,9 @@ using UnityEngine;
 namespace SkinnyToBeast.Gameplay
 {
     /// <summary>
-    /// Opens the room only after the pixels the player actually sees survive
-    /// two layout frames. Patch 3.3 measures CharacterSpriteRigController
-    /// instead of the hidden procedural skeleton, automatically fits the real
-    /// body to the requested screen range and fails open when a visible sprite
-    /// is present so a diagnostic can never leave the player on a black screen.
+    /// Opens the room after the actual rendered character has stable bounds.
+    /// Patch 3.6 measures the layered-art rig first and only falls back to the
+    /// legacy flat sprite path for older prefabs.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(9000)]
@@ -23,6 +21,7 @@ namespace SkinnyToBeast.Gameplay
         private CharacterRigController rigController;
         private CharacterSkinController skinController;
         private CharacterRigValidator validator;
+        private CharacterLayeredRigController layeredRigController;
         private CharacterSpriteRigController spriteRigController;
         private float minimumHeightFraction = 0.34f;
         private float maximumHeightFraction = 0.50f;
@@ -49,10 +48,12 @@ namespace SkinnyToBeast.Gameplay
             rigController = rig;
             skinController = skin;
             validator = rigValidator;
-            spriteRigController =
-                root != null
-                    ? root.GetComponent<CharacterSpriteRigController>()
-                    : null;
+            layeredRigController = root != null
+                ? root.GetComponent<CharacterLayeredRigController>()
+                : null;
+            spriteRigController = root != null
+                ? root.GetComponent<CharacterSpriteRigController>()
+                : null;
             minimumHeightFraction =
                 Mathf.Clamp(minimumScreenHeight, 0.05f, 0.9f);
             maximumHeightFraction = Mathf.Clamp(
@@ -102,27 +103,45 @@ namespace SkinnyToBeast.Gameplay
                 return false;
             }
 
+            layeredRigController ??=
+                characterRoot.GetComponent<CharacterLayeredRigController>();
             spriteRigController ??=
                 characterRoot.GetComponent<CharacterSpriteRigController>();
 
-            bool realSpritePath = spriteRigController != null;
             Bounds worldBounds;
-            if (realSpritePath)
+            bool layeredPath =
+                layeredRigController != null &&
+                layeredRigController.IsReady;
+            bool flatSpritePath =
+                !layeredPath &&
+                spriteRigController != null &&
+                spriteRigController.IsReady;
+
+            if (layeredPath)
             {
-                if (!spriteRigController.IsReady)
+                if (!layeredRigController.TryGetWorldBounds(out worldBounds))
                 {
-                    error = "Waiting for the intact real fat-man sprite.";
+                    error =
+                        "The Patch 3.6 layered character has no visible bounds.";
                     return false;
                 }
-
+            }
+            else if (flatSpritePath)
+            {
                 if (!spriteRigController.TryGetWorldBounds(out worldBounds))
                 {
-                    error = "The real fat-man sprite has no visible bounds.";
+                    error = "The fallback fat-man sprite has no visible bounds.";
                     return false;
                 }
             }
             else
             {
+                if (layeredRigController != null &&
+                    !layeredRigController.IsReady)
+                {
+                    error = "Waiting for Patch 3.6 layered body parts.";
+                    return false;
+                }
                 if (validator == null || !validator.ValidateNow(false))
                 {
                     error = validator != null
@@ -130,7 +149,6 @@ namespace SkinnyToBeast.Gameplay
                         : "CharacterRigValidator is missing.";
                     return false;
                 }
-
                 worldBounds = rigController.GetWorldGeometryBounds();
                 if (worldBounds.size.x <= 10f ||
                     worldBounds.size.y <= 10f)
@@ -162,7 +180,7 @@ namespace SkinnyToBeast.Gameplay
                 Mathf.Min(screenMin.y, screenMax.y),
                 Mathf.Max(screenMin.x, screenMax.x),
                 Mathf.Max(screenMin.y, screenMax.y));
-            Rect screenRect = new Rect(
+            Rect screenRect = new(
                 0f,
                 0f,
                 Screen.width,
@@ -183,23 +201,27 @@ namespace SkinnyToBeast.Gameplay
                 return true;
             }
 
-            if (realSpritePath && fitAttempts < MaximumFitAttempts)
+            if ((layeredPath || flatSpritePath) &&
+                fitAttempts < MaximumFitAttempts)
             {
                 fitAttempts++;
                 float target =
                     (minimumHeightFraction + maximumHeightFraction) * 0.5f;
-                if (spriteRigController.FitToScreenHeight(target))
+                bool fitted = layeredPath
+                    ? layeredRigController.FitToScreenHeight(target)
+                    : spriteRigController.FitToScreenHeight(target);
+                if (fitted)
                 {
                     error =
-                        $"Calibrating real character height from " +
+                        $"Calibrating character height from " +
                         $"{LastHeightFraction:P0} toward {target:P0}.";
                     return false;
                 }
             }
 
-            // A visible intact sprite is always safer than permanently covering
-            // the room. Keep the diagnostic, but allow the transition to finish.
-            if (realSpritePath &&
+            // Never leave the player behind a black cover if a real painted
+            // character is already visible. Keep the diagnostic but fail open.
+            if ((layeredPath || flatSpritePath) &&
                 LastHeightFraction >= SafeVisibleMinimum &&
                 LastHeightFraction <= SafeVisibleMaximum)
             {
@@ -226,7 +248,6 @@ namespace SkinnyToBeast.Gameplay
             {
                 yield return null;
             }
-
             completion?.Invoke(IsReady, LastError);
         }
 
@@ -251,7 +272,7 @@ namespace SkinnyToBeast.Gameplay
                     {
                         fallbackWarningLogged = true;
                         Debug.LogWarning(
-                            "CharacterVisibilityGate used the visible-sprite " +
+                            "CharacterVisibilityGate used the visible-character " +
                             $"fail-open at {LastHeightFraction:P0}. The room " +
                             "was revealed instead of leaving a black screen.",
                             this);
