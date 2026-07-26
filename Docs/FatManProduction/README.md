@@ -19,3 +19,15 @@ Tools > Skinny to Beast > Validate Production Fat Man Rig 3.7
 ```
 
 Без настоящего authored PSB/SpriteSkin prefab проект обязан использовать только цельный безопасный fallback и не показывать generated cut-outs Patch 3.6.
+
+Порядок производства:
+
+```text
+Concept Lock
+→ Layered PSB Stage 1
+→ Skeleton / Geometry / Manual Weights
+→ Idle / Blink / Walk / Tap
+→ Entry + Room Integration
+→ Secondary Motion + QA
+→ Stage 2–4
+```
