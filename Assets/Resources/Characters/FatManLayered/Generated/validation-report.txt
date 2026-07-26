@@ -1,1 +1,1 @@
-Patch 3.6 validation failed: Side/Hand_L pivot is outside safe overlap range
+Patch 3.6 layered-art validation passed with 71 textures.
