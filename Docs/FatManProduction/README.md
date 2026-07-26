@@ -12,6 +12,16 @@ Runtime-путь финального prefab:
 Assets/Resources/Characters/FatManProduction/FatManProductionRig.prefab
 ```
 
+Runtime-контракт параметров Animator:
+
+```text
+Facing : int
+Stage  : int
+Speed  : float
+Tap    : bool
+Action : int
+```
+
 Проверка в Unity:
 
 ```text
