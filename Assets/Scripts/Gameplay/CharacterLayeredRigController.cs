@@ -6,10 +6,9 @@ using UnityEngine.UI;
 namespace SkinnyToBeast.Gameplay
 {
     /// <summary>
-    /// Upgrades Patch 3.3's intact painted body into a Lamar-style weighted
-    /// cutout surface. CharacterSpriteRigController still owns direction,
-    /// stage scaling and visibility bounds; this component replaces its flat
-    /// Image renderer with a continuous skinned mesh driven by the live bones.
+    /// Patch 3.5 controller. The procedural skeleton remains an animation source,
+    /// but its transforms are remapped by CharacterSkinnedSpriteGraphic onto a
+    /// bounded art-specific puppet. The flat PNG is never rendered directly.
     /// </summary>
     [DefaultExecutionOrder(950)]
     [DisallowMultipleComponent]
@@ -20,8 +19,8 @@ namespace SkinnyToBeast.Gameplay
     {
         private const string FlatBodyName =
             "Sprite.RealFatManBody";
-        private const string SkinnedSurfaceName =
-            "Sprite.RealFatManLayeredSurface";
+        private const string PuppetSurfaceName =
+            "Sprite.RealFatManBoundedPuppet";
 
         private readonly List<Image> legacyFaceImages = new(4);
 
@@ -31,7 +30,7 @@ namespace SkinnyToBeast.Gameplay
         private RectTransform flatBodyRect;
         private Image flatBodyImage;
         private RectTransform surfaceRect;
-        private CharacterSkinnedSpriteGraphic skinnedGraphic;
+        private CharacterSkinnedSpriteGraphic puppetGraphic;
         private RectTransform faceOverlayRoot;
         private Image leftEyelid;
         private Image rightEyelid;
@@ -49,12 +48,23 @@ namespace SkinnyToBeast.Gameplay
             ready &&
             spriteController != null &&
             spriteController.IsReady &&
-            skinnedGraphic != null &&
-            skinnedGraphic.IsReady;
+            puppetGraphic != null &&
+            puppetGraphic.IsReady;
+
         public float DeformationMagnitude =>
-            skinnedGraphic != null
-                ? skinnedGraphic.DeformationMagnitude
+            puppetGraphic != null
+                ? puppetGraphic.DeformationMagnitude
                 : 0f;
+
+        public int FoldRepairCount =>
+            puppetGraphic != null
+                ? puppetGraphic.FoldRepairCount
+                : 0;
+
+        public int SafetyClampCount =>
+            puppetGraphic != null
+                ? puppetGraphic.SafetyClampCount
+                : 0;
 
         private void Awake()
         {
@@ -81,9 +91,9 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            // CharacterSpriteRigController recreates its direction Sprite and
-            // asserts alpha every frame. Keep its Image as a non-rendering data
-            // source while our child CanvasRenderer displays the weighted mesh.
+            // CharacterSpriteRigController continues to own view selection,
+            // stage scale and visibility bounds. Its Image is only a texture data
+            // source; the bounded puppet below is the sole visible body.
             if (flatBodyImage != null)
             {
                 flatBodyImage.enabled = false;
@@ -91,7 +101,7 @@ namespace SkinnyToBeast.Gameplay
 
             DisableLegacyFaceImages();
             SyncViewAndStage();
-            skinnedGraphic?.RefreshDeformation();
+            puppetGraphic?.RefreshDeformation();
             UpdateFaceOverlay();
         }
 
@@ -118,17 +128,17 @@ namespace SkinnyToBeast.Gameplay
                 flatBodyImage.sprite == null)
             {
                 LogFailureOnce(
-                    "Patch 3.4 is waiting for Patch 3.3's painted body " +
-                    "source Image.");
+                    "Patch 3.5 is waiting for the painted fat-man source " +
+                    "Image produced by CharacterSpriteRigController.");
                 return;
             }
 
-            CreateSkinnedSurface();
-            if (skinnedGraphic == null ||
-                !skinnedGraphic.IsReady)
+            CreatePuppetSurface();
+            if (puppetGraphic == null ||
+                !puppetGraphic.IsReady)
             {
                 LogFailureOnce(
-                    "Patch 3.4 could not create the weighted painted mesh.");
+                    "Patch 3.5 could not create the bounded fat-man puppet.");
                 ClearRuntimeObjects();
                 return;
             }
@@ -142,20 +152,20 @@ namespace SkinnyToBeast.Gameplay
             ScheduleBlink();
             ready = true;
             failureLogged = false;
-            skinnedGraphic.RefreshDeformation();
+            puppetGraphic.RefreshDeformation();
 
             Debug.Log(
-                "Real Fat Man Layered Rig Patch 3.4 active: the visible " +
-                "painted man is weighted to arms, legs, torso, belly, chest, " +
-                "head and soft-body bones; blink and reaction overlays follow " +
-                "the animated head.",
+                "Real Fat Man Rig Rebuild Patch 3.5 active: art-specific " +
+                "front/side/back anchors, bounded body and limb motion, " +
+                "soft-body breathing, fold repair and head-bound facial " +
+                "animation are enabled.",
                 this);
         }
 
-        private void CreateSkinnedSurface()
+        private void CreatePuppetSurface()
         {
             GameObject target = new(
-                SkinnedSurfaceName,
+                PuppetSurfaceName,
                 typeof(RectTransform),
                 typeof(CanvasRenderer),
                 typeof(CharacterSkinnedSpriteGraphic));
@@ -173,9 +183,9 @@ namespace SkinnyToBeast.Gameplay
             surfaceRect.SetAsLastSibling();
 
             Sprite sprite = flatBodyImage.sprite;
-            skinnedGraphic =
+            puppetGraphic =
                 target.GetComponent<CharacterSkinnedSpriteGraphic>();
-            skinnedGraphic.Configure(
+            puppetGraphic.Configure(
                 sprite.texture,
                 ToRectInt(sprite.textureRect),
                 rigController.VisualRoot,
@@ -244,7 +254,7 @@ namespace SkinnyToBeast.Gameplay
         {
             if (flatBodyImage == null ||
                 flatBodyImage.sprite == null ||
-                skinnedGraphic == null)
+                puppetGraphic == null)
             {
                 return;
             }
@@ -256,21 +266,22 @@ namespace SkinnyToBeast.Gameplay
             {
                 observedSprite = currentSprite;
                 observedFacing = facing;
-                skinnedGraphic.SetView(
+                puppetGraphic.SetView(
                     ToRectInt(currentSprite.textureRect),
                     facing);
-                skinnedGraphic.CaptureBindPose();
-                PositionFaceOverlay(
+                PositionFaceElements(
                     facing == CharacterFacing.SideLeft ||
                     facing == CharacterFacing.SideRight,
                     facing == CharacterFacing.Back);
             }
 
+            // Stage changes resize the source body RectTransform. The puppet is
+            // stretched to that RectTransform, so recapturing a moving skeleton
+            // pose here would cause the bind-pose drift seen in Patch 3.4.
             int stage = skinController.CurrentArtIndex;
             if (stage != observedStage)
             {
                 observedStage = stage;
-                skinnedGraphic.CaptureBindPose();
             }
         }
 
@@ -303,9 +314,7 @@ namespace SkinnyToBeast.Gameplay
 
         private void DisableLegacyFaceImages()
         {
-            for (int i = 0;
-                 i < legacyFaceImages.Count;
-                 i++)
+            for (int i = 0; i < legacyFaceImages.Count; i++)
             {
                 if (legacyFaceImages[i] != null)
                 {
@@ -316,51 +325,49 @@ namespace SkinnyToBeast.Gameplay
 
         private void CreateFaceOverlay()
         {
-            RectTransform headBone =
-                rigController.GetBone("Bone.Head");
-            if (headBone == null)
+            if (flatBodyRect == null)
             {
                 return;
             }
 
             faceOverlayRoot = CreateRect(
-                headBone,
-                "LayeredPaintedFaceOverlay",
-                new Vector2(0f, 88f),
-                new Vector2(190f, 180f));
+                flatBodyRect,
+                "BoundedPaintedFaceOverlay",
+                Vector2.zero,
+                new Vector2(158f, 142f));
             faceOverlayRoot.SetAsLastSibling();
 
             Color skinColor = SampleSkinColor();
             leftEyelid = CreateSolidImage(
                 faceOverlayRoot,
-                "LayeredFace.Eyelid.L",
+                "BoundedFace.Eyelid.L",
                 skinColor,
-                new Vector2(46f, 8f));
+                new Vector2(31f, 6f));
             rightEyelid = CreateSolidImage(
                 faceOverlayRoot,
-                "LayeredFace.Eyelid.R",
+                "BoundedFace.Eyelid.R",
                 skinColor,
-                new Vector2(46f, 8f));
+                new Vector2(31f, 6f));
             mouthOverlay = CreateSolidImage(
                 faceOverlayRoot,
-                "LayeredFace.Mouth",
+                "BoundedFace.Mouth",
                 new Color(0.16f, 0.07f, 0.06f, 0.94f),
-                new Vector2(44f, 9f));
+                new Vector2(34f, 7f));
 
             leftEyelid.gameObject.SetActive(false);
             rightEyelid.gameObject.SetActive(false);
             mouthOverlay.gameObject.SetActive(false);
-            PositionFaceOverlay(
+            PositionFaceElements(
                 rigController.Facing == CharacterFacing.SideLeft ||
                 rigController.Facing == CharacterFacing.SideRight,
                 rigController.Facing == CharacterFacing.Back);
+            UpdateFaceOverlayTransform();
         }
 
-        private void PositionFaceOverlay(
-            bool side,
-            bool back)
+        private void PositionFaceElements(bool side, bool back)
         {
-            if (leftEyelid == null ||
+            if (faceOverlayRoot == null ||
+                leftEyelid == null ||
                 rightEyelid == null ||
                 mouthOverlay == null)
             {
@@ -376,25 +383,59 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
+            faceOverlayRoot.sizeDelta = side
+                ? new Vector2(132f, 142f)
+                : new Vector2(158f, 142f);
             if (side)
             {
-                Vector2 eyePosition = new Vector2(18f, 25f);
-                leftEyelid.rectTransform.anchoredPosition =
-                    eyePosition;
-                rightEyelid.rectTransform.anchoredPosition =
-                    eyePosition;
+                Vector2 eye = new Vector2(14f, 20f);
+                leftEyelid.rectTransform.anchoredPosition = eye;
+                rightEyelid.rectTransform.anchoredPosition = eye;
                 mouthOverlay.rectTransform.anchoredPosition =
-                    new Vector2(20f, -31f);
+                    new Vector2(18f, -25f);
             }
             else
             {
                 leftEyelid.rectTransform.anchoredPosition =
-                    new Vector2(-33f, 25f);
+                    new Vector2(-27f, 20f);
                 rightEyelid.rectTransform.anchoredPosition =
-                    new Vector2(33f, 25f);
+                    new Vector2(27f, 20f);
                 mouthOverlay.rectTransform.anchoredPosition =
-                    new Vector2(0f, -31f);
+                    new Vector2(0f, -25f);
             }
+        }
+
+        private void UpdateFaceOverlayTransform()
+        {
+            if (faceOverlayRoot == null ||
+                puppetGraphic == null)
+            {
+                return;
+            }
+
+            CharacterFacing facing = rigController.Facing;
+            bool side = facing == CharacterFacing.SideLeft ||
+                        facing == CharacterFacing.SideRight;
+            Vector2 normalizedFace = side
+                ? new Vector2(0.53f, 0.845f)
+                : new Vector2(0.50f, 0.845f);
+            if (!puppetGraphic.TryGetDrivenPoint(
+                    normalizedFace,
+                    FatManSkinBone.Head,
+                    out Vector2 position,
+                    out float rotation,
+                    out Vector2 scale))
+            {
+                return;
+            }
+
+            faceOverlayRoot.anchoredPosition = position;
+            faceOverlayRoot.localRotation =
+                Quaternion.Euler(0f, 0f, rotation);
+            faceOverlayRoot.localScale = new Vector3(
+                Mathf.Clamp(scale.x, 0.96f, 1.04f),
+                Mathf.Clamp(scale.y, 0.96f, 1.04f),
+                1f);
         }
 
         private void UpdateFaceOverlay()
@@ -406,23 +447,22 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
+            UpdateFaceOverlayTransform();
             CharacterFacing facing = rigController.Facing;
             bool back = facing == CharacterFacing.Back;
-            bool side =
-                facing == CharacterFacing.SideLeft ||
-                facing == CharacterFacing.SideRight;
+            bool side = facing == CharacterFacing.SideLeft ||
+                        facing == CharacterFacing.SideRight;
             float now = Time.unscaledTime;
 
             if (!back && now >= nextBlinkAt)
             {
-                blinkUntil = now + 0.12f;
+                blinkUntil = now + 0.115f;
                 ScheduleBlink();
             }
 
             bool blink = !back && now < blinkUntil;
             leftEyelid.gameObject.SetActive(blink);
-            rightEyelid.gameObject.SetActive(
-                blink && !side);
+            rightEyelid.gameObject.SetActive(blink && !side);
 
             bool expressive =
                 !back &&
@@ -441,8 +481,8 @@ namespace SkinnyToBeast.Gameplay
                     CharacterRoutineAction.Yawn;
                 mouthOverlay.rectTransform.sizeDelta =
                     new Vector2(
-                        yawn ? 38f : 44f,
-                        yawn ? 34f : 9f);
+                        yawn ? 34f : 38f,
+                        yawn ? 29f : 8f);
             }
         }
 
@@ -460,32 +500,20 @@ namespace SkinnyToBeast.Gameplay
                 texture == null ||
                 !texture.isReadable)
             {
-                return new Color(
-                    0.78f,
-                    0.56f,
-                    0.43f,
-                    1f);
+                return new Color(0.78f, 0.56f, 0.43f, 1f);
             }
 
             Rect rect = sprite.textureRect;
-            int centerX =
-                Mathf.RoundToInt(
-                    rect.x + rect.width * 0.5f);
-            int centerY =
-                Mathf.RoundToInt(
-                    rect.y + rect.height * 0.82f);
+            int centerX = Mathf.RoundToInt(
+                rect.x + rect.width * 0.5f);
+            int centerY = Mathf.RoundToInt(
+                rect.y + rect.height * 0.82f);
 
-            for (int radius = 0;
-                 radius <= 24;
-                 radius += 4)
+            for (int radius = 0; radius <= 24; radius += 4)
             {
-                for (int y = -radius;
-                     y <= radius;
-                     y += 4)
+                for (int y = -radius; y <= radius; y += 4)
                 {
-                    for (int x = -radius;
-                         x <= radius;
-                         x += 4)
+                    for (int x = -radius; x <= radius; x += 4)
                     {
                         Color sample = texture.GetPixel(
                             Mathf.Clamp(
@@ -507,11 +535,7 @@ namespace SkinnyToBeast.Gameplay
                 }
             }
 
-            return new Color(
-                0.78f,
-                0.56f,
-                0.43f,
-                1f);
+            return new Color(0.78f, 0.56f, 0.43f, 1f);
         }
 
         private void ScheduleBlink()
@@ -608,7 +632,7 @@ namespace SkinnyToBeast.Gameplay
             }
 
             surfaceRect = null;
-            skinnedGraphic = null;
+            puppetGraphic = null;
             faceOverlayRoot = null;
             leftEyelid = null;
             rightEyelid = null;
