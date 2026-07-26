@@ -17,7 +17,7 @@ namespace SkinnyToBeast.Editor
             "CharacterRig2D.prefab";
 
         [MenuItem(
-            "Tools/Skinny to Beast/Bake Real Fat Man Layered Rig 3.4")]
+            "Tools/Skinny to Beast/Bake Real Fat Man Rig Rebuild 3.5")]
         private static void Bake()
         {
             TextureImporter importer =
@@ -58,12 +58,11 @@ namespace SkinnyToBeast.Editor
             }
 
             FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(
-                    CatalogPath);
+                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
             if (catalog == null || !catalog.IsValid)
             {
                 Debug.LogError(
-                    $"FatManSpriteCatalog is missing or invalid: " +
+                    "FatManSpriteCatalog is missing or invalid: " +
                     CatalogPath);
                 return;
             }
@@ -100,9 +99,10 @@ namespace SkinnyToBeast.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Real Fat Man Layered Rig 3.4 baked: the prefab uses one " +
-                "continuous painted mesh weighted to the existing animated " +
-                "skeleton, including arms, legs, belly, chest, head and face.");
+                "Real Fat Man Rig Rebuild 3.5 baked: the prefab uses a " +
+                "bounded directional puppet with art-specific anchors, " +
+                "soft-body breathing, facial animation, displacement limits " +
+                "and fold repair instead of unrestricted old-rig skinning.");
         }
     }
 }
