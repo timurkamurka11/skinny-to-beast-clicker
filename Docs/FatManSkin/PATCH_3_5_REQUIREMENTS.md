@@ -1,6 +1,0 @@
-- No detached body fragments.
-- No whole-body collapse or hourglass folding.
-- Front, side and back use separate bind profiles.
-- Head, torso, pelvis, arms and legs have bounded deformation ranges.
-- Blink and mouth remain attached to the head.
-- Visibility gate must never leave the room black.
