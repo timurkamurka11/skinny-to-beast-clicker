@@ -16,9 +16,15 @@ namespace SkinnyToBeast.Editor
         private const string CatalogPath =
             "Assets/Resources/Characters/FatMan/" +
             "FatManSpriteCatalog.asset";
-        private const string ControllerPath =
+        private const string SpriteControllerPath =
             "Assets/Scripts/Gameplay/" +
             "CharacterSpriteRigController.cs";
+        private const string LayeredControllerPath =
+            "Assets/Scripts/Gameplay/" +
+            "CharacterLayeredRigController.cs";
+        private const string SkinnedGraphicPath =
+            "Assets/Scripts/Gameplay/" +
+            "CharacterSkinnedSpriteGraphic.cs";
         private const string VisibilityGatePath =
             "Assets/Scripts/Gameplay/" +
             "CharacterVisibilityGate.cs";
@@ -34,14 +40,15 @@ namespace SkinnyToBeast.Editor
         }
 
         [MenuItem(
-            "Tools/Skinny to Beast/Validate Real Fat Man Sprite 3.3")]
+            "Tools/Skinny to Beast/Validate Real Fat Man Layered Rig 3.4")]
         private static void ValidateFromMenu()
         {
             ValidateOrThrow();
             Debug.Log(
-                "Real Fat Man Sprite Patch 3.3 guard passed: one intact " +
-                "painted body, three directions, four stages, real sprite " +
-                "bounds and black-screen-safe visibility fitting.");
+                "Real Fat Man Layered Rig Patch 3.4 guard passed: the " +
+                "painted character is rendered by a continuous weighted mesh " +
+                "connected to body, limb and soft-body bones; blink, reactions " +
+                "and black-screen-safe visibility are present.");
         }
 
         private static void ValidateOrThrow()
@@ -50,7 +57,9 @@ namespace SkinnyToBeast.Editor
             {
                 TexturePath,
                 CatalogPath,
-                ControllerPath,
+                SpriteControllerPath,
+                LayeredControllerPath,
+                SkinnedGraphicPath,
                 VisibilityGatePath,
                 PrefabPath
             };
@@ -59,7 +68,7 @@ namespace SkinnyToBeast.Editor
                 if (!File.Exists(requiredFiles[i]))
                 {
                     throw new BuildFailedException(
-                        $"Real Fat Man Sprite 3.3 file is missing: " +
+                        $"Real Fat Man Layered Rig 3.4 file is missing: " +
                         requiredFiles[i]);
                 }
             }
@@ -76,7 +85,8 @@ namespace SkinnyToBeast.Editor
             }
 
             FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
+                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(
+                    CatalogPath);
             if (catalog == null || !catalog.IsValid)
             {
                 throw new BuildFailedException(
@@ -87,56 +97,77 @@ namespace SkinnyToBeast.Editor
             GameObject prefab =
                 AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             if (prefab == null ||
-                prefab.GetComponent<CharacterSpriteRigController>() == null)
+                prefab.GetComponent<CharacterSpriteRigController>() == null ||
+                prefab.GetComponent<CharacterLayeredRigController>() == null)
             {
                 throw new BuildFailedException(
-                    "CharacterRig2D.prefab must contain " +
-                    "CharacterSpriteRigController.");
+                    "CharacterRig2D.prefab must contain both the sprite source " +
+                    "controller and CharacterLayeredRigController.");
             }
 
-            string controllerSource = File.ReadAllText(ControllerPath);
-            string[] requiredControllerTokens =
+            string layeredSource =
+                File.ReadAllText(LayeredControllerPath);
+            string[] requiredLayeredTokens =
             {
-                "CreateWholeBody",
-                "TryGetWorldBounds",
-                "TryGetScreenHeightFraction",
-                "FitToScreenHeight",
-                "HideLegacyGeometry",
-                "GetStageScale",
-                "GetColumn"
+                "CharacterSkinnedSpriteGraphic",
+                "Sprite.RealFatManLayeredSurface",
+                "BuildBoneMap",
+                "RefreshDeformation",
+                "CaptureBindPose",
+                "flatBodyImage.enabled = false",
+                "Bone.Belly",
+                "Bone.ChestSoft",
+                "Bone.UpperArm.L",
+                "Bone.Forearm.R",
+                "Bone.Thigh.L",
+                "Bone.Shin.R",
+                "LayeredPaintedFaceOverlay",
+                "ScheduleBlink"
             };
-            for (int i = 0; i < requiredControllerTokens.Length; i++)
-            {
-                if (!controllerSource.Contains(
-                        requiredControllerTokens[i],
-                        System.StringComparison.Ordinal))
-                {
-                    throw new BuildFailedException(
-                        "Real sprite controller is missing required 3.3 " +
-                        "token: " + requiredControllerTokens[i]);
-                }
-            }
+            RequireTokens(
+                layeredSource,
+                requiredLayeredTokens,
+                "Layered sprite controller is missing required 3.4 token: ");
 
-            string[] forbiddenControllerTokens =
+            string[] forbiddenLayeredTokens =
             {
                 "PartSpec",
                 "PartSpecs",
                 "CharacterSpritePart part",
+                "CreateWholeBody",
                 "12 bone-bound parts"
             };
-            for (int i = 0; i < forbiddenControllerTokens.Length; i++)
-            {
-                if (controllerSource.Contains(
-                        forbiddenControllerTokens[i],
-                        System.StringComparison.Ordinal))
-                {
-                    throw new BuildFailedException(
-                        "Patch 3.2 rectangular limb slicing returned: " +
-                        forbiddenControllerTokens[i]);
-                }
-            }
+            ForbidTokens(
+                layeredSource,
+                forbiddenLayeredTokens,
+                "Rectangular cutout or flat-body code returned in 3.4: ");
 
-            string gateSource = File.ReadAllText(VisibilityGatePath);
+            string skinnedSource =
+                File.ReadAllText(SkinnedGraphicPath);
+            string[] requiredSkinnedTokens =
+            {
+                "CharacterSkinnedSpriteGraphic",
+                "GridColumns",
+                "GridRows",
+                "CaptureBindPose",
+                "RefreshDeformation",
+                "AddFrontBackInfluences",
+                "AddSideProfileInfluences",
+                "FatManSkinBone.Belly",
+                "FatManSkinBone.ChestSoft",
+                "FatManSkinBone.UpperArmLeft",
+                "FatManSkinBone.ForearmRight",
+                "FatManSkinBone.ThighLeft",
+                "FatManSkinBone.ShinRight",
+                "DeformationMagnitude"
+            };
+            RequireTokens(
+                skinnedSource,
+                requiredSkinnedTokens,
+                "Weighted sprite mesh is missing required token: ");
+
+            string gateSource =
+                File.ReadAllText(VisibilityGatePath);
             string[] requiredGateTokens =
             {
                 "CharacterSpriteRigController",
@@ -145,15 +176,42 @@ namespace SkinnyToBeast.Editor
                 "SafeVisibleMinimum",
                 "UsedVisibleSpriteFallback"
             };
-            for (int i = 0; i < requiredGateTokens.Length; i++)
+            RequireTokens(
+                gateSource,
+                requiredGateTokens,
+                "CharacterVisibilityGate is missing 3.4 protection: ");
+        }
+
+        private static void RequireTokens(
+            string source,
+            string[] tokens,
+            string errorPrefix)
+        {
+            for (int i = 0; i < tokens.Length; i++)
             {
-                if (!gateSource.Contains(
-                        requiredGateTokens[i],
+                if (!source.Contains(
+                        tokens[i],
                         System.StringComparison.Ordinal))
                 {
                     throw new BuildFailedException(
-                        "CharacterVisibilityGate is missing 3.3 protection: " +
-                        requiredGateTokens[i]);
+                        errorPrefix + tokens[i]);
+                }
+            }
+        }
+
+        private static void ForbidTokens(
+            string source,
+            string[] tokens,
+            string errorPrefix)
+        {
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                if (source.Contains(
+                        tokens[i],
+                        System.StringComparison.Ordinal))
+                {
+                    throw new BuildFailedException(
+                        errorPrefix + tokens[i]);
                 }
             }
         }

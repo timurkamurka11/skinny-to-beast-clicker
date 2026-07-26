@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 100007}
   - component: {fileID: 100008}
   - component: {fileID: 100009}
+  - component: {fileID: 100010}
   m_Layer: 5
   m_Name: CharacterRig2D
   m_TagString: Untagged
@@ -142,3 +143,15 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   catalogResourcePath: Characters/FatMan/FatManSpriteCatalog
   removeFlatBackground: 1
+--- !u!114 &100010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 100000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2dddf4b60df94f9cb7da0f035cab837e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
