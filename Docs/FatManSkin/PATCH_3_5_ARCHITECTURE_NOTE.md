@@ -1,0 +1,1 @@
+Patch 3.5 replaces unrestricted whole-body skinning with a bounded puppet deformation model that preserves body topology and keeps every visible pixel attached to the main silhouette.
