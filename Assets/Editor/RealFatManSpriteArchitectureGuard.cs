@@ -19,10 +19,10 @@ namespace SkinnyToBeast.Editor
         private const string SpriteControllerPath =
             "Assets/Scripts/Gameplay/" +
             "CharacterSpriteRigController.cs";
-        private const string LayeredControllerPath =
+        private const string PuppetControllerPath =
             "Assets/Scripts/Gameplay/" +
             "CharacterLayeredRigController.cs";
-        private const string SkinnedGraphicPath =
+        private const string PuppetGraphicPath =
             "Assets/Scripts/Gameplay/" +
             "CharacterSkinnedSpriteGraphic.cs";
         private const string VisibilityGatePath =
@@ -40,15 +40,15 @@ namespace SkinnyToBeast.Editor
         }
 
         [MenuItem(
-            "Tools/Skinny to Beast/Validate Real Fat Man Layered Rig 3.4")]
+            "Tools/Skinny to Beast/Validate Real Fat Man Rig Rebuild 3.5")]
         private static void ValidateFromMenu()
         {
             ValidateOrThrow();
             Debug.Log(
-                "Real Fat Man Layered Rig Patch 3.4 guard passed: the " +
-                "painted character is rendered by a continuous weighted mesh " +
-                "connected to body, limb and soft-body bones; blink, reactions " +
-                "and black-screen-safe visibility are present.");
+                "Real Fat Man Rig Rebuild Patch 3.5 guard passed: the old " +
+                "skeleton is an animation signal only; directional art anchors, " +
+                "bounded motion, displacement clamping, fold repair, stable " +
+                "facial attachment and black-screen protection are present.");
         }
 
         private static void ValidateOrThrow()
@@ -58,8 +58,8 @@ namespace SkinnyToBeast.Editor
                 TexturePath,
                 CatalogPath,
                 SpriteControllerPath,
-                LayeredControllerPath,
-                SkinnedGraphicPath,
+                PuppetControllerPath,
+                PuppetGraphicPath,
                 VisibilityGatePath,
                 PrefabPath
             };
@@ -68,7 +68,7 @@ namespace SkinnyToBeast.Editor
                 if (!File.Exists(requiredFiles[i]))
                 {
                     throw new BuildFailedException(
-                        $"Real Fat Man Layered Rig 3.4 file is missing: " +
+                        "Real Fat Man Rig Rebuild 3.5 file is missing: " +
                         requiredFiles[i]);
                 }
             }
@@ -85,8 +85,7 @@ namespace SkinnyToBeast.Editor
             }
 
             FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(
-                    CatalogPath);
+                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
             if (catalog == null || !catalog.IsValid)
             {
                 throw new BuildFailedException(
@@ -101,85 +100,97 @@ namespace SkinnyToBeast.Editor
                 prefab.GetComponent<CharacterLayeredRigController>() == null)
             {
                 throw new BuildFailedException(
-                    "CharacterRig2D.prefab must contain both the sprite source " +
-                    "controller and CharacterLayeredRigController.");
+                    "CharacterRig2D.prefab must contain both " +
+                    "CharacterSpriteRigController and " +
+                    "CharacterLayeredRigController.");
             }
 
-            string layeredSource =
-                File.ReadAllText(LayeredControllerPath);
-            string[] requiredLayeredTokens =
-            {
-                "CharacterSkinnedSpriteGraphic",
-                "Sprite.RealFatManLayeredSurface",
-                "BuildBoneMap",
-                "RefreshDeformation",
-                "CaptureBindPose",
-                "flatBodyImage.enabled = false",
-                "Bone.Belly",
-                "Bone.ChestSoft",
-                "Bone.UpperArm.L",
-                "Bone.Forearm.R",
-                "Bone.Thigh.L",
-                "Bone.Shin.R",
-                "LayeredPaintedFaceOverlay",
-                "ScheduleBlink"
-            };
+            string controllerSource =
+                File.ReadAllText(PuppetControllerPath);
             RequireTokens(
-                layeredSource,
-                requiredLayeredTokens,
-                "Layered sprite controller is missing required 3.4 token: ");
-
-            string[] forbiddenLayeredTokens =
-            {
-                "PartSpec",
-                "PartSpecs",
-                "CharacterSpritePart part",
-                "CreateWholeBody",
-                "12 bone-bound parts"
-            };
+                controllerSource,
+                new[]
+                {
+                    "Sprite.RealFatManBoundedPuppet",
+                    "CharacterSkinnedSpriteGraphic",
+                    "BuildBoneMap",
+                    "RefreshDeformation",
+                    "TryGetDrivenPoint",
+                    "flatBodyImage.enabled = false",
+                    "Bone.Belly",
+                    "Bone.ChestSoft",
+                    "Bone.UpperArm.L",
+                    "Bone.Forearm.R",
+                    "Bone.Thigh.L",
+                    "Bone.Shin.R",
+                    "BoundedPaintedFaceOverlay",
+                    "ScheduleBlink",
+                    "FoldRepairCount",
+                    "SafetyClampCount"
+                },
+                "Bounded puppet controller is missing required 3.5 token: ");
             ForbidTokens(
-                layeredSource,
-                forbiddenLayeredTokens,
-                "Rectangular cutout or flat-body code returned in 3.4: ");
+                controllerSource,
+                new[]
+                {
+                    "Sprite.RealFatManLayeredSurface",
+                    "LayeredPaintedFaceOverlay",
+                    "skinnedGraphic.CaptureBindPose()",
+                    "PartSpec",
+                    "12 bone-bound parts"
+                },
+                "Unstable 3.2/3.4 controller logic returned: ");
 
-            string skinnedSource =
-                File.ReadAllText(SkinnedGraphicPath);
-            string[] requiredSkinnedTokens =
-            {
-                "CharacterSkinnedSpriteGraphic",
-                "GridColumns",
-                "GridRows",
-                "CaptureBindPose",
-                "RefreshDeformation",
-                "AddFrontBackInfluences",
-                "AddSideProfileInfluences",
-                "FatManSkinBone.Belly",
-                "FatManSkinBone.ChestSoft",
-                "FatManSkinBone.UpperArmLeft",
-                "FatManSkinBone.ForearmRight",
-                "FatManSkinBone.ThighLeft",
-                "FatManSkinBone.ShinRight",
-                "DeformationMagnitude"
-            };
+            string graphicSource =
+                File.ReadAllText(PuppetGraphicPath);
             RequireTokens(
-                skinnedSource,
-                requiredSkinnedTokens,
-                "Weighted sprite mesh is missing required token: ");
+                graphicSource,
+                new[]
+                {
+                    "MinimumRootWeight",
+                    "GetDirectionalAnchor",
+                    "GetFrontBackAnchor",
+                    "GetSideAnchor",
+                    "GetMotionRule",
+                    "GetMaximumVertexDisplacement",
+                    "Vector2.ClampMagnitude",
+                    "SmoothDisplacements",
+                    "ApplySafetyEnvelope",
+                    "RepairFoldedCells",
+                    "IsValidCell",
+                    "TryGetDrivenPoint",
+                    "FatManSkinBone.Belly",
+                    "FatManSkinBone.ChestSoft",
+                    "FatManSkinBone.UpperArmLeft",
+                    "FatManSkinBone.ForearmRight",
+                    "FatManSkinBone.ThighLeft",
+                    "FatManSkinBone.ShinRight"
+                },
+                "Bounded puppet mesh is missing required 3.5 token: ");
+            ForbidTokens(
+                graphicSource,
+                new[]
+                {
+                    "bindInverse",
+                    "boneDeltas",
+                    "AddSideProfileInfluences",
+                    "GridColumns = 24",
+                    "GridRows = 38"
+                },
+                "Unrestricted Patch 3.4 matrix skinning returned: ");
 
-            string gateSource =
-                File.ReadAllText(VisibilityGatePath);
-            string[] requiredGateTokens =
-            {
-                "CharacterSpriteRigController",
-                "TryGetWorldBounds",
-                "FitToScreenHeight",
-                "SafeVisibleMinimum",
-                "UsedVisibleSpriteFallback"
-            };
+            string gateSource = File.ReadAllText(VisibilityGatePath);
             RequireTokens(
                 gateSource,
-                requiredGateTokens,
-                "CharacterVisibilityGate is missing 3.4 protection: ");
+                new[]
+                {
+                    "CharacterSpriteRigController",
+                    "TryGetWorldBounds",
+                    "FitToScreenHeight",
+                    "SafeVisibleMinimum",
+                    "UsedVisibleSpriteFallback"
+                },
+                "CharacterVisibilityGate is missing 3.5 protection: ");
         }
 
         private static void RequireTokens(
