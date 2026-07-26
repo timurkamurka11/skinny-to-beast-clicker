@@ -5,134 +5,52 @@ using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay
 {
+    /// <summary>
+    /// Displays one complete painted character for each direction. Patch 3.2
+    /// tried to cut a flattened turnaround into independent limbs at runtime;
+    /// that cannot produce clean overlapping joints and duplicated neighbouring
+    /// pixels. Patch 3.3 keeps the existing skeleton as an invisible animation
+    /// driver, but renders one intact body image so the player can never see a
+    /// torn or duplicated mannequin.
+    /// </summary>
     [DefaultExecutionOrder(900)]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterRigController))]
     [RequireComponent(typeof(CharacterSkinController))]
     public sealed class CharacterSpriteRigController : MonoBehaviour
     {
-        [Serializable]
-        private readonly struct PartSpec
-        {
-            public readonly FatManSpritePartId id;
-            public readonly string boneName;
-            public readonly Rect crop;
-            public readonly Vector2 pivot;
-            public readonly int sortingOrder;
-
-            public PartSpec(
-                FatManSpritePartId targetId,
-                string targetBone,
-                Rect targetCrop,
-                Vector2 targetPivot,
-                int order)
-            {
-                id = targetId;
-                boneName = targetBone;
-                crop = targetCrop;
-                pivot = targetPivot;
-                sortingOrder = order;
-            }
-        }
-
-        private static readonly PartSpec[] PartSpecs =
-        {
-            new(
-                FatManSpritePartId.ShinLeft,
-                "Bone.Shin.L",
-                new Rect(0.10f, 0.00f, 0.40f, 0.20f),
-                new Vector2(0.52f, 0.92f),
-                100),
-            new(
-                FatManSpritePartId.ShinRight,
-                "Bone.Shin.R",
-                new Rect(0.50f, 0.00f, 0.40f, 0.20f),
-                new Vector2(0.48f, 0.92f),
-                101),
-            new(
-                FatManSpritePartId.ThighLeft,
-                "Bone.Thigh.L",
-                new Rect(0.13f, 0.12f, 0.38f, 0.25f),
-                new Vector2(0.58f, 0.92f),
-                110),
-            new(
-                FatManSpritePartId.ThighRight,
-                "Bone.Thigh.R",
-                new Rect(0.49f, 0.12f, 0.38f, 0.25f),
-                new Vector2(0.42f, 0.92f),
-                111),
-            new(
-                FatManSpritePartId.Pelvis,
-                "Bone.Pelvis",
-                new Rect(0.16f, 0.27f, 0.68f, 0.17f),
-                new Vector2(0.50f, 0.48f),
-                120),
-            new(
-                FatManSpritePartId.UpperArmLeft,
-                "Bone.UpperArm.L",
-                new Rect(0.00f, 0.50f, 0.31f, 0.31f),
-                new Vector2(0.86f, 0.86f),
-                125),
-            new(
-                FatManSpritePartId.UpperArmRight,
-                "Bone.UpperArm.R",
-                new Rect(0.69f, 0.50f, 0.31f, 0.31f),
-                new Vector2(0.14f, 0.86f),
-                126),
-            new(
-                FatManSpritePartId.Belly,
-                "Bone.Belly",
-                new Rect(0.10f, 0.34f, 0.80f, 0.29f),
-                new Vector2(0.50f, 0.66f),
-                130),
-            new(
-                FatManSpritePartId.Chest,
-                "Bone.ChestSoft",
-                new Rect(0.10f, 0.55f, 0.80f, 0.26f),
-                new Vector2(0.50f, 0.25f),
-                140),
-            new(
-                FatManSpritePartId.ForearmLeft,
-                "Bone.Forearm.L",
-                new Rect(0.00f, 0.27f, 0.29f, 0.35f),
-                new Vector2(0.82f, 0.86f),
-                150),
-            new(
-                FatManSpritePartId.ForearmRight,
-                "Bone.Forearm.R",
-                new Rect(0.71f, 0.27f, 0.29f, 0.35f),
-                new Vector2(0.18f, 0.86f),
-                151),
-            new(
-                FatManSpritePartId.Head,
-                "Bone.Head",
-                new Rect(0.20f, 0.72f, 0.60f, 0.28f),
-                new Vector2(0.50f, 0.10f),
-                170)
-        };
-
         private const string DefaultCatalogPath =
             "Characters/FatMan/FatManSpriteCatalog";
+        private const float DefaultBodyHeight = 1120f;
 
         [SerializeField] private string catalogResourcePath =
             DefaultCatalogPath;
         [SerializeField] private bool removeFlatBackground = true;
+        [SerializeField, Range(900f, 1240f)]
+        private float bodyDisplayHeight = DefaultBodyHeight;
+        [SerializeField] private Vector2 bodyOffset =
+            new Vector2(0f, -18f);
 
-        private readonly List<CharacterSpritePart> spriteParts = new(16);
         private readonly List<CanvasRenderer> legacyRenderers = new(96);
         private readonly RectInt[] directionBounds = new RectInt[3];
+        private readonly Vector3[] worldCorners = new Vector3[4];
 
         private CharacterRigController rigController;
         private CharacterSkinController skinController;
         private FatManSpriteSet catalog;
         private Texture2D runtimeTexture;
         private RectTransform visualRoot;
+        private RectTransform bodyRect;
+        private Image bodyImage;
+        private Sprite bodySprite;
         private Image leftEyelid;
         private Image rightEyelid;
         private Image mouthOverlay;
-        private Vector2 headDisplaySize;
+
         private CharacterFacing lastFacing = (CharacterFacing)(-1);
         private int lastStage = -1;
+        private float stageScale = 1f;
+        private float fitScale = 1f;
         private float nextBlinkAt;
         private float blinkUntil;
         private bool buildAttemptLogged;
@@ -141,8 +59,12 @@ namespace SkinnyToBeast.Gameplay
         public bool IsReady =>
             ready &&
             runtimeTexture != null &&
-            spriteParts.Count == PartSpecs.Length;
-        public int ActiveSpritePartCount => spriteParts.Count;
+            bodyRect != null &&
+            bodyImage != null &&
+            bodySprite != null;
+
+        // Kept for diagnostics and compatibility with the 3.2 test surface.
+        public int ActiveSpritePartCount => IsReady ? 1 : 0;
         public int LoadedDirectionCount =>
             directionBounds[0].width > 0 &&
             directionBounds[1].width > 0 &&
@@ -172,6 +94,8 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
+            // Skin changes may reactivate the old vector graphics during the
+            // same frame. Hide them immediately before the Canvas renders.
             HideLegacyGeometry();
             SyncFacing();
             SyncStage();
@@ -183,8 +107,7 @@ namespace SkinnyToBeast.Gameplay
             if (rigController == null ||
                 skinController == null ||
                 rigController.VisualRoot == null ||
-                !rigController.HasAppliedSkin ||
-                rigController.GetVisibleGraphicCount() < 18)
+                !rigController.HasAppliedSkin)
             {
                 return;
             }
@@ -198,7 +121,7 @@ namespace SkinnyToBeast.Gameplay
                 catalog.Turnaround == null)
             {
                 LogBuildFailureOnce(
-                    "Real Fat Man Sprite Patch 3.2 could not load " +
+                    "Real Fat Man Sprite Patch 3.3 could not load " +
                     "FatManSpriteCatalog from Resources.");
                 return;
             }
@@ -213,191 +136,128 @@ namespace SkinnyToBeast.Gameplay
 
             runtimeTexture = prepared;
             visualRoot = rigController.VisualRoot;
-            for (int column = 0; column < 3; column++)
+            for (int column = 0; column < directionBounds.Length; column++)
             {
                 directionBounds[column] = FindOpaqueBounds(
                     runtimeTexture,
                     column,
-                    3);
+                    directionBounds.Length);
                 if (directionBounds[column].width < 4 ||
                     directionBounds[column].height < 4)
                 {
                     LogBuildFailureOnce(
                         $"Fat-man turnaround column {column} has no " +
                         "usable opaque character pixels.");
-                    Destroy(runtimeTexture);
-                    runtimeTexture = null;
+                    ClearRuntimeObjects();
                     return;
                 }
             }
 
-            Vector2 displaySize = ResolveDisplaySize();
-            for (int i = 0; i < PartSpecs.Length; i++)
+            CreateWholeBody();
+            if (bodyImage == null || bodyRect == null)
             {
-                PartSpec spec = PartSpecs[i];
-                RectTransform bone =
-                    rigController.GetBone(spec.boneName);
-                if (bone == null)
-                {
-                    LogBuildFailureOnce(
-                        $"Sprite rig bone is missing: {spec.boneName}");
-                    ClearRuntimeObjects();
-                    return;
-                }
-
-                CharacterSpritePart part = CreatePart(
-                    bone,
-                    spec,
-                    displaySize);
-                if (part == null)
-                {
-                    LogBuildFailureOnce(
-                        $"Could not create sprite part {spec.id}.");
-                    ClearRuntimeObjects();
-                    return;
-                }
-
-                spriteParts.Add(part);
+                LogBuildFailureOnce(
+                    "Could not create the intact fat-man body image.");
+                ClearRuntimeObjects();
+                return;
             }
 
             CacheLegacyRenderers();
-            CreateFaceOverlay(displaySize);
+            CreateFaceOverlay();
             ready = true;
             buildAttemptLogged = false;
             lastFacing = (CharacterFacing)(-1);
             lastStage = -1;
+            fitScale = 1f;
             ScheduleBlink();
             SyncFacing();
             SyncStage();
             HideLegacyGeometry();
 
             Debug.Log(
-                "Real Fat Man Sprite Patch 3.2 active: real PNG art, " +
-                "12 bone-bound parts, three directions and four stages.",
+                "Real Fat Man Sprite Patch 3.3 active: one intact PNG body, " +
+                "three directions, four stages and automatic screen fitting.",
                 this);
         }
 
-        private CharacterSpritePart CreatePart(
-            RectTransform bone,
-            PartSpec spec,
-            Vector2 displaySize)
+        private void CreateWholeBody()
         {
-            GameObject partObject = new(
-                $"Sprite.{spec.id}",
+            GameObject target = new(
+                "Sprite.RealFatManBody",
                 typeof(RectTransform),
-                typeof(Canvas),
                 typeof(CanvasRenderer),
                 typeof(Image));
-            partObject.layer = gameObject.layer;
-            RectTransform partRect =
-                partObject.GetComponent<RectTransform>();
-            partRect.SetParent(bone, false);
+            target.layer = gameObject.layer;
 
-            CharacterSpritePart part =
-                partObject.AddComponent<CharacterSpritePart>();
-            part.Configure(
-                spec.id,
-                runtimeTexture,
-                spec.crop,
-                spec.pivot,
-                new Vector2(
-                    displaySize.x * spec.crop.width,
-                    displaySize.y * spec.crop.height),
-                spec.sortingOrder);
-            return part;
-        }
+            bodyRect = target.GetComponent<RectTransform>();
+            bodyRect.SetParent(visualRoot, false);
+            bodyRect.anchorMin = new Vector2(0.5f, 0.5f);
+            bodyRect.anchorMax = new Vector2(0.5f, 0.5f);
+            bodyRect.pivot = new Vector2(0.5f, 0.5f);
+            bodyRect.anchoredPosition = bodyOffset;
+            bodyRect.localRotation = Quaternion.identity;
+            bodyRect.localScale = Vector3.one;
+            bodyRect.SetAsLastSibling();
 
-        private Vector2 ResolveDisplaySize()
-        {
-            Bounds worldBounds = rigController.GetWorldGeometryBounds();
-            if (worldBounds.size.x > 10f &&
-                worldBounds.size.y > 10f &&
-                visualRoot != null)
-            {
-                Vector3 localMin =
-                    visualRoot.InverseTransformPoint(worldBounds.min);
-                Vector3 localMax =
-                    visualRoot.InverseTransformPoint(worldBounds.max);
-                float width = Mathf.Abs(localMax.x - localMin.x);
-                float height = Mathf.Abs(localMax.y - localMin.y);
-                if (width > 100f && height > 200f)
-                {
-                    return new Vector2(
-                        Mathf.Clamp(width * 1.04f, 520f, 790f),
-                        Mathf.Clamp(height * 1.03f, 900f, 1240f));
-                }
-            }
-
-            return new Vector2(650f, 1120f);
+            bodyImage = target.GetComponent<Image>();
+            bodyImage.raycastTarget = false;
+            bodyImage.maskable = false;
+            bodyImage.preserveAspect = false;
+            bodyImage.type = Image.Type.Simple;
+            bodyImage.color = Color.white;
         }
 
         private void SyncFacing()
         {
             CharacterFacing facing = rigController.Facing;
-            if (facing == lastFacing)
+            if (facing == lastFacing || bodyImage == null)
             {
                 return;
             }
 
             int column = catalog.GetColumn(facing);
             RectInt bounds = directionBounds[column];
-            bool valid = true;
-            for (int i = 0; i < spriteParts.Count; i++)
-            {
-                valid &= spriteParts[i].ApplyView(bounds);
-            }
-
-            if (!valid)
+            if (bounds.width < 4 || bounds.height < 4)
             {
                 Debug.LogError(
-                    "At least one real fat-man sprite crop failed to build.",
+                    $"The real fat-man view for column {column} is empty.",
                     this);
+                return;
             }
+
+            if (bodySprite != null)
+            {
+                Destroy(bodySprite);
+                bodySprite = null;
+            }
+
+            bodySprite = Sprite.Create(
+                runtimeTexture,
+                new Rect(bounds.x, bounds.y, bounds.width, bounds.height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0,
+                SpriteMeshType.FullRect);
+            bodySprite.name =
+                $"FatMan.Whole.{facing}.{bounds.x}.{bounds.y}";
+            bodyImage.sprite = bodySprite;
+            bodyImage.SetAllDirty();
+
+            float safeHeight = Mathf.Clamp(
+                bodyDisplayHeight,
+                900f,
+                1240f);
+            float aspect = bounds.width / (float)Mathf.Max(1, bounds.height);
+            bodyRect.sizeDelta = new Vector2(
+                Mathf.Clamp(safeHeight * aspect, 310f, 760f),
+                safeHeight);
+            bodyRect.anchoredPosition = bodyOffset;
 
             bool back = facing == CharacterFacing.Back;
             bool side =
                 facing == CharacterFacing.SideLeft ||
                 facing == CharacterFacing.SideRight;
-            if (leftEyelid != null && rightEyelid != null)
-            {
-                leftEyelid.gameObject.SetActive(false);
-                rightEyelid.gameObject.SetActive(false);
-                if (side)
-                {
-                    leftEyelid.rectTransform.anchoredPosition =
-                        new Vector2(
-                            headDisplaySize.x * 0.09f,
-                            headDisplaySize.y * 0.54f);
-                    rightEyelid.rectTransform.anchoredPosition =
-                        leftEyelid.rectTransform.anchoredPosition;
-                }
-                else
-                {
-                    leftEyelid.rectTransform.anchoredPosition =
-                        new Vector2(
-                            -headDisplaySize.x * 0.13f,
-                            headDisplaySize.y * 0.54f);
-                    rightEyelid.rectTransform.anchoredPosition =
-                        new Vector2(
-                            headDisplaySize.x * 0.13f,
-                            headDisplaySize.y * 0.54f);
-                }
-            }
-
-            if (mouthOverlay != null)
-            {
-                mouthOverlay.gameObject.SetActive(false);
-                mouthOverlay.rectTransform.anchoredPosition =
-                    new Vector2(
-                        side ? headDisplaySize.x * 0.08f : 0f,
-                        headDisplaySize.y * 0.31f);
-            }
-
-            if (back)
-            {
-                blinkUntil = 0f;
-            }
-
+            PositionFaceOverlay(side, back);
             lastFacing = facing;
         }
 
@@ -409,69 +269,123 @@ namespace SkinnyToBeast.Gameplay
                 return;
             }
 
-            float scale = catalog.GetStageScale(stage);
-            for (int i = 0; i < spriteParts.Count; i++)
-            {
-                spriteParts[i].ApplyStageScale(scale);
-            }
-
-            if (leftEyelid != null)
-            {
-                leftEyelid.rectTransform.localScale =
-                    new Vector3(scale, scale, 1f);
-            }
-            if (rightEyelid != null)
-            {
-                rightEyelid.rectTransform.localScale =
-                    new Vector3(scale, scale, 1f);
-            }
-            if (mouthOverlay != null)
-            {
-                mouthOverlay.rectTransform.localScale =
-                    new Vector3(scale, scale, 1f);
-            }
-
+            stageScale = catalog.GetStageScale(stage);
+            ApplyCombinedScale();
             lastStage = stage;
         }
 
-        private void CreateFaceOverlay(Vector2 displaySize)
+        private void ApplyCombinedScale()
         {
-            RectTransform headBone =
-                rigController.GetBone("Bone.Head");
-            if (headBone == null)
+            if (bodyRect == null)
             {
                 return;
             }
 
-            headDisplaySize = new Vector2(
-                displaySize.x * 0.60f,
-                displaySize.y * 0.28f);
-            Color skinColor = SampleFaceColor();
+            float combined = Mathf.Clamp(
+                stageScale * fitScale,
+                0.55f,
+                2.5f);
+            bodyRect.localScale = new Vector3(combined, combined, 1f);
+        }
 
+        /// <summary>
+        /// Returns the bounds of the pixels the player actually sees. The old
+        /// vector skeleton is intentionally excluded because it is transparent.
+        /// </summary>
+        public bool TryGetWorldBounds(out Bounds bounds)
+        {
+            bounds = default;
+            if (!IsReady ||
+                !bodyRect.gameObject.activeInHierarchy ||
+                bodyImage.color.a <= 0.001f)
+            {
+                return false;
+            }
+
+            bodyRect.GetWorldCorners(worldCorners);
+            bounds = new Bounds(worldCorners[0], Vector3.zero);
+            for (int i = 1; i < worldCorners.Length; i++)
+            {
+                bounds.Encapsulate(worldCorners[i]);
+            }
+
+            return bounds.size.x > 2f && bounds.size.y > 2f;
+        }
+
+        public bool TryGetScreenHeightFraction(out float fraction)
+        {
+            fraction = 0f;
+            if (!TryGetWorldBounds(out Bounds bounds) ||
+                Screen.width <= 1 ||
+                Screen.height <= 1)
+            {
+                return false;
+            }
+
+            Canvas canvas = GetComponentInParent<Canvas>();
+            Camera camera = canvas != null &&
+                            canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                ? canvas.worldCamera
+                : null;
+            Vector2 screenMin = RectTransformUtility.WorldToScreenPoint(
+                camera,
+                bounds.min);
+            Vector2 screenMax = RectTransformUtility.WorldToScreenPoint(
+                camera,
+                bounds.max);
+            fraction = Mathf.Abs(screenMax.y - screenMin.y) / Screen.height;
+            return fraction > 0.001f;
+        }
+
+        /// <summary>
+        /// Calibrates only the painted body. It does not alter the movement
+        /// root, room anchors or Animator, so entry and gameplay use the same
+        /// placement while still meeting their own visibility ranges.
+        /// </summary>
+        public bool FitToScreenHeight(float targetFraction)
+        {
+            if (!TryGetScreenHeightFraction(out float currentFraction) ||
+                currentFraction <= 0.001f)
+            {
+                return false;
+            }
+
+            float target = Mathf.Clamp(targetFraction, 0.08f, 0.82f);
+            float ratio = target / currentFraction;
+            if (Mathf.Abs(1f - ratio) < 0.015f)
+            {
+                return true;
+            }
+
+            fitScale = Mathf.Clamp(fitScale * ratio, 0.55f, 2.5f);
+            ApplyCombinedScale();
+            Canvas.ForceUpdateCanvases();
+            return true;
+        }
+
+        private void CreateFaceOverlay()
+        {
+            if (bodyRect == null)
+            {
+                return;
+            }
+
+            Color skinColor = SampleFaceColor();
             leftEyelid = CreateSolidImage(
-                headBone,
+                bodyRect,
                 "SpriteFace.Eyelid.L",
                 skinColor,
-                new Vector2(
-                    headDisplaySize.x * 0.14f,
-                    Mathf.Max(4f, headDisplaySize.y * 0.018f)),
-                220);
+                new Vector2(28f, 7f));
             rightEyelid = CreateSolidImage(
-                headBone,
+                bodyRect,
                 "SpriteFace.Eyelid.R",
                 skinColor,
-                new Vector2(
-                    headDisplaySize.x * 0.14f,
-                    Mathf.Max(4f, headDisplaySize.y * 0.018f)),
-                221);
+                new Vector2(28f, 7f));
             mouthOverlay = CreateSolidImage(
-                headBone,
+                bodyRect,
                 "SpriteFace.Mouth",
                 new Color(0.16f, 0.07f, 0.06f, 0.92f),
-                new Vector2(
-                    headDisplaySize.x * 0.16f,
-                    Mathf.Max(4f, headDisplaySize.y * 0.022f)),
-                230);
+                new Vector2(34f, 8f));
 
             leftEyelid.gameObject.SetActive(false);
             rightEyelid.gameObject.SetActive(false);
@@ -482,13 +396,11 @@ namespace SkinnyToBeast.Gameplay
             RectTransform parent,
             string objectName,
             Color color,
-            Vector2 size,
-            int sortingOrder)
+            Vector2 size)
         {
             GameObject target = new(
                 objectName,
                 typeof(RectTransform),
-                typeof(Canvas),
                 typeof(CanvasRenderer),
                 typeof(Image));
             target.layer = parent.gameObject.layer;
@@ -500,10 +412,7 @@ namespace SkinnyToBeast.Gameplay
             rect.sizeDelta = size;
             rect.localRotation = Quaternion.identity;
             rect.localScale = Vector3.one;
-
-            Canvas canvas = target.GetComponent<Canvas>();
-            canvas.overrideSorting = true;
-            canvas.sortingOrder = sortingOrder;
+            rect.SetAsLastSibling();
 
             Image image = target.GetComponent<Image>();
             image.sprite = null;
@@ -512,6 +421,47 @@ namespace SkinnyToBeast.Gameplay
             image.maskable = false;
             image.color = color;
             return image;
+        }
+
+        private void PositionFaceOverlay(bool side, bool back)
+        {
+            if (bodyRect == null ||
+                leftEyelid == null ||
+                rightEyelid == null ||
+                mouthOverlay == null)
+            {
+                return;
+            }
+
+            if (back)
+            {
+                leftEyelid.gameObject.SetActive(false);
+                rightEyelid.gameObject.SetActive(false);
+                mouthOverlay.gameObject.SetActive(false);
+                blinkUntil = 0f;
+                return;
+            }
+
+            float width = bodyRect.sizeDelta.x;
+            float height = bodyRect.sizeDelta.y;
+            float faceY = height * 0.355f;
+            if (side)
+            {
+                Vector2 eye = new Vector2(width * 0.055f, faceY);
+                leftEyelid.rectTransform.anchoredPosition = eye;
+                rightEyelid.rectTransform.anchoredPosition = eye;
+                mouthOverlay.rectTransform.anchoredPosition =
+                    new Vector2(width * 0.075f, height * 0.298f);
+            }
+            else
+            {
+                leftEyelid.rectTransform.anchoredPosition =
+                    new Vector2(-width * 0.062f, faceY);
+                rightEyelid.rectTransform.anchoredPosition =
+                    new Vector2(width * 0.062f, faceY);
+                mouthOverlay.rectTransform.anchoredPosition =
+                    new Vector2(0f, height * 0.294f);
+            }
         }
 
         private void UpdateFaceOverlay()
@@ -543,28 +493,22 @@ namespace SkinnyToBeast.Gameplay
             bool expressive =
                 !back &&
                 (rigController.IsTapReacting ||
-                 rigController.ActiveAction ==
-                 CharacterRoutineAction.Yawn ||
-                 rigController.ActiveAction ==
-                 CharacterRoutineAction.Flex);
+                 rigController.ActiveAction == CharacterRoutineAction.Yawn ||
+                 rigController.ActiveAction == CharacterRoutineAction.Flex);
             mouthOverlay.gameObject.SetActive(expressive);
             if (expressive)
             {
                 bool yawn =
-                    rigController.ActiveAction ==
-                    CharacterRoutineAction.Yawn;
+                    rigController.ActiveAction == CharacterRoutineAction.Yawn;
                 mouthOverlay.rectTransform.sizeDelta =
-                    new Vector2(
-                        headDisplaySize.x * (yawn ? 0.17f : 0.20f),
-                        headDisplaySize.y * (yawn ? 0.10f : 0.035f));
+                    new Vector2(yawn ? 38f : 44f, yawn ? 34f : 9f);
             }
         }
 
         private void ScheduleBlink()
         {
             nextBlinkAt =
-                Time.unscaledTime +
-                UnityEngine.Random.Range(2.1f, 5.2f);
+                Time.unscaledTime + UnityEngine.Random.Range(2.1f, 5.2f);
         }
 
         private void CacheLegacyRenderers()
@@ -576,10 +520,9 @@ namespace SkinnyToBeast.Gameplay
             for (int i = 0; i < meshes.Length; i++)
             {
                 CanvasRenderer renderer =
-                    meshes[i] != null
-                        ? meshes[i].canvasRenderer
-                        : null;
+                    meshes[i] != null ? meshes[i].canvasRenderer : null;
                 if (renderer != null &&
+                    renderer != bodyImage.canvasRenderer &&
                     !legacyRenderers.Contains(renderer))
                 {
                     legacyRenderers.Add(renderer);
@@ -591,9 +534,7 @@ namespace SkinnyToBeast.Gameplay
             for (int i = 0; i < surfaces.Length; i++)
             {
                 CanvasRenderer renderer =
-                    surfaces[i] != null
-                        ? surfaces[i].canvasRenderer
-                        : null;
+                    surfaces[i] != null ? surfaces[i].canvasRenderer : null;
                 if (renderer != null &&
                     !legacyRenderers.Contains(renderer))
                 {
@@ -612,6 +553,11 @@ namespace SkinnyToBeast.Gameplay
                     renderer.SetAlpha(0f);
                 }
             }
+
+            if (bodyImage != null)
+            {
+                bodyImage.canvasRenderer.SetAlpha(1f);
+            }
         }
 
         private Color SampleFaceColor()
@@ -619,11 +565,9 @@ namespace SkinnyToBeast.Gameplay
             RectInt frontBounds = directionBounds[
                 catalog.GetColumn(CharacterFacing.Front)];
             int centerX = frontBounds.x +
-                          Mathf.RoundToInt(
-                              frontBounds.width * 0.5f);
+                          Mathf.RoundToInt(frontBounds.width * 0.5f);
             int centerY = frontBounds.y +
-                          Mathf.RoundToInt(
-                              frontBounds.height * 0.82f);
+                          Mathf.RoundToInt(frontBounds.height * 0.82f);
 
             for (int radius = 0; radius <= 24; radius += 4)
             {
@@ -639,8 +583,7 @@ namespace SkinnyToBeast.Gameplay
                             centerY + y,
                             0,
                             runtimeTexture.height - 1);
-                        Color sample =
-                            runtimeTexture.GetPixel(sampleX, sampleY);
+                        Color sample = runtimeTexture.GetPixel(sampleX, sampleY);
                         if (sample.a > 0.8f &&
                             sample.r > 0.28f &&
                             sample.g > 0.18f)
@@ -672,19 +615,16 @@ namespace SkinnyToBeast.Gameplay
                 return null;
             }
 
-            Color32[] output =
-                new Color32[sourcePixels.Length];
+            Color32[] output = new Color32[sourcePixels.Length];
             Array.Copy(sourcePixels, output, sourcePixels.Length);
 
             if (removeBackground && output.Length > 0)
             {
                 Color32 cornerA = output[0];
-                Color32 cornerB =
-                    output[Mathf.Max(0, source.width - 1)];
-                Color32 cornerC =
-                    output[Mathf.Max(
-                        0,
-                        output.Length - source.width)];
+                Color32 cornerB = output[Mathf.Max(0, source.width - 1)];
+                Color32 cornerC = output[Mathf.Max(
+                    0,
+                    output.Length - source.width)];
                 Color32 cornerD = output[output.Length - 1];
 
                 for (int i = 0; i < output.Length; i++)
@@ -717,7 +657,7 @@ namespace SkinnyToBeast.Gameplay
                 false,
                 false)
             {
-                name = "FatManTurnaround.Runtime",
+                name = "FatManTurnaround.Runtime.3.3",
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
@@ -747,14 +687,10 @@ namespace SkinnyToBeast.Gameplay
             int columnCount)
         {
             Color32[] pixels = texture.GetPixels32();
-            int startX =
-                Mathf.FloorToInt(
-                    texture.width *
-                    (column / (float)columnCount));
-            int endX =
-                Mathf.FloorToInt(
-                    texture.width *
-                    ((column + 1f) / columnCount)) - 1;
+            int startX = Mathf.FloorToInt(
+                texture.width * (column / (float)columnCount));
+            int endX = Mathf.FloorToInt(
+                texture.width * ((column + 1f) / columnCount)) - 1;
             startX = Mathf.Clamp(startX, 0, texture.width - 1);
             endX = Mathf.Clamp(endX, startX, texture.width - 1);
 
@@ -812,32 +748,22 @@ namespace SkinnyToBeast.Gameplay
 
         private void ClearRuntimeObjects()
         {
-            for (int i = 0; i < spriteParts.Count; i++)
+            if (bodyRect != null)
             {
-                CharacterSpritePart part = spriteParts[i];
-                if (part != null)
-                {
-                    Destroy(part.gameObject);
-                }
+                Destroy(bodyRect.gameObject);
             }
 
-            spriteParts.Clear();
-            if (leftEyelid != null)
-            {
-                Destroy(leftEyelid.gameObject);
-            }
-            if (rightEyelid != null)
-            {
-                Destroy(rightEyelid.gameObject);
-            }
-            if (mouthOverlay != null)
-            {
-                Destroy(mouthOverlay.gameObject);
-            }
-
+            bodyRect = null;
+            bodyImage = null;
             leftEyelid = null;
             rightEyelid = null;
             mouthOverlay = null;
+
+            if (bodySprite != null)
+            {
+                Destroy(bodySprite);
+                bodySprite = null;
+            }
 
             if (runtimeTexture != null)
             {
