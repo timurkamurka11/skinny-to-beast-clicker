@@ -9,6 +9,13 @@ on:
       - Tools/FatManLayeredArt/generate_layered_art.py
       - Assets/Resources/Characters/FatMan/fat-man-turnaround-reference.png
       - .github/workflows/generate-fat-man-layered-art.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - Tools/FatManLayeredArt/generate_layered_art.py
+      - .github/workflows/generate-fat-man-layered-art.yml
+      - Assets/Scripts/Gameplay/CharacterLayeredRigController.cs
   workflow_dispatch:
 
 permissions:
@@ -16,6 +23,7 @@ permissions:
 
 jobs:
   generate-layered-art:
+    if: github.head_ref == 'fix/real-fat-man-layered-art-3-6' || github.ref_name == 'fix/real-fat-man-layered-art-3-6'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
