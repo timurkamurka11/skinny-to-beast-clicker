@@ -31,3 +31,5 @@ Concept Lock
 → Secondary Motion + QA
 → Stage 2–4
 ```
+
+Главный принцип: сначала полностью принимается Stage 1. Массовое производство Stage 2–4 запрещено до прохождения deformation QA, entry test, room test и Android profiling для Stage 1.
