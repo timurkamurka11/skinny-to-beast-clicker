@@ -19,8 +19,9 @@ namespace SkinnyToBeast.Editor
         private const string ControllerPath =
             "Assets/Scripts/Gameplay/" +
             "CharacterSpriteRigController.cs";
-        private const string PartPath =
-            "Assets/Scripts/Gameplay/CharacterSpritePart.cs";
+        private const string VisibilityGatePath =
+            "Assets/Scripts/Gameplay/" +
+            "CharacterVisibilityGate.cs";
         private const string PrefabPath =
             "Assets/Resources/UI/Gameplay/Living/" +
             "CharacterRig2D.prefab";
@@ -33,14 +34,14 @@ namespace SkinnyToBeast.Editor
         }
 
         [MenuItem(
-            "Tools/Skinny to Beast/Validate Real Fat Man Sprite 3.2")]
+            "Tools/Skinny to Beast/Validate Real Fat Man Sprite 3.3")]
         private static void ValidateFromMenu()
         {
             ValidateOrThrow();
             Debug.Log(
-                "Real Fat Man Sprite Patch 3.2 guard passed: PNG, " +
-                "catalog, three directions, four stages and prefab " +
-                "controller are present.");
+                "Real Fat Man Sprite Patch 3.3 guard passed: one intact " +
+                "painted body, three directions, four stages, real sprite " +
+                "bounds and black-screen-safe visibility fitting.");
         }
 
         private static void ValidateOrThrow()
@@ -50,7 +51,7 @@ namespace SkinnyToBeast.Editor
                 TexturePath,
                 CatalogPath,
                 ControllerPath,
-                PartPath,
+                VisibilityGatePath,
                 PrefabPath
             };
             for (int i = 0; i < requiredFiles.Length; i++)
@@ -58,7 +59,7 @@ namespace SkinnyToBeast.Editor
                 if (!File.Exists(requiredFiles[i]))
                 {
                     throw new BuildFailedException(
-                        $"Real Fat Man Sprite 3.2 file is missing: " +
+                        $"Real Fat Man Sprite 3.3 file is missing: " +
                         requiredFiles[i]);
                 }
             }
@@ -75,8 +76,7 @@ namespace SkinnyToBeast.Editor
             }
 
             FatManSpriteSet catalog =
-                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(
-                    CatalogPath);
+                AssetDatabase.LoadAssetAtPath<FatManSpriteSet>(CatalogPath);
             if (catalog == null || !catalog.IsValid)
             {
                 throw new BuildFailedException(
@@ -87,36 +87,73 @@ namespace SkinnyToBeast.Editor
             GameObject prefab =
                 AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             if (prefab == null ||
-                prefab.GetComponent<
-                    CharacterSpriteRigController>() == null)
+                prefab.GetComponent<CharacterSpriteRigController>() == null)
             {
                 throw new BuildFailedException(
                     "CharacterRig2D.prefab must contain " +
                     "CharacterSpriteRigController.");
             }
 
-            string controllerSource =
-                File.ReadAllText(ControllerPath);
-            string[] requiredTokens =
+            string controllerSource = File.ReadAllText(ControllerPath);
+            string[] requiredControllerTokens =
             {
-                "CharacterSpritePart",
-                "FindOpaqueBounds",
-                "Bone.Belly",
-                "Bone.ChestSoft",
-                "Bone.Head",
+                "CreateWholeBody",
+                "TryGetWorldBounds",
+                "TryGetScreenHeightFraction",
+                "FitToScreenHeight",
                 "HideLegacyGeometry",
                 "GetStageScale",
                 "GetColumn"
             };
-            for (int i = 0; i < requiredTokens.Length; i++)
+            for (int i = 0; i < requiredControllerTokens.Length; i++)
             {
                 if (!controllerSource.Contains(
-                        requiredTokens[i],
+                        requiredControllerTokens[i],
                         System.StringComparison.Ordinal))
                 {
                     throw new BuildFailedException(
-                        "Real sprite controller is missing required token: " +
-                        requiredTokens[i]);
+                        "Real sprite controller is missing required 3.3 " +
+                        "token: " + requiredControllerTokens[i]);
+                }
+            }
+
+            string[] forbiddenControllerTokens =
+            {
+                "PartSpec",
+                "PartSpecs",
+                "CharacterSpritePart part",
+                "12 bone-bound parts"
+            };
+            for (int i = 0; i < forbiddenControllerTokens.Length; i++)
+            {
+                if (controllerSource.Contains(
+                        forbiddenControllerTokens[i],
+                        System.StringComparison.Ordinal))
+                {
+                    throw new BuildFailedException(
+                        "Patch 3.2 rectangular limb slicing returned: " +
+                        forbiddenControllerTokens[i]);
+                }
+            }
+
+            string gateSource = File.ReadAllText(VisibilityGatePath);
+            string[] requiredGateTokens =
+            {
+                "CharacterSpriteRigController",
+                "TryGetWorldBounds",
+                "FitToScreenHeight",
+                "SafeVisibleMinimum",
+                "UsedVisibleSpriteFallback"
+            };
+            for (int i = 0; i < requiredGateTokens.Length; i++)
+            {
+                if (!gateSource.Contains(
+                        requiredGateTokens[i],
+                        System.StringComparison.Ordinal))
+                {
+                    throw new BuildFailedException(
+                        "CharacterVisibilityGate is missing 3.3 protection: " +
+                        requiredGateTokens[i]);
                 }
             }
         }
