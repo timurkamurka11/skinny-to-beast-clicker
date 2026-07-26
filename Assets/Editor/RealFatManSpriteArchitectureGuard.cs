@@ -14,6 +14,8 @@ namespace SkinnyToBeast.Editor
             "Assets/Resources/Characters/FatManLayered/Generated/manifest.json";
         private const string GeneratorPath =
             "Tools/FatManLayeredArt/generate_layered_art.py";
+        private const string RefinerPath =
+            "Tools/FatManLayeredArt/refine_layered_art.py";
         private const string LayeredControllerPath =
             "Assets/Scripts/Gameplay/CharacterLayeredRigController.cs";
         private const string VisibilityGatePath =
@@ -67,6 +69,7 @@ namespace SkinnyToBeast.Editor
             {
                 ManifestPath,
                 GeneratorPath,
+                RefinerPath,
                 LayeredControllerPath,
                 VisibilityGatePath,
                 ViewControllerPath,
@@ -116,13 +119,15 @@ namespace SkinnyToBeast.Editor
                     "RealFatMan.LayeredArt3_6",
                     "Resources.Load<Texture2D>",
                     "ArtBone.",
-                    "Layer.Pelvis",
+                    "Layer.",
                     "SuppressLegacyVisuals",
                     "SetFaceGroup",
                     "ScheduleBlink",
                     "TryGetWorldBounds",
                     "FitToScreenHeight",
-                    "UsesNativeSideProfile"
+                    "UsesNativeSideProfile",
+                    "Sprite.RealFatManBody",
+                    "LayeredPaintedFaceOverlay"
                 },
                 "Patch 3.6 layered controller is missing token: ");
             ForbidTokens(
@@ -130,11 +135,9 @@ namespace SkinnyToBeast.Editor
                 new[]
                 {
                     "CharacterSkinnedSpriteGraphic",
-                    "Sprite.RealFatManLayeredSurface",
                     "RefreshDeformation",
                     "CaptureBindPose",
-                    "GridColumns",
-                    "whole-body mesh"
+                    "GridColumns"
                 },
                 "Obsolete whole-PNG skinning returned in Patch 3.6: ");
 
