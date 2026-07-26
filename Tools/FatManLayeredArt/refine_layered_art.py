@@ -79,6 +79,32 @@ def anchor_component(mask: np.ndarray, pivot_x: float, pivot_y: float) -> np.nda
     return visited
 
 
+def include_pivot(
+    crop_x0: int,
+    crop_y0: int,
+    crop_x1: int,
+    crop_y1: int,
+    pivot_x: float,
+    pivot_y: float,
+    width: int,
+    height: int,
+    padding: int,
+) -> Tuple[int, int, int, int]:
+    """Keep the rotation pivot inside the transparent canvas.
+
+    Joint pivots are intentionally allowed to sit in transparent overlap around
+    a limb, but never outside its PNG. This avoids extreme RectTransform pivots
+    and preserves clean shoulder/elbow/knee rotation.
+    """
+    pivot_pixel_x = int(round(pivot_x * width))
+    pivot_pixel_y = int(round((1.0 - pivot_y) * height))
+    crop_x0 = max(0, min(crop_x0, pivot_pixel_x - padding))
+    crop_y0 = max(0, min(crop_y0, pivot_pixel_y - padding))
+    crop_x1 = min(width, max(crop_x1, pivot_pixel_x + padding + 1))
+    crop_y1 = min(height, max(crop_y1, pivot_pixel_y + padding + 1))
+    return crop_x0, crop_y0, crop_x1, crop_y1
+
+
 def refine_part(view: dict, part: dict) -> None:
     if part.get("faceGroup") or part["name"] in ("ShirtHem", "ChinSoft", "Hair"):
         return
@@ -113,6 +139,17 @@ def refine_part(view: dict, part: dict) -> None:
     crop_y0 = max(0, int(ys.min()) - padding)
     crop_x1 = min(old_width, int(xs.max()) + padding + 1)
     crop_y1 = min(old_height, int(ys.max()) + padding + 1)
+    crop_x0, crop_y0, crop_x1, crop_y1 = include_pivot(
+        crop_x0,
+        crop_y0,
+        crop_x1,
+        crop_y1,
+        part["pivotX"],
+        part["pivotY"],
+        old_width,
+        old_height,
+        padding,
+    )
 
     rgba[:, :, 3] = np.where(alpha, rgba[:, :, 3], 0)
     cropped = rgba[crop_y0:crop_y1, crop_x0:crop_x1]
@@ -134,7 +171,7 @@ def main() -> None:
         for part in view["parts"]:
             refine_part(view, part)
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print("Refined layered art: anatomical bounds enforced and stray components removed.")
+    print("Refined layered art: anatomical bounds enforced, pivots retained and stray components removed.")
 
 
 if __name__ == "__main__":
