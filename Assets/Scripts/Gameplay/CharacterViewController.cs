@@ -52,9 +52,14 @@ namespace SkinnyToBeast.Gameplay
             if (facing == CharacterFacing.SideLeft ||
                 facing == CharacterFacing.SideRight)
             {
-                // A fat side profile keeps more depth than the old technical
-                // mannequin. Left uses the same artwork mirrored.
-                horizontal *= 0.82f;
+                CharacterLayeredRigController layered =
+                    GetComponent<CharacterLayeredRigController>();
+                // Patch 3.6 has a real side-profile art set. Do not squeeze it
+                // like the old procedural mannequin; only mirror for SideLeft.
+                if (layered == null || !layered.UsesNativeSideProfile)
+                {
+                    horizontal *= 0.82f;
+                }
                 if (facing == CharacterFacing.SideLeft)
                 {
                     horizontal *= -1f;
