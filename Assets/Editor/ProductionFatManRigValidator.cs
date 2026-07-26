@@ -82,7 +82,7 @@ namespace SkinnyToBeast.EditorTools
                 {
                     SpriteSkin skin = skins[i];
                     if (skin != null &&
-                        skin.spriteRenderer != null &&
+                        skin.GetComponent<SpriteRenderer>() != null &&
                         skin.boneTransforms != null &&
                         skin.boneTransforms.Length > 0)
                     {
