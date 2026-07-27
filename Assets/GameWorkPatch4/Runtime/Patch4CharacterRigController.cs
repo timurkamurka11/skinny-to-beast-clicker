@@ -5,7 +5,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
     /// Owns the isolated Patch 4 rig and keeps Patch 3.5 available as rollback.
-    /// Patch 4 never activates unless its complete named skeleton is present.
+    /// Patch 4 never activates unless its complete named skeleton and explicitly
+    /// approved production art are both present.
     /// </summary>
     [DefaultExecutionOrder(900)]
     [DisallowMultipleComponent]
@@ -14,6 +15,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [Header("Patch 4 Rig")]
         [SerializeField] private Transform rigRoot;
         [SerializeField] private GameObject patch4VisualRoot;
+
+        [Header("Production Art Gate")]
+        [SerializeField] private Patch4ArtReadinessAsset artReadiness;
+        [SerializeField] private string expectedSourceSha256 =
+            "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c";
 
         [Header("Rollback")]
         [SerializeField] private GameObject patch35RollbackRoot;
@@ -27,10 +33,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private readonly List<string> missingBones = new();
         private bool rigValid;
 
-        public bool Patch4Enabled => patch4Enabled && rigValid;
+        public bool IsArtApproved =>
+            artReadiness != null &&
+            artReadiness.IsApprovedFor(expectedSourceSha256);
+
+        public bool Patch4Enabled =>
+            patch4Enabled && rigValid && IsArtApproved;
+
         public bool IsRigValid => rigValid;
         public IReadOnlyList<string> MissingBones => missingBones;
         public Transform RigRoot => rigRoot;
+        public Patch4ArtReadinessAsset ArtReadiness => artReadiness;
+        public string ExpectedSourceSha256 => expectedSourceSha256;
 
         private void Awake()
         {
@@ -104,11 +118,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         public bool SetPatch4Enabled(bool enabled)
         {
-            if (enabled && !RebuildBoneMap())
+            if (enabled)
             {
-                patch4Enabled = false;
-                ApplyVisualState();
-                return false;
+                if (!RebuildBoneMap())
+                {
+                    patch4Enabled = false;
+                    ApplyVisualState();
+                    return false;
+                }
+
+                if (!IsArtApproved)
+                {
+                    patch4Enabled = false;
+                    ApplyVisualState();
+                    LogFailure(
+                        "Patch 4 activation rejected: production art is not " +
+                        "approved for the expected master SHA-256. Draft mask " +
+                        "layers can never approve this gate automatically.");
+                    return false;
+                }
             }
 
             patch4Enabled = enabled;
@@ -118,7 +146,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void ApplyVisualState()
         {
-            bool showPatch4 = patch4Enabled && rigValid;
+            bool showPatch4 = Patch4Enabled;
 
             if (patch4VisualRoot != null &&
                 patch4VisualRoot.activeSelf != showPatch4)
@@ -159,16 +187,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             if (!Application.isPlaying)
             {
-                // Keep rollback visible while the source art and Sprite Skin are
-                // still being assembled in the editor.
-                if (patch4VisualRoot != null && !patch4Enabled)
+                bool canShowPatch4 =
+                    patch4Enabled && rigValid && IsArtApproved;
+
+                if (patch4VisualRoot != null &&
+                    patch4VisualRoot.activeSelf != canShowPatch4)
                 {
-                    patch4VisualRoot.SetActive(false);
+                    patch4VisualRoot.SetActive(canShowPatch4);
                 }
 
-                if (patch35RollbackRoot != null && !patch4Enabled)
+                if (patch35RollbackRoot != null &&
+                    patch35RollbackRoot.activeSelf == canShowPatch4)
                 {
-                    patch35RollbackRoot.SetActive(true);
+                    patch35RollbackRoot.SetActive(!canShowPatch4);
                 }
             }
         }
