@@ -63,7 +63,7 @@
 - [x] Added `Patch4MaskDrivenLayerBaker` to build the complete 40-layer full-canvas draft pack.
 - [x] Added bilateral splitting and controlled geometric fallback regions.
 - [x] Added `Patch4DraftLayerValidator` for dimensions, coverage, leakage, alpha content and 14 joint-overlap checks.
-- [x] Added `Patch4ProductionPipeline` with five ordered commands.
+- [x] Added `Patch4ProductionPipeline` with ordered production commands.
 - [x] Added `Patch4ProductionDashboard` with live project status and explicit build buttons.
 - [x] Added a detailed P4.0-C manual-art guide.
 
@@ -81,22 +81,54 @@
 - [x] Updated GitHub design links with Adobe, Figma and Canva sources.
 - [ ] Figma P4.0-C status panel was not added because the Starter MCP call limit was reached; the failed call was atomic and the existing file is intact.
 
-### Current status
+## 2026-07-28 — P4.0-D CI, compilation and smoke verification
 
-The code and editor pipeline can now generate, inspect and reject an incomplete draft layer pack. Patch 4 remains disabled. Real hidden joint artwork and final facial poses still require manual painting inside an image editor before human approval.
+### GitHub automation completed
+
+- [x] Added `Assets/GameWorkPatch4/CI/validate_patch4.py`.
+- [x] Added `.github/workflows/patch4-static-guard.yml`.
+- [x] Static guard validates contract counts, uniqueness, master SHA, JSON manifests, readiness lock and protected paths.
+- [x] Static guard clearly does not claim Unity compilation.
+
+### Unity verification tools completed
+
+- [x] Added `Patch4CompilationMonitor`.
+- [x] Compilation reports are written to `Library/GameWorkPatch4Reports/patch4-compilation-report.json`.
+- [x] Added `Patch4EditorSmokeValidator`.
+- [x] Editor smoke reports are written to `Library/GameWorkPatch4Reports/patch4-editor-smoke-report.json`.
+- [x] Added compilation and smoke-report status to the Production Dashboard.
+- [x] Extended the Production Pipeline to seven ordered steps.
+
+### Automated tests completed
+
+- [x] Added isolated EditMode test assembly.
+- [x] Added tests for contract counts, uniqueness, critical entries and readiness SHA matching.
+- [x] Added isolated PlayMode test assembly.
+- [x] Added tests proving unapproved art cannot activate Patch 4.
+- [x] Added tests proving an incomplete skeleton cannot be bypassed.
+- [x] Added tests proving an approved complete rig switches visibility and restores rollback when disabled.
+- [x] Added `Docs/Patch4/P4_0_D_VERIFICATION.md`.
+
+### Current honest status
+
+The verification source code is committed, but Unity has not physically compiled or run the tests yet. No passing compilation, EditMode or PlayMode result is claimed. Patch 4 remains disabled.
 
 ### Immediate manual tasks
 
-- [ ] Run the new Unity dashboard in `6000.3.19f1`.
+- [ ] Open branch `patch-4.0` in Unity `6000.3.19f1`.
+- [ ] Wait for compilation and inspect `patch4-compilation-report.json`.
+- [ ] Run the Production Dashboard from step 1 through step 6.
+- [ ] Run all EditMode tests.
+- [ ] Run all PlayMode tests.
 - [ ] Download Adobe sources and bake the draft pack.
 - [ ] Inspect `layer-bake-report.json`.
 - [ ] Repaint hidden neck, shoulder, elbow, wrist, hip, knee, ankle, belly and shirt-hem continuations.
 - [ ] Paint real open-mouth, smile, eyelid, iris and cheek layers.
 - [ ] Reassemble the neutral pose and compare it with the approved master.
 - [ ] Re-run validation and rebuild the locked prefab.
-- [ ] Compile all scripts and test all ten animations in Play Mode.
+- [ ] Test all ten animations in the actual room.
 - [ ] Paint Sprite Skin weights after rigid-layer continuity passes.
-- [ ] Approve `Patch4ArtReadiness.asset` only after the exact master and all tests pass.
+- [ ] Approve `Patch4ArtReadiness.asset` only after the exact master and every test pass.
 
 ### Do not touch
 
