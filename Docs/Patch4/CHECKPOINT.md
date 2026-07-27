@@ -4,11 +4,11 @@ Last updated: 2026-07-28
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
-This file is the canonical continuation point for future Patch 4 work.
+This file is the canonical continuation point for all future Patch 4 work.
 
 ## User goal
 
-Replace the Patch 3.5 procedural/basic-shape character with an original hand-drawn overweight adult man, a completely new named skeleton, separated facial artwork and new animations.
+Replace the Patch 3.5 procedural/basic-shape character with an original hand-drawn overweight adult man, a completely new named skeleton, separated facial artwork, soft-body deformation and new animations.
 
 The following must remain unchanged:
 
@@ -19,15 +19,19 @@ The following must remain unchanged:
 
 ## Approved visual source
 
-- Original neutral front master: transparent PNG, 1024 × 1536, RGBA.
-- Character: overweight adult man, heavy belly, thick arms and thighs, short dark hair, gray sleeveless shirt, dark shorts/pants and gray shoes.
-- Figma file: `tZSr9vinRs9EbZzgatxjda`
-- Concept board: node `4:3`
-- Rig blueprint board: node `6:3`
-- Adobe Creative Cloud source: `urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde`
-- Adobe vector trace: `https://to.adobe.com/aN0OeN9oa589DR97`
+- Neutral front master: transparent PNG, `1024 × 1536`, RGBA.
+- Approved SHA-256: `5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c`.
+- Character: overweight adult man, heavy belly, thick arms and thighs, short dark hair, dirty gray sleeveless shirt, dark pants and gray shoes.
+- Figma file: `tZSr9vinRs9EbZzgatxjda`.
+- Concept board: node `4:3`.
+- Rig blueprint board: node `6:3`.
+- Adobe source currently used by P4.0-C: `urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb`.
+- Adobe source URL: `https://at.adobe.com/SGSnfFAvaBd9wjrT`.
+- Earlier Creative Cloud copy: `urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde`.
+- Adobe vector trace: `https://to.adobe.com/aN0OeN9oa589DR97`.
+- Adobe rigging-parts reference: `https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:5b427aac-252e-45c2-9a79-272568e505b8`.
 
-The master is approved as the visual source, but it is not a final one-piece Unity sprite.
+The master is approved as the visual source, but it is not a final one-piece Unity sprite. The Firefly rigging sheet is reference-only and may not replace the exact approved master.
 
 ## Completed P4.0-A — art and rig foundation
 
@@ -38,7 +42,7 @@ The master is approved as the visual source, but it is not a final one-piece Uni
 - Layer contract for body, head, face, arms, legs, clothes and FX.
 - Adobe vector trace and local art-foundation package.
 
-## Completed P4.0-B — runtime and editor pipeline
+## Completed P4.0-B — runtime and editor foundation
 
 ### Runtime
 
@@ -80,12 +84,121 @@ The master is approved as the visual source, but it is not a final one-piece Uni
 
 Patch 4 does not edit the existing gameplay controller. `Patch4LegacySignalBridge` observes:
 
-- accepted tap count from `CharacterRigController`
-- movement state and facing
-- idle/routine action state
-- current skin stage from `CharacterSkinController`
+- accepted tap count from `CharacterRigController`;
+- movement state and facing;
+- idle/routine action state;
+- current skin stage from `CharacterSkinController`.
 
 It mirrors those signals into the new Patch 4 Animator while Patch 3.5 stays available as rollback.
+
+## Completed P4.0-C automation — Adobe masks and layer production pipeline
+
+### Adobe work completed
+
+The transparent master was uploaded and visually inspected in Adobe.
+
+Valid selection masks were produced for:
+
+- hair;
+- face base;
+- eyebrows;
+- nose;
+- ears;
+- neck;
+- upper clothes;
+- lower clothes;
+- hands;
+- shoes.
+
+Adobe did not reliably detect stylized pupils, mouth, arms or legs. Those failed requests returned the full subject or an implausibly small selection. They are marked invalid in the manifest and are never treated as production masks.
+
+Manifest:
+
+`Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json`
+
+### New P4.0-C runtime safety
+
+- `Patch4ArtReadinessAsset` is the explicit human-approval gate.
+- `Patch4CharacterRigController` now requires readiness approval for the exact master SHA-256.
+- Setting `patch4Enabled = true` cannot bypass this gate.
+- If art is not approved, Patch 4 stays hidden and Patch 3.5 remains visible.
+- Automated tools never set `productionArtApproved`.
+
+### New P4.0-C editor tools
+
+- `Patch4AdobeMaskDownloader`
+- `Patch4MaskDrivenLayerBaker`
+- `Patch4DraftLayerValidator`
+- `Patch4ArtReadinessAssetBuilder`
+- `Patch4PrefabReadinessBinder`
+- `Patch4ProductionPipeline`
+- `Patch4ProductionDashboard`
+
+### Production dashboard
+
+Open in Unity:
+
+`Tools → GameWork → Patch 4.0 → Open Production Dashboard`
+
+Ordered commands:
+
+1. Download Adobe sources.
+2. Bake draft layers.
+3. Validate draft layers.
+4. Rebuild locked runtime assets.
+5. Run safety validation.
+
+### Draft layer behavior
+
+The baker creates the complete canonical full-canvas layer set in:
+
+`Assets/GameWorkPatch4/Art/Character/FatMan/Layers/`
+
+Every draft remains `1024 × 1536`. Filenames replace `/` with `_`:
+
+- `Body_TorsoBase.png`
+- `Face_MouthClosed.png`
+- `ArmL_Upper.png`
+- `LegR_Foot.png`
+- `FX_Shadow.png`
+
+The baker prefers valid Adobe masks and uses bounded geometric fallback regions only when Adobe detection failed. It writes `layer-draft-status.json` with `activationAllowed: false`.
+
+### Pixel and joint QA
+
+`Patch4DraftLayerValidator` creates:
+
+`Assets/GameWorkPatch4/Art/Character/FatMan/layer-bake-report.json`
+
+It checks:
+
+- all canonical files exist;
+- every canvas is exactly `1024 × 1536`;
+- each layer contains meaningful alpha pixels;
+- union coverage of the approved master;
+- alpha leakage outside the approved master;
+- local overlap at neck, shoulders, elbows, wrists, hips, knees, ankles and belly/shirt hem;
+- draft metadata keeps activation disabled.
+
+Technical passing does not equal human art approval.
+
+## Canva visual status
+
+Editable design:
+
+`https://www.canva.com/d/Zwy2RkpL4DJRJYs`
+
+View-only design:
+
+`https://www.canva.com/d/VESyL19jdqnHkif`
+
+Canva is a visual status copy. This GitHub checkpoint remains the source of truth.
+
+## Figma status
+
+Figma concept and rig pages remain intact.
+
+A new P4.0-C status panel could not be written because the Figma Starter MCP call limit was reached. The failed write was atomic and did not modify or damage the existing file.
 
 ## Current activation state
 
@@ -96,45 +209,41 @@ It may activate only when:
 1. all required bones exist;
 2. all canonical painted sprites exist in the layer catalog;
 3. all ten animation clips exist;
-4. the generated prefab passes validator checks;
-5. only one character body is visible;
-6. Unity compilation and Play Mode tests pass.
+4. the pixel/joint report passes;
+5. all hidden joint artwork has been manually reconstructed;
+6. independent face poses have been manually reviewed;
+7. the exact master SHA is approved in `Patch4ArtReadiness.asset`;
+8. the generated prefab passes contract checks;
+9. only one character body is visible;
+10. Unity compilation and Play Mode tests pass.
 
-Until then, Patch 3.5 remains visible.
-
-## Layer export convention
-
-Place full-canvas transparent PNGs in:
-
-`Assets/GameWorkPatch4/Art/Character/FatMan/Layers/`
-
-File names replace the contract slash with one underscore:
-
-- `Body_TorsoBase.png`
-- `Face_MouthClosed.png`
-- `ArmL_Upper.png`
-- `LegR_Foot.png`
-- `FX_Shadow.png`
-
-Every draft layer remains 1024 × 1536 so the import postprocessor can apply an exact skeleton-aligned pivot. Transparent trimming/atlas optimization comes only after the reassembled neutral pose is verified.
+Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-### P4.0-C — actual painted layer production
+### P4.0-C manual art completion
 
-1. Cut the approved master into the canonical PNG layer set.
-2. Manually redraw hidden artwork beneath every moving joint.
-3. Create independent eye whites, irises, lids, brows, cheeks and three mouth poses.
-4. Reassemble all layers in the neutral pose and compare pixel-for-pixel against the approved master.
-5. Import layers into Unity and rebuild the catalog.
-6. Run `Tools/GameWork/Patch 4.0/Build/Rebuild Character Prefab`.
-7. Install beside the selected legacy character in rollback mode.
-8. Run contract and protected-path validation.
-9. Compile and test all ten animations in the room.
+1. Open the project in Unity `6000.3.19f1`.
+2. Open the Patch 4 Production Dashboard.
+3. Run Adobe download and draft bake commands.
+4. Inspect `layer-bake-report.json`.
+5. Manually redraw hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees, ankles, belly and shirt hem.
+6. Replace geometric face fallbacks with real eye whites, irises, eyelids, cheeks, open mouth and smile.
+7. Reassemble the neutral pose and compare it against the approved master.
+8. Re-run pixel and joint validation.
+9. Rebuild the locked prefab.
+10. Compile and test all ten animations in the room.
+11. Only after successful human review, approve the readiness asset for the exact master SHA.
+
+Detailed instructions:
+
+`Docs/Patch4/P4_0_C_LAYER_PRODUCTION.md`
 
 ## Known limitations
 
 - Unity compilation has not yet been executed in the actual editor.
-- Final transparent layer PNGs are not yet in the repository.
+- Adobe source files and generated PNG layers are downloaded/generated inside Unity and are not yet committed as binary repository assets.
+- Hidden joint artwork still requires manual painting.
+- Final face poses still require manual painting.
 - Sprite Skin weight painting has not yet been completed.
-- Figma Starter reached its three-page limit; the attempted new P4.0-B page was rejected without modifying the file. Existing concept and rig pages remain intact.
+- Figma Starter MCP limit currently prevents additional write calls.
