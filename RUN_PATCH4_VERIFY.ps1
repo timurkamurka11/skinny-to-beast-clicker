@@ -13,6 +13,14 @@ $ExpectedMasterSha = '5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $ResultsRoot = Join-Path $ProjectRoot "Patch4VerificationResults\$Timestamp"
 $ResultsInitialized = $false
+$ManagedPaths = @(
+    '.github/workflows/patch4-static-guard.yml',
+    '.gitignore',
+    'Assets/GameWorkPatch4',
+    'Docs/Patch4',
+    'RUN_PATCH4_VERIFY.bat',
+    'RUN_PATCH4_VERIFY.ps1'
+)
 
 function Initialize-Results {
     if (-not $script:ResultsInitialized) {
@@ -120,10 +128,37 @@ try {
         Stop-WithReport 'The launcher must remain in the Git repository root.'
     }
 
-    $Dirty = (& git -C $ProjectRoot status --porcelain)
-    if ($LASTEXITCODE -ne 0) { Stop-WithReport 'Could not read Git status.' }
-    if ($Dirty) {
-        Stop-WithReport "The working tree contains local changes. Commit or stash them first.`n$($Dirty -join "`n")"
+    $ManagedDirty = @(& git -C $ProjectRoot status --porcelain -- $ManagedPaths)
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithReport 'Could not inspect Patch 4 managed files.'
+    }
+    if ($ManagedDirty.Count -gt 0) {
+        Stop-WithReport (
+            "Patch 4 managed files contain local changes. They were not overwritten.`n" +
+            ($ManagedDirty -join "`n") +
+            "`nCommit or copy only these Patch 4 files before retrying."
+        )
+    }
+
+    $Dirty = @(& git -C $ProjectRoot status --porcelain)
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithReport 'Could not read Git status.'
+    }
+    if ($Dirty.Count -gt 0) {
+        Initialize-Results
+        Set-Content `
+            -Path (Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt') `
+            -Value @(
+                'The following local project files were detected and deliberately preserved.',
+                'Patch 4 verification does not commit, delete, stash or reset them.',
+                '',
+                $Dirty
+            ) `
+            -Encoding UTF8
+        Write-Host (
+            "Local Unity project changes detected. They will be preserved and ignored " +
+            "unless they are inside Patch 4 managed paths."
+        ) -ForegroundColor Yellow
     }
 
     if (-not $SkipPull) {
@@ -222,6 +257,7 @@ PlayMode exit: $PlayExit
 Exit code 0 means the automated step passed.
 Draft pixel/joint checks may remain blocked until hidden joints and final facial poses are manually painted.
 Production art approval remains locked by design.
+Local non-Patch-4 project files were preserved and were not committed, reset, deleted or stashed.
 "@
     Set-Content -Path (Join-Path $ResultsRoot 'SUMMARY.txt') -Value $Summary -Encoding UTF8
 
