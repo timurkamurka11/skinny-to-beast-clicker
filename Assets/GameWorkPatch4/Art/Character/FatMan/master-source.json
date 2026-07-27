@@ -1,8 +1,9 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "characterId": "fat-man-stage-0",
-  "status": "approved-neutral-front-master",
+  "status": "approved-neutral-front-master-layer-production-in-progress",
   "runtimeReady": false,
+  "activationAllowed": false,
   "raster": {
     "fileName": "FatMan_NeutralFront_Master.png",
     "width": 1024,
@@ -13,10 +14,14 @@
     "sha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c"
   },
   "adobe": {
-    "creativeCloudAssetId": "urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde",
-    "assetLink": "https://at.adobe.com/PIAb1ihVhwnISLAU",
+    "currentCreativeCloudAssetId": "urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb",
+    "currentAssetLink": "https://at.adobe.com/SGSnfFAvaBd9wjrT",
+    "earlierCreativeCloudAssetId": "urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde",
+    "earlierAssetLink": "https://at.adobe.com/PIAb1ihVhwnISLAU",
     "vectorTraceLink": "https://to.adobe.com/aN0OeN9oa589DR97",
     "vectorTraceRequestId": "9ce0f9c0-9c5c-4aa3-b872-e98a4a9d4c3f",
+    "riggingPartsReferenceLink": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:5b427aac-252e-45c2-9a79-272568e505b8",
+    "maskManifest": "Masks/adobe-mask-manifest.json",
     "rigBlueprintAssetId": "urn:aaid:sc:AP:970e7ae2-f6b8-4904-92dc-2f882e4b973d",
     "rigBlueprintLink": "https://at.adobe.com/OgaQWle86yt2Palk",
     "layerCutGuideAssetId": "urn:aaid:sc:AP:00c99392-db30-4248-bd69-39903d888484",
@@ -27,14 +32,28 @@
     "conceptBoardNodeId": "4:3",
     "rigBlueprintNodeId": "6:3",
     "masterImageTargetNodeId": "6:7",
-    "skeletonOverlayNodeId": "6:8"
+    "skeletonOverlayNodeId": "6:8",
+    "writeStatus": "starter-mcp-call-limit-reached-existing-file-intact"
+  },
+  "canva": {
+    "designId": "DAHQntPYp3w",
+    "editUrl": "https://www.canva.com/d/Zwy2RkpL4DJRJYs",
+    "viewUrl": "https://www.canva.com/d/VESyL19jdqnHkif",
+    "purpose": "visual-production-status-copy"
+  },
+  "readiness": {
+    "assetPath": "Assets/GameWorkPatch4/Art/Patch4ArtReadiness.asset",
+    "requiredMasterSha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c",
+    "automaticApprovalAllowed": false,
+    "currentlyApproved": false
   },
   "productionRules": {
     "minimumHiddenOverlapPixels": 24,
     "armsSeparatedFromTorso": true,
     "fullBodyVisible": true,
     "visibleBasicShapesAllowed": false,
-    "flattenedRuntimeSpriteAllowed": false
+    "flattenedRuntimeSpriteAllowed": false,
+    "draftLayersMayActivateRuntime": false
   },
-  "nextStep": "Cut the neutral master into the required layer contract, redraw hidden joint overlap, then import into Unity 2D Animation with the Patch 4 skeleton."
+  "nextStep": "Run the Unity P4.0-C dashboard, download Adobe sources, bake the 40-layer draft pack, manually repaint hidden joints and final face poses, validate, rebuild the locked prefab, then compile and Play Mode test before human readiness approval."
 }
