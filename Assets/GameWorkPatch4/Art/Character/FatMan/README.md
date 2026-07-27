@@ -4,9 +4,11 @@ This directory is reserved for the new original hand-drawn Patch 4 character.
 
 ## Current state
 
-The Adobe/Figma concept sheet is a reference only. Final game art has not yet been imported here.
+The neutral front master has been approved and exported as a 1024 × 1536 transparent RGBA PNG. It has also been uploaded to Adobe Creative Cloud and converted to an editable SVG trace.
 
-Do not place a flattened concept-sheet image into the runtime prefab as the final character.
+The master is still a single visual reference and must be manually separated into the layer contract below before Unity Sprite Skin import. Do not place the flattened master or concept sheet into the runtime prefab as the final character.
+
+Source metadata, checksum, Adobe references and Figma node IDs are stored in `master-source.json`.
 
 ## Required source groups
 
@@ -62,6 +64,7 @@ FX/Shadow
 - Arms must remain separated enough from the torso for deformation.
 - Face layers must remain independently animatable.
 - Belly, chest, cheeks, and shirt hem require soft deformation zones.
+- Reassembled neutral layers must match the approved master before weight painting.
 - Preserve the Patch 3.5 prefab as rollback until Patch 4 validation passes.
 
 ## Protected systems
