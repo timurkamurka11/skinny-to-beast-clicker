@@ -21,6 +21,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 return;
             }
 
+            string contractPath =
+                Patch4LayerPlacement.ContractPathFromAssetPath(assetPath);
+            Vector2 pivot =
+                Patch4LayerPlacement.ResolvePivotNormalized(contractPath);
+
             TextureImporter importer = (TextureImporter)assetImporter;
             importer.textureType = TextureImporterType.Sprite;
             importer.spriteImportMode = SpriteImportMode.Single;
@@ -32,7 +37,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.maxTextureSize = 2048;
             importer.spritePixelsPerUnit = 100f;
-            importer.spriteAlignment = (int)SpriteAlignment.Center;
+            importer.spriteAlignment = (int)SpriteAlignment.Custom;
+            importer.spritePivot = pivot;
         }
     }
 }
