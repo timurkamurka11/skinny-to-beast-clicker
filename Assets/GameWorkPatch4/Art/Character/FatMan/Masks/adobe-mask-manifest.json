@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "draft-mask-sources",
+  "approvedMasterSha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c",
   "source": {
     "assetId": "urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb",
     "fileName": "FatMan_NeutralFront_Master.png",
