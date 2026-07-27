@@ -116,15 +116,15 @@ Manifest:
 
 `Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json`
 
-### New P4.0-C runtime safety
+### P4.0-C runtime safety
 
 - `Patch4ArtReadinessAsset` is the explicit human-approval gate.
-- `Patch4CharacterRigController` now requires readiness approval for the exact master SHA-256.
-- Setting `patch4Enabled = true` cannot bypass this gate.
+- `Patch4CharacterRigController` requires readiness approval for the exact master SHA-256.
+- Setting `patch4Enabled = true` cannot bypass the gate.
 - If art is not approved, Patch 4 stays hidden and Patch 3.5 remains visible.
 - Automated tools never set `productionArtApproved`.
 
-### New P4.0-C editor tools
+### P4.0-C editor tools
 
 - `Patch4AdobeMaskDownloader`
 - `Patch4MaskDrivenLayerBaker`
@@ -133,20 +133,6 @@ Manifest:
 - `Patch4PrefabReadinessBinder`
 - `Patch4ProductionPipeline`
 - `Patch4ProductionDashboard`
-
-### Production dashboard
-
-Open in Unity:
-
-`Tools → GameWork → Patch 4.0 → Open Production Dashboard`
-
-Ordered commands:
-
-1. Download Adobe sources.
-2. Bake draft layers.
-3. Validate draft layers.
-4. Rebuild locked runtime assets.
-5. Run safety validation.
 
 ### Draft layer behavior
 
@@ -182,6 +168,79 @@ It checks:
 
 Technical passing does not equal human art approval.
 
+## Completed P4.0-D automation — compile, CI and smoke verification
+
+### GitHub static guard
+
+Workflow:
+
+`.github/workflows/patch4-static-guard.yml`
+
+Validator:
+
+`Assets/GameWorkPatch4/CI/validate_patch4.py`
+
+It checks the 31-bone, 40-layer and 10-clip contracts, uniqueness, approved master SHA, JSON manifests, readiness lock and protected paths. It does not claim Unity compilation.
+
+### Unity compilation report
+
+`Patch4CompilationMonitor` writes:
+
+`Library/GameWorkPatch4Reports/patch4-compilation-report.json`
+
+The report records all compiler errors and warnings, assembly, source path, line, column and Patch 4-specific counts. It is deliberately outside `Assets` to prevent re-import loops.
+
+### Editor prefab smoke report
+
+`Patch4EditorSmokeValidator` writes:
+
+`Library/GameWorkPatch4Reports/patch4-editor-smoke-report.json`
+
+It checks prefab existence, complete skeleton, readiness binding, exact SHA, Animator Controller, all ten clips, the complete layer catalog and the initially hidden Patch 4 visual root.
+
+### EditMode tests
+
+Assembly:
+
+`SkinnyToBeast.GameWorkPatch4.EditModeTests`
+
+The tests verify contract counts, uniqueness, critical entries and exact readiness SHA behavior.
+
+### PlayMode tests
+
+Assembly:
+
+`SkinnyToBeast.GameWorkPatch4.PlayModeTests`
+
+The tests verify:
+
+1. complete skeleton without art approval remains on Patch 3.5;
+2. exact approved SHA plus complete skeleton can activate Patch 4;
+3. disabling Patch 4 restores rollback visibility;
+4. approval cannot bypass an incomplete skeleton.
+
+The tests use reflection to stay isolated from the predefined `Assembly-CSharp` assembly.
+
+Detailed instructions:
+
+`Docs/Patch4/P4_0_D_VERIFICATION.md`
+
+## Production dashboard
+
+Open in Unity:
+
+`Tools → GameWork → Patch 4.0 → Open Production Dashboard`
+
+Ordered commands:
+
+1. Download Adobe sources.
+2. Bake draft layers.
+3. Validate draft layers.
+4. Rebuild locked runtime assets.
+5. Run safety validation.
+6. Run compilation and Editor smoke reports.
+7. Open Unity Test Runner and run EditMode plus PlayMode tests.
+
 ## Canva visual status
 
 Editable design:
@@ -210,38 +269,50 @@ It may activate only when:
 2. all canonical painted sprites exist in the layer catalog;
 3. all ten animation clips exist;
 4. the pixel/joint report passes;
-5. all hidden joint artwork has been manually reconstructed;
-6. independent face poses have been manually reviewed;
-7. the exact master SHA is approved in `Patch4ArtReadiness.asset`;
-8. the generated prefab passes contract checks;
-9. only one character body is visible;
-10. Unity compilation and Play Mode tests pass.
+5. the compilation report succeeds;
+6. the Editor smoke report passes;
+7. all EditMode tests pass;
+8. all PlayMode tests pass;
+9. all hidden joint artwork has been manually reconstructed;
+10. independent face poses have been manually reviewed;
+11. the exact master SHA is approved in `Patch4ArtReadiness.asset`;
+12. only one character body is visible;
+13. the ten animations pass review in the actual room;
+14. protected paths remain unchanged.
 
 Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-### P4.0-C manual art completion
+### P4.0-C manual art completion and first real Unity verification
 
-1. Open the project in Unity `6000.3.19f1`.
-2. Open the Patch 4 Production Dashboard.
-3. Run Adobe download and draft bake commands.
-4. Inspect `layer-bake-report.json`.
-5. Manually redraw hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees, ankles, belly and shirt hem.
-6. Replace geometric face fallbacks with real eye whites, irises, eyelids, cheeks, open mouth and smile.
-7. Reassemble the neutral pose and compare it against the approved master.
-8. Re-run pixel and joint validation.
-9. Rebuild the locked prefab.
-10. Compile and test all ten animations in the room.
-11. Only after successful human review, approve the readiness asset for the exact master SHA.
+1. Open the project in Unity `6000.3.19f1` on branch `patch-4.0`.
+2. Wait for compilation and inspect the generated compilation report.
+3. Open the Patch 4 Production Dashboard.
+4. Run Adobe download and draft bake commands.
+5. Inspect `layer-bake-report.json`.
+6. Manually redraw hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees, ankles, belly and shirt hem.
+7. Replace geometric face fallbacks with real eye whites, irises, eyelids, cheeks, open mouth and smile.
+8. Reassemble the neutral pose and compare it against the approved master.
+9. Re-run pixel and joint validation.
+10. Rebuild the locked prefab.
+11. Run Editor smoke validation.
+12. Run all EditMode and PlayMode tests.
+13. Test all ten animations in the room.
+14. Only after successful human review, approve the readiness asset for the exact master SHA.
 
-Detailed instructions:
+Detailed art instructions:
 
 `Docs/Patch4/P4_0_C_LAYER_PRODUCTION.md`
+
+Detailed verification instructions:
+
+`Docs/Patch4/P4_0_D_VERIFICATION.md`
 
 ## Known limitations
 
 - Unity compilation has not yet been executed in the actual editor.
+- The committed tests have not yet produced real passing EditMode or PlayMode results.
 - Adobe source files and generated PNG layers are downloaded/generated inside Unity and are not yet committed as binary repository assets.
 - Hidden joint artwork still requires manual painting.
 - Final face poses still require manual painting.
