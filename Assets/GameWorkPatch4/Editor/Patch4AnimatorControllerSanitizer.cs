@@ -60,11 +60,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     return;
                 }
 
-                ChildAnimatorStateTransition[] transitions =
-                    machine.GetStateTransitions(idle);
+                AnimatorStateTransition[] transitions = idle.transitions;
                 for (int i = 0; i < transitions.Length; i++)
                 {
-                    AnimatorStateTransition transition = transitions[i].transition;
+                    AnimatorStateTransition transition = transitions[i];
                     if (transition == null || transition.destinationState != walk)
                     {
                         continue;
