@@ -52,3 +52,6 @@ crashlytics-build.properties
 /Assets/Resources/UI/Gameplay/Living/Animations/LivingCharacter.controller
 /Assets/Resources/UI/Gameplay/Living/Animations/LivingCharacter.controller.meta
 /Assets/Resources/UI/Gameplay/Living/Animations/.gitkeep.meta
+
+# Patch 4 local automatic-verification reports.
+/Patch4VerificationResults/
