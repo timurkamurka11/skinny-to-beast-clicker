@@ -6,8 +6,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     /// <summary>
     /// Ensures every generated Patch 4 prefab references the locked readiness
-    /// asset. Implemented as a postprocessor so older prefab-builder versions
-    /// cannot accidentally omit the production-art gate.
+    /// asset. Saves only when values actually differ, preventing import loops.
     /// </summary>
     public sealed class Patch4PrefabReadinessBinder : AssetPostprocessor
     {
@@ -65,17 +64,28 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Patch4ArtReadinessAsset readiness =
                     Patch4ArtReadinessAssetBuilder.EnsureAsset();
                 SerializedObject serialized = new(rig);
-                SerializedProperty property = serialized.FindProperty("artReadiness");
-                if (property == null)
+                SerializedProperty readinessProperty =
+                    serialized.FindProperty("artReadiness");
+                SerializedProperty enabledProperty =
+                    serialized.FindProperty("patch4Enabled");
+                if (readinessProperty == null || enabledProperty == null)
                 {
                     Debug.LogError(
-                        "Patch 4 rig controller does not expose artReadiness.",
+                        "Patch 4 rig controller readiness fields are unavailable.",
                         prefab);
                     return;
                 }
 
-                property.objectReferenceValue = readiness;
-                serialized.FindProperty("patch4Enabled").boolValue = false;
+                bool changed =
+                    readinessProperty.objectReferenceValue != readiness ||
+                    enabledProperty.boolValue;
+                if (!changed)
+                {
+                    return;
+                }
+
+                readinessProperty.objectReferenceValue = readiness;
+                enabledProperty.boolValue = false;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 PrefabUtility.SaveAsPrefabAsset(contents, Patch4PrefabBuilder.PrefabPath);
                 AssetDatabase.SaveAssets();
