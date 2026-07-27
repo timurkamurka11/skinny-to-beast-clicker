@@ -13,9 +13,9 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 $ProjectRoot = (Resolve-Path $ProjectRoot).Path
 
-$RequiredBranch = 'patch-4.0'
 $RequiredUnityVersion = '6000.3.19f1'
 $ExpectedMasterSha = '5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c'
+$RepositoryArchiveUrl = 'https://github.com/timurkamurka11/skinny-to-beast-clicker/archive/refs/heads/patch-4.0.zip'
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $ResultsRoot = Join-Path $ProjectRoot "Patch4VerificationResults\$Timestamp"
 $ResultsInitialized = $false
@@ -47,13 +47,6 @@ function Stop-WithReport([string]$Message, [int]$Code = 1) {
     exit $Code
 }
 
-function Invoke-Git([string[]]$Arguments) {
-    & git -C $ProjectRoot @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
-    }
-}
-
 function Normalize-StatusPath([string]$StatusLine) {
     if ($StatusLine.Length -lt 4) { return '' }
     $Path = $StatusLine.Substring(3).Trim()
@@ -75,20 +68,34 @@ function Is-ManagedPath([string]$Path) {
 
 function Backup-LocalState {
     Initialize-Results
-    $Status = @(& git -C $ProjectRoot status --porcelain=v1)
-    if ($LASTEXITCODE -ne 0) {
-        Stop-WithReport 'Could not read Git status.'
-    }
+    $StatusFile = Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt'
 
-    if ($Status.Count -eq 0) {
-        Set-Content -Path (Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt') -Value 'Working tree was clean.' -Encoding UTF8
+    if (-not (Test-Path (Join-Path $ProjectRoot '.git'))) {
+        Set-Content -Path $StatusFile -Value 'No .git directory was available. Project files were preserved by path-isolated synchronization.' -Encoding UTF8
         return
     }
 
-    Set-Content -Path (Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt') -Value $Status -Encoding UTF8
+    try {
+        $Status = @(& git -C $ProjectRoot status --porcelain=v1 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            Set-Content -Path $StatusFile -Value 'Git status was unavailable. Synchronization continued without deleting any local files.' -Encoding UTF8
+            return
+        }
+    } catch {
+        Set-Content -Path $StatusFile -Value ('Git status was unavailable: ' + $_.Exception.Message) -Encoding UTF8
+        return
+    }
+
+    if ($Status.Count -eq 0) {
+        Set-Content -Path $StatusFile -Value 'Working tree was clean.' -Encoding UTF8
+        return
+    }
+
+    Set-Content -Path $StatusFile -Value $Status -Encoding UTF8
     $BackupRoot = Join-Path $ResultsRoot 'ManagedBackup'
 
     foreach ($Line in $Status) {
+        if ($Line.Length -lt 4) { continue }
         $Code = $Line.Substring(0, 2)
         $Path = Normalize-StatusPath $Line
         if (-not (Is-ManagedPath $Path)) { continue }
@@ -116,10 +123,22 @@ function Copy-SyncedPath([string]$SyncRoot, [string]$RelativePath) {
     }
 }
 
+function Download-File([string]$Url, [string]$Destination, [string]$Label) {
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        throw "URL is empty for $Label"
+    }
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+    Write-Host "Downloading $Label..."
+    Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Destination -TimeoutSec 120
+    if (-not (Test-Path $Destination) -or (Get-Item $Destination).Length -lt 64) {
+        throw "Downloaded file is missing or too small: $Destination"
+    }
+}
+
 function Sync-Patch4FromRemote {
-    Write-Step 'Synchronizing only Patch 4 files from GitHub'
+    Write-Step 'Synchronizing only Patch 4 files from GitHub ZIP'
     Backup-LocalState
-    Invoke-Git @('fetch', 'origin', $RequiredBranch)
 
     $SyncId = [Guid]::NewGuid().ToString('N')
     $ArchivePath = Join-Path $env:TEMP "patch4-sync-$SyncId.zip"
@@ -127,18 +146,15 @@ function Sync-Patch4FromRemote {
     New-Item -ItemType Directory -Path $SyncRoot -Force | Out-Null
 
     try {
-        $ArchiveArguments = @(
-            'archive',
-            '--format=zip',
-            "--output=$ArchivePath",
-            "origin/$RequiredBranch",
-            '--'
-        ) + $ManagedPaths
-        Invoke-Git $ArchiveArguments
+        Download-File $RepositoryArchiveUrl $ArchivePath 'latest Patch 4 branch archive'
         Expand-Archive -Path $ArchivePath -DestinationPath $SyncRoot -Force
+        $ExtractedRoot = Get-ChildItem -Path $SyncRoot -Directory | Select-Object -First 1
+        if ($null -eq $ExtractedRoot) {
+            throw 'GitHub branch archive did not contain a project directory.'
+        }
 
         foreach ($Path in $ManagedPaths) {
-            Copy-SyncedPath $SyncRoot $Path
+            Copy-SyncedPath $ExtractedRoot.FullName $Path
         }
     }
     finally {
@@ -146,7 +162,7 @@ function Sync-Patch4FromRemote {
         Remove-Item -Path $SyncRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    Write-Host 'Patch 4 files synchronized. Unrelated local Unity files were preserved.' -ForegroundColor Green
+    Write-Host 'Patch 4 files synchronized. Unrelated local Unity files and Unity .meta files were preserved.' -ForegroundColor Green
 }
 
 function Find-UnityEditor {
@@ -180,19 +196,6 @@ function Find-UnityEditor {
     }
 
     return $null
-}
-
-function Download-File([string]$Url, [string]$Destination, [string]$Label) {
-    if ([string]::IsNullOrWhiteSpace($Url)) {
-        throw "URL is empty for $Label"
-    }
-
-    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
-    Write-Host "Downloading $Label..."
-    Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Destination -TimeoutSec 90
-    if (-not (Test-Path $Destination) -or (Get-Item $Destination).Length -lt 64) {
-        throw "Downloaded file is missing or too small: $Destination"
-    }
 }
 
 function Quote-NativeArgument([string]$Value) {
@@ -236,8 +239,9 @@ function Open-UnityProject {
 
 try {
     Write-Step 'Checking project'
-    if (-not (Test-Path (Join-Path $ProjectRoot '.git'))) {
-        Stop-WithReport 'The selected project root is not a Git repository.'
+    if (-not (Test-Path (Join-Path $ProjectRoot 'Assets')) -or
+        -not (Test-Path (Join-Path $ProjectRoot 'ProjectSettings'))) {
+        Stop-WithReport 'The selected folder is not a Unity project root.'
     }
 
     if (-not $SkipRemoteSync) {
@@ -324,7 +328,9 @@ Prepare/smoke exit: $PrepareExit
 EditMode exit: $EditExit
 PlayMode exit: $PlayExit
 
-Patch 4 source files were synchronized without switching branches, stashing, resetting or deleting unrelated local Unity files.
+Patch 4 files were downloaded directly from the public GitHub branch ZIP.
+No git fetch, pull, switch, push, reset, clean or stash operation was used.
+Unrelated local Unity files and generated .meta files were preserved.
 Exit code 0 means the automated step passed.
 Draft pixel/joint checks may remain blocked until hidden joints and final facial poses are manually painted.
 Production art approval remains locked by design.
