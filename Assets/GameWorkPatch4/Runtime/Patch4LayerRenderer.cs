@@ -129,21 +129,44 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         public void ClearGeneratedLayers()
         {
+            Transform searchRoot = visualRoot != null
+                ? visualRoot
+                : transform;
+            SpriteRenderer[] existing =
+                searchRoot.GetComponentsInChildren<SpriteRenderer>(true);
+            for (int i = existing.Length - 1; i >= 0; i--)
+            {
+                SpriteRenderer renderer = existing[i];
+                if (renderer == null ||
+                    !renderer.gameObject.name.StartsWith(
+                        GeneratedPrefix,
+                        System.StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                DestroyGeneratedObject(renderer.gameObject);
+            }
+
             if (generatedRoot == null)
             {
-                Transform searchRoot = visualRoot != null
-                    ? visualRoot
-                    : transform;
                 generatedRoot = searchRoot.Find(GeneratedRootName);
             }
 
-            if (generatedRoot == null)
+            if (generatedRoot != null)
+            {
+                GameObject target = generatedRoot.gameObject;
+                generatedRoot = null;
+                DestroyGeneratedObject(target);
+            }
+        }
+
+        private void DestroyGeneratedObject(GameObject target)
+        {
+            if (target == null)
             {
                 return;
             }
-
-            GameObject target = generatedRoot.gameObject;
-            generatedRoot = null;
 
             if (Application.isPlaying)
             {
