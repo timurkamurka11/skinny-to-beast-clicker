@@ -16,7 +16,11 @@
     "creativeCloudAssetId": "urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde",
     "assetLink": "https://at.adobe.com/PIAb1ihVhwnISLAU",
     "vectorTraceLink": "https://to.adobe.com/aN0OeN9oa589DR97",
-    "vectorTraceRequestId": "9ce0f9c0-9c5c-4aa3-b872-e98a4a9d4c3f"
+    "vectorTraceRequestId": "9ce0f9c0-9c5c-4aa3-b872-e98a4a9d4c3f",
+    "rigBlueprintAssetId": "urn:aaid:sc:AP:970e7ae2-f6b8-4904-92dc-2f882e4b973d",
+    "rigBlueprintLink": "https://at.adobe.com/OgaQWle86yt2Palk",
+    "layerCutGuideAssetId": "urn:aaid:sc:AP:00c99392-db30-4248-bd69-39903d888484",
+    "layerCutGuideLink": "https://at.adobe.com/AYH20obBxHITbp5y"
   },
   "figma": {
     "fileKey": "tZSr9vinRs9EbZzgatxjda",
