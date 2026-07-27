@@ -60,6 +60,7 @@ function Find-UnityHub {
         'C:\Program Files\Unity Hub\Unity Hub.exe',
         'C:\Program Files\Unity\Hub\Unity Hub.exe',
         (Join-Path $env:LOCALAPPDATA 'Programs\Unity Hub\Unity Hub.exe'),
+        (Join-Path $env:LOCALAPPDATA 'UnityHub\Unity Hub.exe'),
         'D:\Program Files\Unity Hub\Unity Hub.exe',
         'D:\Program Files\Unity\Hub\Unity Hub.exe',
         'E:\Program Files\Unity Hub\Unity Hub.exe',
@@ -72,33 +73,71 @@ function Find-UnityHub {
         }
     }
 
+    $RegistryPaths = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Unity Hub.exe',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Unity Hub.exe'
+    )
+    foreach ($RegistryPath in $RegistryPaths) {
+        try {
+            $Value = (Get-ItemProperty -Path $RegistryPath -ErrorAction Stop).'(default)'
+            if ($Value -and (Test-Path $Value)) {
+                return (Resolve-Path $Value).Path
+            }
+        } catch {}
+    }
+
     return $null
+}
+
+function Install-UnityHub {
+    Write-Step 'Installing Unity Hub automatically'
+
+    $Winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (-not $Winget) {
+        throw 'Windows Package Manager (winget) was not found. Install Microsoft App Installer once, then run the same command again.'
+    }
+
+    Write-Host 'Windows may show one administrator/UAC confirmation. Approve it to continue.' -ForegroundColor Yellow
+    & $Winget.Source install `
+        --id Unity.UnityHub `
+        --exact `
+        --source winget `
+        --silent `
+        --accept-package-agreements `
+        --accept-source-agreements `
+        --disable-interactivity
+    $WingetExit = $LASTEXITCODE
+
+    Start-Sleep -Seconds 8
+    $Hub = Find-UnityHub
+    if (-not $Hub) {
+        throw "Unity Hub installation did not complete. winget exit code: $WingetExit. Run the same command once more after any installer window has finished."
+    }
+
+    Write-Host "Unity Hub ready: $Hub" -ForegroundColor Green
+    return $Hub
 }
 
 function Install-RequiredUnityEditor {
     $Hub = Find-UnityHub
     if (-not $Hub) {
-        throw 'Unity Hub was not found. Install Unity Hub once, then run the same command again.'
+        $Hub = Install-UnityHub
     }
 
     Write-Step "Installing Unity $RequiredUnityVersion automatically"
     Write-Host 'This is a large download and can take considerable time. Do not close this window.' -ForegroundColor Yellow
     Write-Host "Unity Hub: $Hub"
 
-    $ArgumentLine = "-- --headless install --version $RequiredUnityVersion --changeset $RequiredUnityChangeset"
+    $ArgumentLine = "-- --headless --errors install --version $RequiredUnityVersion --changeset $RequiredUnityChangeset"
     $Process = Start-Process -FilePath $Hub `
         -ArgumentList $ArgumentLine `
         -Wait `
         -PassThru
 
-    if ($Process.ExitCode -ne 0) {
-        throw "Unity Hub installation failed with exit code $($Process.ExitCode)."
-    }
-
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 10
     $Editor = Find-UnityEditor
     if (-not $Editor) {
-        throw "Unity Hub completed, but Unity $RequiredUnityVersion was not found in the standard install locations."
+        throw "Unity Hub finished with exit code $($Process.ExitCode), but Unity $RequiredUnityVersion was not found. Open Unity Hub once if it is waiting for a license or sign-in, then run the same command again."
     }
 
     return $Editor
