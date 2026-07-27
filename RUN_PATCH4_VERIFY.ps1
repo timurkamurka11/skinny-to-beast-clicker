@@ -12,16 +12,24 @@ $RequiredUnityVersion = '6000.3.19f1'
 $ExpectedMasterSha = '5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c'
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $ResultsRoot = Join-Path $ProjectRoot "Patch4VerificationResults\$Timestamp"
-New-Item -ItemType Directory -Path $ResultsRoot -Force | Out-Null
+$ResultsInitialized = $false
+
+function Initialize-Results {
+    if (-not $script:ResultsInitialized) {
+        New-Item -ItemType Directory -Path $script:ResultsRoot -Force | Out-Null
+        $script:ResultsInitialized = $true
+    }
+}
 
 function Write-Step([string]$Message) {
     Write-Host "`n=== $Message ===" -ForegroundColor Cyan
 }
 
 function Stop-WithReport([string]$Message, [int]$Code = 1) {
+    Initialize-Results
     Write-Host "`nFAILED: $Message" -ForegroundColor Red
-    Set-Content -Path (Join-Path $ResultsRoot 'FAILED.txt') -Value $Message -Encoding UTF8
-    try { Start-Process explorer.exe $ResultsRoot | Out-Null } catch {}
+    Set-Content -Path (Join-Path $script:ResultsRoot 'FAILED.txt') -Value $Message -Encoding UTF8
+    try { Start-Process explorer.exe $script:ResultsRoot | Out-Null } catch {}
     exit $Code
 }
 
@@ -46,27 +54,20 @@ function Find-UnityEditor {
     )
 
     foreach ($Candidate in $Candidates) {
-        if (Test-Path $Candidate) {
-            return $Candidate
-        }
+        if (Test-Path $Candidate) { return $Candidate }
     }
 
-    $HubRoots = @(
+    foreach ($Root in @(
         'C:\Program Files\Unity\Hub\Editor',
         'D:\Program Files\Unity\Hub\Editor',
         'D:\Unity\Hub\Editor',
         'E:\Program Files\Unity\Hub\Editor',
-        'E:\Unity\Hub\Editor'
-    )
-
-    foreach ($Root in $HubRoots) {
+        'E:\Unity\Hub\Editor')) {
         if (-not (Test-Path $Root)) { continue }
         $Found = Get-ChildItem -Path $Root -Filter Unity.exe -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -like "*$RequiredUnityVersion*" } |
             Select-Object -First 1
-        if ($Found) {
-            return $Found.FullName
-        }
+        if ($Found) { return $Found.FullName }
     }
 
     return $null
@@ -77,8 +78,7 @@ function Download-File([string]$Url, [string]$Destination, [string]$Label) {
         throw "URL is empty for $Label"
     }
 
-    $Directory = Split-Path -Parent $Destination
-    New-Item -ItemType Directory -Path $Directory -Force | Out-Null
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
     Write-Host "Downloading $Label..."
     Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Destination -TimeoutSec 90
     if (-not (Test-Path $Destination) -or (Get-Item $Destination).Length -lt 64) {
@@ -86,9 +86,15 @@ function Download-File([string]$Url, [string]$Destination, [string]$Label) {
     }
 }
 
+function Quote-NativeArgument([string]$Value) {
+    if ($Value -notmatch '[\s"]') { return $Value }
+    return '"' + $Value.Replace('"', '\"') + '"'
+}
+
 function Run-Unity([string]$Label, [string[]]$Arguments, [string]$LogName) {
     Write-Step $Label
-    $LogPath = Join-Path $ResultsRoot $LogName
+    Initialize-Results
+    $LogPath = Join-Path $script:ResultsRoot $LogName
     $AllArguments = @(
         '-batchmode',
         '-nographics',
@@ -97,8 +103,9 @@ function Run-Unity([string]$Label, [string[]]$Arguments, [string]$LogName) {
         '-logFile', $LogPath
     ) + $Arguments
 
+    $ArgumentLine = ($AllArguments | ForEach-Object { Quote-NativeArgument $_ }) -join ' '
     $Process = Start-Process -FilePath $script:ResolvedUnityExe `
-        -ArgumentList $AllArguments `
+        -ArgumentList $ArgumentLine `
         -Wait `
         -PassThru `
         -NoNewWindow
@@ -110,13 +117,11 @@ function Run-Unity([string]$Label, [string[]]$Arguments, [string]$LogName) {
 try {
     Write-Step 'Checking repository'
     if (-not (Test-Path (Join-Path $ProjectRoot '.git'))) {
-        Stop-WithReport 'RUN_PATCH4_VERIFY.ps1 must be located in the Git repository root.'
+        Stop-WithReport 'The launcher must remain in the Git repository root.'
     }
 
     $Dirty = (& git -C $ProjectRoot status --porcelain)
-    if ($LASTEXITCODE -ne 0) {
-        Stop-WithReport 'Could not read Git status.'
-    }
+    if ($LASTEXITCODE -ne 0) { Stop-WithReport 'Could not read Git status.' }
     if ($Dirty) {
         Stop-WithReport "The working tree contains local changes. Commit or stash them first.`n$($Dirty -join "`n")"
     }
@@ -136,30 +141,29 @@ try {
         Invoke-Git @('pull', '--ff-only', 'origin', $RequiredBranch)
     }
 
+    Initialize-Results
+
     $ProjectVersionFile = Join-Path $ProjectRoot 'ProjectSettings\ProjectVersion.txt'
     if (-not (Test-Path $ProjectVersionFile)) {
         Stop-WithReport 'ProjectSettings/ProjectVersion.txt was not found.'
     }
-    $ProjectVersionText = Get-Content $ProjectVersionFile -Raw
-    if ($ProjectVersionText -notmatch [regex]::Escape($RequiredUnityVersion)) {
-        Stop-WithReport "Project requires Unity $RequiredUnityVersion. ProjectVersion.txt contains another version."
+    if ((Get-Content $ProjectVersionFile -Raw) -notmatch [regex]::Escape($RequiredUnityVersion)) {
+        Stop-WithReport "The project requires Unity $RequiredUnityVersion."
     }
 
     if (Get-Process Unity -ErrorAction SilentlyContinue) {
-        Stop-WithReport 'Close all running Unity Editor windows before starting the automatic verification.'
+        Stop-WithReport 'Close every running Unity Editor window and run the launcher again.'
     }
 
     $script:ResolvedUnityExe = Find-UnityEditor
     if (-not $script:ResolvedUnityExe) {
-        Stop-WithReport "Unity $RequiredUnityVersion was not found. Install it in Unity Hub or set UNITY_EXE to the full Unity.exe path."
+        Stop-WithReport "Unity $RequiredUnityVersion was not found. Install it in Unity Hub or set UNITY_EXE to Unity.exe."
     }
     Write-Host "Unity: $script:ResolvedUnityExe"
 
     Write-Step 'Downloading approved Adobe sources'
     $ManifestPath = Join-Path $ProjectRoot 'Assets\GameWorkPatch4\Art\Character\FatMan\Masks\adobe-mask-manifest.json'
-    if (-not (Test-Path $ManifestPath)) {
-        Stop-WithReport 'Adobe mask manifest is missing.'
-    }
+    if (-not (Test-Path $ManifestPath)) { Stop-WithReport 'Adobe mask manifest is missing.' }
     $Manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
 
     $ArtRoot = Join-Path $ProjectRoot 'Assets\GameWorkPatch4\Art\Character\FatMan'
@@ -172,14 +176,18 @@ try {
     }
 
     if ($Manifest.riggingReference) {
-        $ReferencePath = Join-Path $ArtRoot ("References\" + $Manifest.riggingReference.fileName)
-        Download-File $Manifest.riggingReference.url $ReferencePath 'Adobe rigging reference'
+        Download-File `
+            $Manifest.riggingReference.url `
+            (Join-Path $ArtRoot ("References\" + $Manifest.riggingReference.fileName)) `
+            'Adobe rigging reference'
     }
 
     foreach ($Mask in $Manifest.masks) {
         if (-not $Mask.valid) { continue }
-        $MaskPath = Join-Path $ArtRoot ("Masks\Downloaded\" + $Mask.fileName)
-        Download-File $Mask.url $MaskPath ("mask " + $Mask.id)
+        Download-File `
+            $Mask.url `
+            (Join-Path $ArtRoot ("Masks\Downloaded\" + $Mask.fileName)) `
+            ("mask " + $Mask.id)
     }
 
     $PrepareExit = Run-Unity `
@@ -189,12 +197,12 @@ try {
 
     $EditExit = Run-Unity `
         'Running Patch 4 EditMode tests' `
-        @('-runTests', '-testPlatform', 'EditMode', '-testFilter', 'SkinnyToBeast.GameWorkPatch4.EditModeTests', '-testResults', (Join-Path $ResultsRoot 'editmode-results.xml')) `
+        @('-runTests', '-testPlatform', 'EditMode', '-assemblyNames', 'SkinnyToBeast.GameWorkPatch4.EditModeTests', '-testResults', (Join-Path $ResultsRoot 'editmode-results.xml')) `
         '02-editmode.log'
 
     $PlayExit = Run-Unity `
         'Running Patch 4 PlayMode tests' `
-        @('-runTests', '-testPlatform', 'PlayMode', '-testFilter', 'SkinnyToBeast.GameWorkPatch4.PlayModeTests', '-testResults', (Join-Path $ResultsRoot 'playmode-results.xml')) `
+        @('-runTests', '-testPlatform', 'PlayMode', '-assemblyNames', 'SkinnyToBeast.GameWorkPatch4.PlayModeTests', '-testResults', (Join-Path $ResultsRoot 'playmode-results.xml')) `
         '03-playmode.log'
 
     $LibraryReports = Join-Path $ProjectRoot 'Library\GameWorkPatch4Reports'
@@ -226,9 +234,7 @@ Production art approval remains locked by design.
     Write-Host "ZIP: $ZipPath"
     Start-Process explorer.exe $ResultsRoot | Out-Null
 
-    if ($PrepareExit -ne 0 -or $EditExit -ne 0 -or $PlayExit -ne 0) {
-        exit 2
-    }
+    if ($PrepareExit -ne 0 -or $EditExit -ne 0 -or $PlayExit -ne 0) { exit 2 }
     exit 0
 }
 catch {
