@@ -7,10 +7,8 @@
 - Confirmed isolated branch `patch-4.0` based on `main` commit `6226d7891c2c706d510c7d376c1a58a6c96b4202`.
 - Kept the protected menu, video, music, and settings scope unchanged.
 - Generated the first five-view directional character sheet with Adobe Firefly.
-- Added a dedicated Figma page: `P4.0-A Concept Sheet`.
-- Added the annotated production board: `P4.0-A Concept Sheet v1`.
+- Added the Figma concept-sheet and rig-blueprint boards.
 - Recorded accepted design direction and known redraw requirements.
-- Added `Docs/Patch4/concept-sheet-v1.md`.
 
 ## 2026-07-28 — P4.0-A master and rig foundation
 
@@ -20,9 +18,8 @@
 - [x] Exported it as a 1024 × 1536 RGBA PNG with real transparency.
 - [x] Uploaded the master to Adobe Creative Cloud.
 - [x] Produced an Adobe editable SVG vector trace.
-- [x] Recorded the raster SHA-256, Adobe asset ID and Figma node IDs in `master-source.json`.
-- [x] Created the Figma page `P4.0-B Layer Map & Rig`.
-- [x] Created the full skeleton overlay and production layer contract on board `6:3`.
+- [x] Recorded the raster SHA-256, Adobe asset IDs and Figma node IDs.
+- [x] Created the full skeleton overlay and production layer contract.
 - [x] Defined minimum 24 px hidden joint overlap and Sprite Skin preparation rules.
 
 ## 2026-07-28 — P4.0-B runtime and editor pipeline
@@ -50,21 +47,56 @@
 - [x] Added a safe scene installer that binds to the existing character in rollback mode.
 - [x] Added `Docs/Patch4/CHECKPOINT.md` as the canonical continuation state.
 
+## 2026-07-28 — P4.0-C Adobe masks and painted-layer production pipeline
+
+### Adobe work completed
+
+- [x] Re-uploaded and visually verified the exact transparent neutral master.
+- [x] Generated valid masks for hair, face base, eyebrows, nose, ears, neck, upper clothes, lower clothes, hands and shoes.
+- [x] Marked failed pupil, mouth, arm and leg selections invalid because Adobe returned the entire subject or an implausibly small region.
+- [x] Generated a Firefly rigging-parts reference sheet for manual repaint guidance.
+- [x] Added `adobe-mask-manifest.json` with URLs, bounding boxes, validity and fallback rules.
+
+### Unity art pipeline completed
+
+- [x] Added `Patch4AdobeMaskDownloader` to download Adobe sources directly inside Unity.
+- [x] Added `Patch4MaskDrivenLayerBaker` to build the complete 40-layer full-canvas draft pack.
+- [x] Added bilateral splitting and controlled geometric fallback regions.
+- [x] Added `Patch4DraftLayerValidator` for dimensions, coverage, leakage, alpha content and 14 joint-overlap checks.
+- [x] Added `Patch4ProductionPipeline` with five ordered commands.
+- [x] Added `Patch4ProductionDashboard` with live project status and explicit build buttons.
+- [x] Added a detailed P4.0-C manual-art guide.
+
+### Activation safety completed
+
+- [x] Added `Patch4ArtReadinessAsset` as a manual production-art signature.
+- [x] Bound readiness approval to the exact approved master SHA-256.
+- [x] Updated `Patch4CharacterRigController` so `patch4Enabled` cannot bypass art approval.
+- [x] Added `Patch4PrefabReadinessBinder` so regenerated prefabs cannot omit the gate.
+- [x] Kept automated draft metadata permanently set to `activationAllowed: false`.
+
+### Visual project status
+
+- [x] Created an editable Canva P4.0-C production-status report.
+- [x] Updated GitHub design links with Adobe, Figma and Canva sources.
+- [ ] Figma P4.0-C status panel was not added because the Starter MCP call limit was reached; the failed call was atomic and the existing file is intact.
+
 ### Current status
 
-The new code path is structurally ready, but Patch 4 activation remains disabled. The approved master must still be converted into the complete set of independent painted PNG layers. Unity compilation and Play Mode verification have not yet been run in the actual editor.
+The code and editor pipeline can now generate, inspect and reject an incomplete draft layer pack. Patch 4 remains disabled. Real hidden joint artwork and final facial poses still require manual painting inside an image editor before human approval.
 
-### P4.0-C next tasks
+### Immediate manual tasks
 
-- [ ] Separate the neutral front master into the full canonical layer set.
-- [ ] Reconstruct hidden anatomy and clothing beneath every joint cut.
-- [ ] Add at least 24 px hidden overlap beneath connected layers.
-- [ ] Export every layer as a full-canvas 1024 × 1536 transparent PNG using the contract filename.
-- [ ] Rebuild the layer catalog and prefab in Unity.
-- [ ] Compile the new runtime/editor scripts in Unity 6000.3.19f1.
-- [ ] Test all ten animations and the legacy signal bridge in the room.
-- [ ] Paint Sprite Skin weights for belly, chest, cheeks and shirt hem after rigid-layer validation.
-- [ ] Activate Patch 4 only after contract, deformation and rollback validation pass.
+- [ ] Run the new Unity dashboard in `6000.3.19f1`.
+- [ ] Download Adobe sources and bake the draft pack.
+- [ ] Inspect `layer-bake-report.json`.
+- [ ] Repaint hidden neck, shoulder, elbow, wrist, hip, knee, ankle, belly and shirt-hem continuations.
+- [ ] Paint real open-mouth, smile, eyelid, iris and cheek layers.
+- [ ] Reassemble the neutral pose and compare it with the approved master.
+- [ ] Re-run validation and rebuild the locked prefab.
+- [ ] Compile all scripts and test all ten animations in Play Mode.
+- [ ] Paint Sprite Skin weights after rigid-layer continuity passes.
+- [ ] Approve `Patch4ArtReadiness.asset` only after the exact master and all tests pass.
 
 ### Do not touch
 
