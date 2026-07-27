@@ -52,6 +52,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             Patch4DraftLayerValidator.ValidateAndWriteReport();
             Patch4RigContractValidator.VerifyProtectedPaths();
+            Patch4CompilationMonitor.WriteCompilationSnapshot();
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 Patch4PrefabBuilder.PrefabPath);
@@ -59,11 +60,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 Debug.LogError(
                     "Patch 4 safety validation requires the generated prefab.");
+                Patch4EditorSmokeValidator.ValidateAndWriteReport();
                 return;
             }
 
             Selection.activeObject = prefab;
             Patch4RigContractValidator.ValidateSelectedRig();
+            Patch4EditorSmokeValidator.ValidateAndWriteReport();
 
             Patch4CharacterRigController rig =
                 prefab.GetComponent<Patch4CharacterRigController>();
@@ -75,8 +78,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 Debug.LogWarning(
                     "Patch 4 art readiness is APPROVED. Confirm that the " +
-                    "pixel report, hidden overlaps, facial poses and Play Mode " +
-                    "tests were reviewed intentionally before enabling it.",
+                    "pixel report, hidden overlaps, facial poses, EditMode tests " +
+                    "and Play Mode tests were reviewed intentionally before " +
+                    "enabling it.",
                     prefab);
             }
             else
@@ -85,6 +89,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "Patch 4 readiness gate is correctly locked. Patch 3.5 " +
                     "remains the active character.",
                     prefab);
+            }
+        }
+
+        [MenuItem("Tools/GameWork/Patch 4.0/Pipeline/6. Run Editor Smoke Report")]
+        public static void RunEditorSmokeReport()
+        {
+            Patch4CompilationMonitor.WriteCompilationSnapshot();
+            Patch4EditorSmokeValidator.ValidateAndWriteReport();
+        }
+
+        [MenuItem("Tools/GameWork/Patch 4.0/Pipeline/7. Open Unity Test Runner")]
+        public static void OpenUnityTestRunner()
+        {
+            bool opened = EditorApplication.ExecuteMenuItem(
+                "Window/General/Test Runner");
+            if (!opened)
+            {
+                Debug.LogWarning(
+                    "Unity Test Runner window could not be opened automatically. " +
+                    "Open Window → General → Test Runner manually.");
             }
         }
     }
