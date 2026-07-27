@@ -69,7 +69,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     ? "readiness asset unavailable"
                     : readiness.ProductionArtApproved
                         ? "approved — verify intentionally"
-                        : "locked — correct during P4.0-C");
+                        : "locked — correct until manual review passes");
 
             DrawStatus(
                 "Animator Controller",
@@ -82,12 +82,30 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     Patch4PrefabBuilder.PrefabPath) != null,
                 Patch4PrefabBuilder.PrefabPath);
 
+            DrawStatus(
+                "Unity compilation report",
+                JsonReportContains(
+                    Patch4CompilationMonitor.ReportPath,
+                    "\"succeeded\": true"),
+                File.Exists(Patch4CompilationMonitor.ReportPath)
+                    ? Patch4CompilationMonitor.ReportPath
+                    : "compile report not generated yet");
+            DrawStatus(
+                "Editor prefab smoke report",
+                JsonReportContains(
+                    Patch4EditorSmokeValidator.ReportPath,
+                    "\"passed\": true"),
+                File.Exists(Patch4EditorSmokeValidator.ReportPath)
+                    ? Patch4EditorSmokeValidator.ReportPath
+                    : "smoke report not generated yet");
+
             EditorGUILayout.Space(12f);
             EditorGUILayout.HelpBox(
                 "Required order: download Adobe sources → bake draft layers → " +
                 "manually repaint hidden joints and facial poses → validate → " +
-                "rebuild runtime assets → Play Mode review → approve readiness. " +
-                "Draft generation never approves or enables Patch 4.",
+                "rebuild runtime assets → run compile/smoke reports → run " +
+                "EditMode and PlayMode tests → review in the room → approve " +
+                "readiness. Draft generation never approves or enables Patch 4.",
                 MessageType.Info);
 
             if (GUILayout.Button("1. Download Adobe Sources"))
@@ -113,6 +131,27 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (GUILayout.Button("5. Run Safety Validation"))
             {
                 Patch4ProductionPipeline.RunSafetyValidation();
+            }
+
+            if (GUILayout.Button("6. Run Compilation + Editor Smoke Reports"))
+            {
+                Patch4ProductionPipeline.RunEditorSmokeReport();
+            }
+
+            if (GUILayout.Button("7. Open Unity Test Runner"))
+            {
+                Patch4ProductionPipeline.OpenUnityTestRunner();
+            }
+
+            EditorGUILayout.Space(8f);
+            if (GUILayout.Button("Open Compilation Report"))
+            {
+                Patch4CompilationMonitor.OpenCompilationReport();
+            }
+
+            if (GUILayout.Button("Open Editor Smoke Report"))
+            {
+                Patch4EditorSmokeValidator.OpenReport();
             }
 
             if (GUILayout.Button("Select Art Readiness Asset"))
@@ -142,6 +181,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.LabelField(detail ?? string.Empty, EditorStyles.miniLabel);
             EditorGUILayout.EndVertical();
+        }
+
+        private static bool JsonReportContains(string path, string marker)
+        {
+            if (!File.Exists(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                return File.ReadAllText(path).Contains(marker);
+            }
+            catch (IOException)
+            {
+                return false;
+            }
         }
 
         private static int CountPng(string assetDirectory)
