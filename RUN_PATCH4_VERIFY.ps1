@@ -1,25 +1,31 @@
 param(
+    [string]$ProjectRoot = "",
     [string]$UnityExe = $env:UNITY_EXE,
-    [switch]$SkipPull
+    [switch]$SkipRemoteSync,
+    [switch]$KeepUnityClosed
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+$ProjectRoot = (Resolve-Path $ProjectRoot).Path
+
 $RequiredBranch = 'patch-4.0'
 $RequiredUnityVersion = '6000.3.19f1'
 $ExpectedMasterSha = '5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c'
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $ResultsRoot = Join-Path $ProjectRoot "Patch4VerificationResults\$Timestamp"
 $ResultsInitialized = $false
+
 $ManagedPaths = @(
-    '.github/workflows/patch4-static-guard.yml',
-    '.gitignore',
     'Assets/GameWorkPatch4',
     'Docs/Patch4',
+    'RUN_PATCH4_VERIFY.ps1',
     'RUN_PATCH4_VERIFY.bat',
-    'RUN_PATCH4_VERIFY.ps1'
+    '.github/workflows/patch4-static-guard.yml'
 )
 
 function Initialize-Results {
@@ -46,6 +52,101 @@ function Invoke-Git([string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) {
         throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
     }
+}
+
+function Normalize-StatusPath([string]$StatusLine) {
+    if ($StatusLine.Length -lt 4) { return '' }
+    $Path = $StatusLine.Substring(3).Trim()
+    if ($Path.Contains(' -> ')) {
+        $Path = ($Path -split ' -> ')[-1]
+    }
+    return $Path.Trim('"')
+}
+
+function Is-ManagedPath([string]$Path) {
+    $Normalized = $Path.Replace('\', '/')
+    foreach ($Managed in $ManagedPaths) {
+        if ($Normalized -eq $Managed -or $Normalized.StartsWith($Managed + '/', [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Backup-LocalState {
+    Initialize-Results
+    $Status = @(& git -C $ProjectRoot status --porcelain=v1)
+    if ($LASTEXITCODE -ne 0) {
+        Stop-WithReport 'Could not read Git status.'
+    }
+
+    if ($Status.Count -eq 0) {
+        Set-Content -Path (Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt') -Value 'Working tree was clean.' -Encoding UTF8
+        return
+    }
+
+    Set-Content -Path (Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt') -Value $Status -Encoding UTF8
+    $BackupRoot = Join-Path $ResultsRoot 'ManagedBackup'
+
+    foreach ($Line in $Status) {
+        $Code = $Line.Substring(0, 2)
+        $Path = Normalize-StatusPath $Line
+        if (-not (Is-ManagedPath $Path)) { continue }
+        if ($Code -eq '??') { continue }
+
+        $Source = Join-Path $ProjectRoot $Path
+        if (-not (Test-Path $Source)) { continue }
+        $Destination = Join-Path $BackupRoot $Path
+        New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+        Copy-Item -Path $Source -Destination $Destination -Recurse -Force
+    }
+}
+
+function Copy-SyncedPath([string]$SyncRoot, [string]$RelativePath) {
+    $Source = Join-Path $SyncRoot ($RelativePath.Replace('/', '\'))
+    $Destination = Join-Path $ProjectRoot ($RelativePath.Replace('/', '\'))
+    if (-not (Test-Path $Source)) { return }
+
+    if ((Get-Item $Source).PSIsContainer) {
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+        Get-ChildItem -Path $Source -Force | Copy-Item -Destination $Destination -Recurse -Force
+    } else {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+        Copy-Item -Path $Source -Destination $Destination -Force
+    }
+}
+
+function Sync-Patch4FromRemote {
+    Write-Step 'Synchronizing only Patch 4 files from GitHub'
+    Backup-LocalState
+    Invoke-Git @('fetch', 'origin', $RequiredBranch)
+
+    $SyncId = [Guid]::NewGuid().ToString('N')
+    $ArchivePath = Join-Path $env:TEMP "patch4-sync-$SyncId.zip"
+    $SyncRoot = Join-Path $env:TEMP "patch4-sync-$SyncId"
+    New-Item -ItemType Directory -Path $SyncRoot -Force | Out-Null
+
+    try {
+        $ArchiveArguments = @(
+            'archive',
+            '--format=zip',
+            "--output=$ArchivePath",
+            "origin/$RequiredBranch",
+            '--'
+        ) + $ManagedPaths
+        Invoke-Git $ArchiveArguments
+        Expand-Archive -Path $ArchivePath -DestinationPath $SyncRoot -Force
+
+        foreach ($Path in $ManagedPaths) {
+            Copy-SyncedPath $SyncRoot $Path
+        }
+    }
+    finally {
+        Remove-Item -Path $ArchivePath -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $SyncRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Host 'Patch 4 files synchronized. Unrelated local Unity files were preserved.' -ForegroundColor Green
 }
 
 function Find-UnityEditor {
@@ -122,58 +223,27 @@ function Run-Unity([string]$Label, [string[]]$Arguments, [string]$LogName) {
     return $Process.ExitCode
 }
 
+function Open-UnityProject {
+    if ($KeepUnityClosed) { return }
+    try {
+        $Arguments = '-projectPath ' + (Quote-NativeArgument $ProjectRoot)
+        Start-Process -FilePath $script:ResolvedUnityExe -ArgumentList $Arguments | Out-Null
+        Write-Host 'Unity project opened.' -ForegroundColor Green
+    } catch {
+        Write-Warning "Could not open Unity automatically: $($_.Exception.Message)"
+    }
+}
+
 try {
-    Write-Step 'Checking repository'
+    Write-Step 'Checking project'
     if (-not (Test-Path (Join-Path $ProjectRoot '.git'))) {
-        Stop-WithReport 'The launcher must remain in the Git repository root.'
+        Stop-WithReport 'The selected project root is not a Git repository.'
     }
 
-    $ManagedDirty = @(& git -C $ProjectRoot status --porcelain -- $ManagedPaths)
-    if ($LASTEXITCODE -ne 0) {
-        Stop-WithReport 'Could not inspect Patch 4 managed files.'
-    }
-    if ($ManagedDirty.Count -gt 0) {
-        Stop-WithReport (
-            "Patch 4 managed files contain local changes. They were not overwritten.`n" +
-            ($ManagedDirty -join "`n") +
-            "`nCommit or copy only these Patch 4 files before retrying."
-        )
-    }
-
-    $Dirty = @(& git -C $ProjectRoot status --porcelain)
-    if ($LASTEXITCODE -ne 0) {
-        Stop-WithReport 'Could not read Git status.'
-    }
-    if ($Dirty.Count -gt 0) {
-        Initialize-Results
-        Set-Content `
-            -Path (Join-Path $ResultsRoot 'LOCAL_CHANGES_PRESERVED.txt') `
-            -Value @(
-                'The following local project files were detected and deliberately preserved.',
-                'Patch 4 verification does not commit, delete, stash or reset them.',
-                '',
-                $Dirty
-            ) `
-            -Encoding UTF8
-        Write-Host (
-            "Local Unity project changes detected. They will be preserved and ignored " +
-            "unless they are inside Patch 4 managed paths."
-        ) -ForegroundColor Yellow
-    }
-
-    if (-not $SkipPull) {
-        Write-Step 'Updating patch-4.0 from GitHub'
-        Invoke-Git @('fetch', 'origin', $RequiredBranch)
-        $CurrentBranch = (& git -C $ProjectRoot branch --show-current).Trim()
-        if ($CurrentBranch -ne $RequiredBranch) {
-            $LocalBranchExists = (& git -C $ProjectRoot branch --list $RequiredBranch).Trim()
-            if ($LocalBranchExists) {
-                Invoke-Git @('switch', $RequiredBranch)
-            } else {
-                Invoke-Git @('switch', '--track', "origin/$RequiredBranch")
-            }
-        }
-        Invoke-Git @('pull', '--ff-only', 'origin', $RequiredBranch)
+    if (-not $SkipRemoteSync) {
+        Sync-Patch4FromRemote
+    } else {
+        Backup-LocalState
     }
 
     Initialize-Results
@@ -187,7 +257,7 @@ try {
     }
 
     if (Get-Process Unity -ErrorAction SilentlyContinue) {
-        Stop-WithReport 'Close every running Unity Editor window and run the launcher again.'
+        Stop-WithReport 'Close the currently running Unity Editor once, then run the same one-command launcher again. Unsaved Unity work was not force-closed.'
     }
 
     $script:ResolvedUnityExe = Find-UnityEditor
@@ -248,16 +318,16 @@ try {
     $Summary = @"
 GameWork Patch 4.0 automatic verification
 Generated: $(Get-Date -Format o)
-Branch: $RequiredBranch
+Project: $ProjectRoot
 Unity: $RequiredUnityVersion
 Prepare/smoke exit: $PrepareExit
 EditMode exit: $EditExit
 PlayMode exit: $PlayExit
 
+Patch 4 source files were synchronized without switching branches, stashing, resetting or deleting unrelated local Unity files.
 Exit code 0 means the automated step passed.
 Draft pixel/joint checks may remain blocked until hidden joints and final facial poses are manually painted.
 Production art approval remains locked by design.
-Local non-Patch-4 project files were preserved and were not committed, reset, deleted or stashed.
 "@
     Set-Content -Path (Join-Path $ResultsRoot 'SUMMARY.txt') -Value $Summary -Encoding UTF8
 
@@ -269,6 +339,7 @@ Local non-Patch-4 project files were preserved and were not committed, reset, de
     Write-Host "Reports: $ResultsRoot"
     Write-Host "ZIP: $ZipPath"
     Start-Process explorer.exe $ResultsRoot | Out-Null
+    Open-UnityProject
 
     if ($PrepareExit -ne 0 -or $EditExit -ne 0 -or $PlayExit -ne 0) { exit 2 }
     exit 0
