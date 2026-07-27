@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "status": "draft-mask-sources",
+  "source": {
+    "assetId": "urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb",
+    "fileName": "FatMan_NeutralFront_Master.png",
+    "url": "https://at.adobe.com/SGSnfFAvaBd9wjrT",
+    "width": 1024,
+    "height": 1536
+  },
+  "riggingReference": {
+    "fileName": "FatMan_RiggingParts_AdobeReference.png",
+    "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:5b427aac-252e-45c2-9a79-272568e505b8",
+    "usage": "visual-reference-only",
+    "notes": "Firefly separated several face and clothing elements, but this image must not replace the approved neutral master or be treated as final exact-cut art."
+  },
+  "masks": [
+    {
+      "id": "hair",
+      "fileName": "Mask_Hair.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:2dc4bb5a-d8ac-4bc6-9936-cbcc1471a99f",
+      "valid": true,
+      "bbox": [0.40234375, 0.103515625, 0.189453125, 0.087890625]
+    },
+    {
+      "id": "faceBase",
+      "fileName": "Mask_FaceBase.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:a21c875e-61c4-4208-b4e8-b43c4f864588",
+      "valid": true,
+      "bbox": [0.423828125, 0.1341145833, 0.150390625, 0.1119791667]
+    },
+    {
+      "id": "eyebrows",
+      "fileName": "Mask_Eyebrows.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:ec088391-6d13-44c1-9fdc-a06aa2263bac",
+      "valid": true,
+      "bbox": [0.443359375, 0.16015625, 0.09765625, 0.0110677083]
+    },
+    {
+      "id": "eyes",
+      "fileName": "Mask_Eyes.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:c41b05f7-d3f7-4745-9627-1307ea308cb3",
+      "valid": false,
+      "fallback": "geometric-eye-pair",
+      "notes": "Adobe returned a suspicious single tiny eye region; do not use it as the final bilateral eye mask.",
+      "bbox": [0.4716796875, 0.1764322917, 0.0068359375, 0.0078125]
+    },
+    {
+      "id": "nose",
+      "fileName": "Mask_Nose.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:f2de89e4-6d1f-4fc9-b7f2-3cefaa3a0dbf",
+      "valid": true,
+      "bbox": [0.4775390625, 0.1686197917, 0.0322265625, 0.033203125]
+    },
+    {
+      "id": "ears",
+      "fileName": "Mask_Ears.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:640ddb03-7e8b-48d5-b2ef-3d078ce51d44",
+      "valid": true,
+      "bbox": [0.400390625, 0.173828125, 0.197265625, 0.0423177083]
+    },
+    {
+      "id": "neck",
+      "fileName": "Mask_Neck.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:e61a2aae-9d92-40e5-b5f0-10a6475fe60f",
+      "valid": true,
+      "bbox": [0.40234375, 0.208984375, 0.189453125, 0.0748697917]
+    },
+    {
+      "id": "upperClothes",
+      "fileName": "Mask_UpperClothes.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:0d4e8c8e-93c1-4ca1-a96a-52a367159254",
+      "valid": true,
+      "bbox": [0.2216796875, 0.23828125, 0.5556640625, 0.267578125]
+    },
+    {
+      "id": "lowerClothes",
+      "fileName": "Mask_LowerClothes.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:697307e8-2b09-4021-a863-74ebd7c74578",
+      "valid": true,
+      "bbox": [0.2880859375, 0.474609375, 0.4296875, 0.279296875]
+    },
+    {
+      "id": "hands",
+      "fileName": "Mask_Hands.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:1037fa01-a9f9-462c-8695-e327c76fbd52",
+      "valid": true,
+      "bbox": [0.2255859375, 0.4694010417, 0.552734375, 0.0787760417]
+    },
+    {
+      "id": "shoes",
+      "fileName": "Mask_Shoes.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:9b6fa8a1-d3d2-4873-827c-65aaafa2647e",
+      "valid": true,
+      "bbox": [0.2705078125, 0.728515625, 0.4619140625, 0.072265625]
+    },
+    {
+      "id": "pupils",
+      "fileName": "Mask_Pupils_INVALID.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:b66227de-6e6f-442f-be33-d61627be4467",
+      "valid": false,
+      "fallback": "geometric-iris-pair",
+      "notes": "Body-part detection failed and returned the entire subject."
+    },
+    {
+      "id": "mouth",
+      "fileName": "Mask_Mouth_INVALID.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:ddc06073-877d-4128-8318-921ad0aad233",
+      "valid": false,
+      "fallback": "manual-mouth-pose-redraw",
+      "notes": "Body-part detection failed and returned the entire subject."
+    },
+    {
+      "id": "arms",
+      "fileName": "Mask_Arms_INVALID.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:026f655d-1954-4e57-8bd6-c02178d15d86",
+      "valid": false,
+      "fallback": "geometric-arm-chains",
+      "notes": "Body-part detection failed and returned the entire subject."
+    },
+    {
+      "id": "legs",
+      "fileName": "Mask_Legs_INVALID.png",
+      "url": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:0dc35e20-b807-4c74-bcb4-2b881274ed08",
+      "valid": false,
+      "fallback": "geometric-leg-chains",
+      "notes": "Body-part detection failed and returned the entire subject."
+    }
+  ]
+}
