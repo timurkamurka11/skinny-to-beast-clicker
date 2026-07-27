@@ -1,0 +1,45 @@
+name: Patch 4 Static Guard
+
+on:
+  push:
+    branches:
+      - patch-4.0
+    paths:
+      - "Assets/GameWorkPatch4/**"
+      - "Docs/Patch4/**"
+      - ".github/workflows/patch4-static-guard.yml"
+  pull_request:
+    paths:
+      - "Assets/GameWorkPatch4/**"
+      - "Docs/Patch4/**"
+      - ".github/workflows/patch4-static-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-patch4:
+    name: Validate Patch 4 contracts and protected paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ensure main reference exists
+        run: git fetch origin main:refs/remotes/origin/main --force
+
+      - name: Run Patch 4 static guard
+        run: >-
+          python Assets/GameWorkPatch4/CI/validate_patch4.py
+          --repo-root .
+          --base-ref origin/main
