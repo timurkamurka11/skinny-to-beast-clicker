@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "characterId": "fat-man-stage-0",
+  "status": "approved-neutral-front-master",
+  "runtimeReady": false,
+  "raster": {
+    "fileName": "FatMan_NeutralFront_Master.png",
+    "width": 1024,
+    "height": 1536,
+    "format": "PNG",
+    "colorMode": "RGBA",
+    "transparentBackground": true,
+    "sha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c"
+  },
+  "adobe": {
+    "creativeCloudAssetId": "urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde",
+    "assetLink": "https://at.adobe.com/PIAb1ihVhwnISLAU",
+    "vectorTraceLink": "https://to.adobe.com/aN0OeN9oa589DR97",
+    "vectorTraceRequestId": "9ce0f9c0-9c5c-4aa3-b872-e98a4a9d4c3f"
+  },
+  "figma": {
+    "fileKey": "tZSr9vinRs9EbZzgatxjda",
+    "conceptBoardNodeId": "4:3",
+    "rigBlueprintNodeId": "6:3",
+    "masterImageTargetNodeId": "6:7",
+    "skeletonOverlayNodeId": "6:8"
+  },
+  "productionRules": {
+    "minimumHiddenOverlapPixels": 24,
+    "armsSeparatedFromTorso": true,
+    "fullBodyVisible": true,
+    "visibleBasicShapesAllowed": false,
+    "flattenedRuntimeSpriteAllowed": false
+  },
+  "nextStep": "Cut the neutral master into the required layer contract, redraw hidden joint overlap, then import into Unity 2D Animation with the Patch 4 skeleton."
+}
