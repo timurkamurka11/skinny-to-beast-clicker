@@ -45,16 +45,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void Awake()
         {
-            if (lidLeft != null)
-            {
-                leftOpenScale = lidLeft.localScale;
-            }
-
-            if (lidRight != null)
-            {
-                rightOpenScale = lidRight.localScale;
-            }
-
+            CacheOpenEyeScales();
             SetMouth(MouthPose.Closed);
             ScheduleBlink();
         }
@@ -127,6 +118,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
             SetActive(mouthSmile, pose == MouthPose.Smile);
         }
 
+        public void BindPresentationLayers(
+            Transform leftLid,
+            Transform rightLid,
+            GameObject closedMouth,
+            GameObject openMouth,
+            GameObject smileMouth)
+        {
+            lidLeft = leftLid;
+            lidRight = rightLid;
+            mouthClosed = closedMouth;
+            mouthOpen = openMouth;
+            mouthSmile = smileMouth;
+            CacheOpenEyeScales();
+            RestoreOpenEyes();
+            SetMouth(MouthPose.Closed);
+        }
+
         private void ScheduleBlink()
         {
             float min = Mathf.Max(0.1f, Mathf.Min(blinkInterval.x, blinkInterval.y));
@@ -161,6 +169,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (lidRight != null)
             {
                 lidRight.localScale = rightOpenScale;
+            }
+        }
+
+        private void CacheOpenEyeScales()
+        {
+            if (lidLeft != null)
+            {
+                leftOpenScale = lidLeft.localScale;
+            }
+
+            if (lidRight != null)
+            {
+                rightOpenScale = lidRight.localScale;
             }
         }
 

@@ -54,6 +54,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     root.AddComponent<Patch4SecondaryMotionController>();
                 Patch4LayerRenderer layerRenderer =
                     root.AddComponent<Patch4LayerRenderer>();
+                Patch4CanvasPresentation canvasPresentation =
+                    root.AddComponent<Patch4CanvasPresentation>();
                 Patch4LegacySignalBridge signalBridge =
                     root.AddComponent<Patch4LegacySignalBridge>();
                 Patch4CharacterVisibilityGuard visibilityGuard =
@@ -67,12 +69,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 ConfigureStateMachine(stateMachine, rigController, animator);
                 ConfigureLayerRenderer(layerRenderer, rigController, visualRoot);
                 ConfigureFace(faceController, rigController);
+                ConfigureCanvasPresentation(
+                    canvasPresentation,
+                    rigController,
+                    faceController,
+                    visualRoot);
                 ConfigureSecondaryMotion(secondaryMotion, rigController, bones);
                 ConfigureSignalBridge(signalBridge, stateMachine, faceController);
                 ConfigureVisibility(visibilityGuard, rigController, visualRoot.gameObject);
 
                 layerRenderer.RebuildLayers();
-                BindGeneratedFaceLayers(faceController, visualRoot);
+                canvasPresentation.RebuildCanvasLayers();
 
                 visualRoot.gameObject.SetActive(false);
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -202,6 +209,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        private static void ConfigureCanvasPresentation(
+            Patch4CanvasPresentation target,
+            Patch4CharacterRigController rig,
+            Patch4FaceController face,
+            Transform visualRoot)
+        {
+            SerializedObject serialized = new(target);
+            serialized.FindProperty("rigController").objectReferenceValue = rig;
+            serialized.FindProperty("catalog").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<Patch4LayerCatalog>(
+                    Patch4LayerCatalogBuilder.CatalogPath);
+            serialized.FindProperty("faceController").objectReferenceValue = face;
+            serialized.FindProperty("visualRoot").objectReferenceValue = visualRoot;
+            serialized.FindProperty("buildOnAwake").boolValue = true;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static void ConfigureSecondaryMotion(
             Patch4SecondaryMotionController target,
             Patch4CharacterRigController rig,
@@ -259,43 +283,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             serialized.FindProperty("patch4VisualRoot").objectReferenceValue = visualRoot;
             serialized.FindProperty("patch35RollbackRoot").objectReferenceValue = null;
             serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static void BindGeneratedFaceLayers(
-            Patch4FaceController target,
-            Transform visualRoot)
-        {
-            SerializedObject serialized = new(target);
-            serialized.FindProperty("lidLeft").objectReferenceValue =
-                FindRecursive(visualRoot, "Layer.Face.LidL");
-            serialized.FindProperty("lidRight").objectReferenceValue =
-                FindRecursive(visualRoot, "Layer.Face.LidR");
-            serialized.FindProperty("mouthClosed").objectReferenceValue =
-                FindRecursive(visualRoot, "Layer.Face.MouthClosed")?.gameObject;
-            serialized.FindProperty("mouthOpen").objectReferenceValue =
-                FindRecursive(visualRoot, "Layer.Face.MouthOpen")?.gameObject;
-            serialized.FindProperty("mouthSmile").objectReferenceValue =
-                FindRecursive(visualRoot, "Layer.Face.MouthSmile")?.gameObject;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static Transform FindRecursive(Transform root, string name)
-        {
-            if (root.name == name)
-            {
-                return root;
-            }
-
-            for (int i = 0; i < root.childCount; i++)
-            {
-                Transform result = FindRecursive(root.GetChild(i), name);
-                if (result != null)
-                {
-                    return result;
-                }
-            }
-
-            return null;
         }
 
         private static Transform CreateChild(Transform parent, string name)

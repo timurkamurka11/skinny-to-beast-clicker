@@ -35,6 +35,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Runtime/Patch4RigContract.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4CharacterRigController.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4ArtReadinessAsset.cs",
+    "Assets/GameWorkPatch4/Runtime/Patch4CanvasPresentation.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
     "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
     "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
@@ -212,6 +213,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "patchRig.BindRollbackRoot(rollbackRoot)",
             "visibility.BindRollbackRoot(rollbackRoot)",
             "bridge.BindLegacy(legacyRig, legacySkin)",
+            "canvasPresentation.ConfigureForGameplayRoom(",
             "patchRig.SetPatch4Enabled(false)",
         )
         for snippet in required_snippets:
@@ -220,6 +222,29 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
 
         if "patchRig.SetPatch4Enabled(true)" in installer:
             fail(errors, "Runtime installer must never enable Patch 4 automatically")
+
+    presentation = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4CanvasPresentation.cs",
+        errors,
+    )
+    if presentation:
+        required_snippets = (
+            "using UnityEngine.UI;",
+            "typeof(Image)",
+            "image.raycastTarget = false",
+            "sourceCanvasPixels",
+            "new(1024f, 1536f)",
+            "legacyPresentationScale = 0.74f",
+            "ConfigureForGameplayRoom(",
+            "DisableFallbackSpriteRenderers()",
+        )
+        for snippet in required_snippets:
+            if snippet not in presentation:
+                fail(errors, f"Canvas presentation is missing: {snippet}")
+
+        if "SetPatch4Enabled(" in presentation:
+            fail(errors, "Canvas presentation must never change Patch 4 activation")
 
     builder = read_text(
         root,
@@ -288,7 +313,7 @@ def main() -> int:
     print("- contract counts and uniqueness verified")
     print("- approved master SHA and manifests verified")
     print("- automatic readiness approval blocked")
-    print("- runtime installation remains locked to rollback mode")
+    print("- Canvas runtime installation remains locked to rollback mode")
     print("- protected menu, video, music and settings paths unchanged")
     return 0
 

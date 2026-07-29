@@ -20,10 +20,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
         {
             GameObject room = new(
                 "LivingGameplayScene",
-                typeof(RectTransform));
+                typeof(RectTransform),
+                typeof(Canvas));
 
             try
             {
+                Canvas roomCanvas = room.GetComponent<Canvas>();
+                roomCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
                 GameObject legacyPrefab =
                     Resources.Load<GameObject>(LegacyPrefabResourcePath);
                 Assert.NotNull(
@@ -78,6 +82,45 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     patchInstance.Find("Patch4VisualRoot");
                 Assert.NotNull(patchVisual);
                 Assert.IsFalse(patchVisual.gameObject.activeSelf);
+
+                Type canvasPresentationType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CanvasPresentation");
+                Component canvasPresentation =
+                    patchInstance.GetComponent(canvasPresentationType);
+                Assert.NotNull(canvasPresentation);
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        canvasPresentation,
+                        "IsCanvasReady"),
+                    "The painted layers were not prepared for the room Canvas.");
+                Assert.AreEqual(
+                    40,
+                    GetIntProperty(canvasPresentation, "ImageCount"));
+                Assert.AreSame(
+                    roomCanvas,
+                    GetObjectProperty(canvasPresentation, "HostCanvas"));
+                Assert.Greater(
+                    GetFloatProperty(canvasPresentation, "RoomScale"),
+                    1f);
+
+                Vector3 localScale = patchInstance.localScale;
+                Assert.AreEqual(
+                    localScale.x,
+                    localScale.y,
+                    0.001f);
+                Assert.Less(
+                    patchInstance.localPosition.y,
+                    0f,
+                    "The master must align its painted pelvis to the legacy " +
+                    "room origin.");
+
+                SpriteRenderer[] fallbackRenderers =
+                    patchVisual.GetComponentsInChildren<SpriteRenderer>(true);
+                Assert.IsNotEmpty(fallbackRenderers);
+                Assert.IsTrue(
+                    fallbackRenderers.All(renderer => !renderer.enabled),
+                    "SpriteRenderer fallbacks must not compete with UI Images.");
 
                 Transform rollbackVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;
@@ -139,6 +182,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
         private static bool GetBoolProperty(object target, string name)
         {
             return (bool)GetObjectProperty(target, name);
+        }
+
+        private static int GetIntProperty(object target, string name)
+        {
+            return (int)GetObjectProperty(target, name);
+        }
+
+        private static float GetFloatProperty(object target, string name)
+        {
+            return (float)GetObjectProperty(target, name);
         }
 
         private static object GetObjectProperty(object target, string name)

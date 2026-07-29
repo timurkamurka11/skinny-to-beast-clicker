@@ -115,10 +115,11 @@ After pulling a continuation commit, `Patch4AutoContinuation` performs the
 current required sequence:
 
 1. Rebuild the locked runtime Resources prefab.
-2. Run draft, rig, compilation and Editor smoke validation.
-3. Run all EditMode tests.
-4. Run all PlayMode tests.
-5. Exit Play Mode and open Console.
+2. Rebuild the 40-layer Canvas presentation.
+3. Run draft, rig, compilation and Editor smoke validation.
+4. Run all EditMode tests.
+5. Run all PlayMode tests.
+6. Exit Play Mode and open Console.
 
 Dashboard and Test Runner commands remain available for diagnostics, but the
 user does not need to click them for the normal continuation workflow.
@@ -142,7 +143,7 @@ Patch 4 remains blocked when any of the following is true:
 ## Current honest status
 
 Unity `6000.3.19f1` has produced a real passing result for compilation, Editor
-smoke, `4` EditMode tests and the original `3` PlayMode tests. The additional
-runtime-room installation test is committed with the integration step and
-still requires its local Unity result. Until that result and the remaining
-visual-art review pass, Patch 4 stays locked.
+smoke, `4` EditMode tests and `4` PlayMode tests, including locked installation
+inside the dynamically created `LivingGameplayScene`. The Canvas-presentation
+extension now awaits the same automatic `4/4` local verification. Until that
+result and the remaining visual-art review pass, Patch 4 stays locked.

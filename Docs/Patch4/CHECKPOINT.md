@@ -230,7 +230,7 @@ Detailed instructions:
 Unity `6000.3.19f1` produced a passing automatic verification result:
 
 - EditMode: `4 passed`;
-- PlayMode: `3 passed`;
+- PlayMode: `4 passed`;
 - compilation snapshot: passed;
 - rig contract: passed;
 - Editor prefab smoke: passed;
@@ -261,10 +261,36 @@ The Patch 4 integration therefore stays isolated:
 - production-art approval is never changed.
 
 An additional PlayMode test verifies the real runtime-resource installation
-contract. After the next local pull, the expected automatic count is:
+contract. Unity `6000.3.19f1` confirmed:
 
 - EditMode: `4 passed`;
 - PlayMode: `4 passed`.
+
+The user's Console also confirmed that Patch 4 installed only below
+`LivingGameplayScene`, stayed in locked rollback mode and left Patch 3.5
+visible, with zero warnings and zero errors.
+
+## P4.0-F Canvas room presentation
+
+The painted PNG layers now have an isolated Canvas-compatible presentation:
+
+- `Patch4CanvasPresentation` builds 40 non-interactive `UI.Image` objects;
+- one flat image hierarchy preserves canonical global layer order;
+- `LateUpdate` mirrors each image pivot to its assigned Patch 4 bone;
+- the `1024 × 1536` source is fitted to the legacy `720 × 1280` character
+  root using the existing `0.74` presentation scale;
+- the source pelvis is aligned to the legacy room origin;
+- SpriteRenderer fallbacks are disabled;
+- eyelid and mouth bindings are moved to the Canvas images;
+- the runtime installer requires successful Canvas binding before accepting
+  the hidden Patch 4 instance;
+- the Editor smoke report validates all 40 images and disabled fallbacks;
+- the runtime PlayMode integration test validates Canvas binding, image count,
+  room scale, pelvis alignment and locked rollback state.
+
+This implementation does not approve art, does not enable Patch 4 and does not
+modify the legacy gameplay-room builder. It awaits the next automatic local
+Unity verification.
 
 ## Production dashboard
 
@@ -325,20 +351,19 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the runtime-room integration commit into Unity `6000.3.19f1`.
-2. Let `Patch4AutoContinuation` rebuild the Resources prefab and run all
-   validations without manual clicks.
+1. Pull the Canvas-presentation commit into Unity `6000.3.19f1`.
+2. Let `Patch4AutoContinuation` rebuild the Resources prefab, generate the 40
+   Canvas images and run all validations without manual clicks.
 3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
-4. Add a Canvas-compatible Patch 4 layer presentation for
-   `LivingGameplayScene`, still hidden behind the readiness gate.
-5. Reassemble the neutral pose and compare it against the approved master.
-6. Refine hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees,
+4. Reassemble the neutral pose and compare it against the approved master
+   while the readiness gate remains locked.
+5. Refine hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees,
    ankles, belly and shirt hem.
-7. Replace geometric face fallbacks with final eye whites, irises, eyelids,
+6. Replace geometric face fallbacks with final eye whites, irises, eyelids,
    cheeks, open mouth and smile.
-8. Complete Sprite Skin weight painting.
-9. Review all ten animations in the actual room.
-10. Only after successful technical and human review, approve the readiness
+7. Complete Sprite Skin weight painting.
+8. Review all ten animations in the actual room.
+9. Only after successful technical and human review, approve the readiness
     asset for the exact master SHA.
 
 Detailed art instructions:
@@ -351,13 +376,13 @@ Detailed verification instructions:
 
 ## Known limitations
 
-- The new runtime-room installer has not yet received its local `4/4` PlayMode
+- The Canvas presentation has not yet received its local Unity `4/4`
   confirmation.
 - Generated PNG layers and generated runtime assets exist locally in Unity and
   are not committed as binary repository assets.
 - Hidden joint artwork still requires manual painting.
 - Final face poses still require manual painting.
 - Sprite Skin weight painting has not yet been completed.
-- Patch 4 painted layers still need a Canvas-compatible runtime presentation
-  before they can be visually reviewed in `LivingGameplayScene`.
+- The Canvas presentation remains hidden behind readiness and still requires a
+  later controlled human visual review in `LivingGameplayScene`.
 - Figma Starter MCP limit currently prevents additional write calls.

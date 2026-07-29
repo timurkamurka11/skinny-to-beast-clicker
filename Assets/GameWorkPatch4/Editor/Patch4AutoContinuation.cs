@@ -12,7 +12,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        private const string RunId = "runtime-room-install-v1";
+        private const string RunId = "canvas-room-presentation-v1";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -58,8 +58,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 Debug.Log(
                     "Patch 4 automatic continuation started: rebuilding the " +
-                    "runtime Resources prefab, validating rollback safety and " +
-                    "running EditMode plus PlayMode tests. No click is required.");
+                    "Canvas-ready runtime Resources prefab, validating locked " +
+                    "rollback safety and running EditMode plus PlayMode tests. " +
+                    "No click is required.");
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
                 Patch4ProductionPipeline.RunSafetyValidation();
                 Patch4AutomatedTestRunner.RunAll();

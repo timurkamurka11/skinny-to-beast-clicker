@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
@@ -37,6 +38,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool artApproved;
             public bool patch4InitiallyHidden;
             public bool runtimeResourceLoadable;
+            public bool canvasPresentationPrepared;
+            public int canvasLayerCount;
+            public int fallbackSpriteRendererCount;
+            public bool fallbackSpriteRenderersDisabled;
             public List<Finding> findings = new();
         }
 
@@ -82,6 +87,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 ValidateRig(contents, report);
                 ValidateAnimator(contents, report);
                 ValidateLayerCatalog(contents, report);
+                ValidateCanvasPresentation(contents, report);
                 ValidateInitialVisibility(contents, report);
             }
             catch (Exception exception)
@@ -284,6 +290,77 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report,
                     "PATCH4_NOT_LOCKED",
                     "Generated prefab must start disabled with Patch4VisualRoot hidden.");
+            }
+        }
+
+        private static void ValidateCanvasPresentation(
+            GameObject contents,
+            SmokeReport report)
+        {
+            Patch4CanvasPresentation presentation =
+                contents.GetComponent<Patch4CanvasPresentation>();
+            if (presentation == null)
+            {
+                AddError(
+                    report,
+                    "CANVAS_PRESENTATION_MISSING",
+                    "Patch4CanvasPresentation is missing from the prefab.");
+                return;
+            }
+
+            report.canvasPresentationPrepared =
+                presentation.RebuildCanvasLayers();
+            report.canvasLayerCount = presentation.ImageCount;
+
+            if (!report.canvasPresentationPrepared ||
+                report.canvasLayerCount !=
+                Patch4RigContract.RequiredLayerPaths.Count)
+            {
+                AddError(
+                    report,
+                    "CANVAS_LAYER_SET_INCOMPLETE",
+                    "Canvas presentation prepared " +
+                    report.canvasLayerCount + " of " +
+                    Patch4RigContract.RequiredLayerPaths.Count +
+                    " required UI Images. Missing: " +
+                    string.Join(", ", presentation.MissingLayers));
+            }
+
+            Image[] canvasImages =
+                contents.GetComponentsInChildren<Image>(true);
+            if (canvasImages.Length != report.canvasLayerCount)
+            {
+                AddError(
+                    report,
+                    "CANVAS_IMAGE_COUNT_MISMATCH",
+                    "Generated Canvas Image hierarchy does not match the " +
+                    "presentation binding count.");
+            }
+
+            SpriteRenderer[] fallbackRenderers =
+                contents.GetComponentsInChildren<SpriteRenderer>(true);
+            SpriteRenderer[] paintedFallbacks =
+                fallbackRenderers
+                    .Where(renderer =>
+                        renderer != null &&
+                        renderer.gameObject.name.StartsWith(
+                            "Layer.",
+                            StringComparison.Ordinal))
+                    .ToArray();
+            report.fallbackSpriteRendererCount =
+                paintedFallbacks.Length;
+            report.fallbackSpriteRenderersDisabled =
+                paintedFallbacks.All(renderer => !renderer.enabled);
+
+            if (report.fallbackSpriteRendererCount !=
+                Patch4RigContract.RequiredLayerPaths.Count ||
+                !report.fallbackSpriteRenderersDisabled)
+            {
+                AddError(
+                    report,
+                    "FALLBACK_SPRITE_SET_INVALID",
+                    "All 40 SpriteRenderer fallback layers must exist and " +
+                    "stay disabled when the Canvas presentation is prepared.");
             }
         }
 

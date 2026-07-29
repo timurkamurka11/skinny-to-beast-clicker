@@ -73,7 +73,8 @@ Important commits in that path include:
 - `9e5e295` — correct FX leakage validation;
 - `e0fd371` — blink clip bound into the Animator Controller;
 - `524b449` — automatic animation-library verification;
-- `83eabc1` — automatic EditMode and PlayMode test runner.
+- `83eabc1` — automatic EditMode and PlayMode test runner;
+- `c596512` — locked runtime installation in `LivingGameplayScene`.
 
 ## Real Unity test result
 
@@ -83,7 +84,7 @@ Confirmed Console result:
 
 ```text
 Patch 4 automated verification PASSED.
-EditMode: 4 passed; PlayMode: 3 passed.
+EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
 Reports:
@@ -117,9 +118,10 @@ Resources/UI/Gameplay/Living/CharacterRig2D.prefab
 The separate `GameEntryScreen` also creates a temporary legacy character, but
 Patch 4 must not attach there during this integration step.
 
-## Current GitHub implementation awaiting local verification
+## Verified runtime-room integration
 
-The next integration is implemented entirely inside `Assets/GameWorkPatch4/`:
+Unity `6000.3.19f1` confirmed the isolated integration entirely inside
+`Assets/GameWorkPatch4/`:
 
 - `Patch4PrefabBuilder` now generates the locked prefab under the isolated
   Patch 4 `Resources` folder so runtime code can load it.
@@ -134,9 +136,37 @@ The next integration is implemented entirely inside `Assets/GameWorkPatch4/`:
   and visible Patch 3.5 rollback.
 - The static guard verifies that runtime installation cannot enable Patch 4.
 
+The user's Console showed the installation message, zero warnings/errors and:
+
+```text
+Patch 4 automated verification PASSED.
+EditMode: 4 passed; PlayMode: 4 passed.
+```
+
+## Current Canvas implementation awaiting local verification
+
+The next integration is implemented without changing the legacy room, menu,
+audio or settings code:
+
+- `Patch4CanvasPresentation` converts all 40 full-canvas painted sprites into
+  non-interactive `UI.Image` layers.
+- The images live in one flat hierarchy with deterministic canonical ordering.
+- Each image follows its assigned Patch 4 bone in `LateUpdate`.
+- The approved `1024 × 1536` master is fitted to the existing `720 × 1280`
+  character room at the legacy `0.74` presentation scale.
+- The painted pelvis is aligned to the existing gameplay character origin.
+- SpriteRenderer fallbacks are disabled so they cannot compete with the
+  Screen Space Overlay Canvas.
+- Eyelids and mouth poses are rebound to the Canvas images.
+- Editor smoke validation checks all 40 images and disabled fallbacks.
+- The fourth PlayMode test now also verifies the room Canvas, image count,
+  scale, pelvis alignment and locked rollback visibility.
+- `Patch4CanvasPresentation` has no activation API and never changes readiness.
+- `Patch4VisualRoot` remains inactive and Patch 3.5 remains visible.
+
 ## Exact next action
 
-After the integration commit is present on `patch-4.0`, run only:
+After the Canvas-presentation commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -145,10 +175,11 @@ git pull origin patch-4.0
 Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. rebuild the resource-loadable locked prefab;
-2. run pixel, rig, compilation and Editor smoke validation;
-3. run all EditMode tests;
-4. enter Play Mode and run all PlayMode tests;
-5. exit Play Mode and open Console.
+2. build and validate the 40-layer Canvas presentation;
+3. run pixel, rig, compilation and Editor smoke validation;
+4. run all EditMode tests;
+5. enter Play Mode and run all PlayMode tests;
+6. exit Play Mode and open Console.
 
 Expected final count:
 
@@ -166,11 +197,10 @@ No Dashboard or Test Runner click is required.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the 4/4 runtime-installation test
+## Work after the 4/4 Canvas-presentation test
 
-- Add and validate a Canvas-compatible presentation for the painted Patch 4
-  layers inside `LivingGameplayScene`.
-- Keep that presentation hidden behind the readiness gate.
+- Reassemble and inspect the neutral pose against the approved master while
+  keeping production activation locked.
 - Complete/review hidden joint artwork and final facial poses.
 - Complete Sprite Skin weight painting.
 - Review all ten animations in the actual room.

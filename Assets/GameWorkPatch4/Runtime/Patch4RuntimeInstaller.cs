@@ -111,14 +111,34 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 patchInstance.GetComponent<Patch4CharacterVisibilityGuard>();
             Patch4LegacySignalBridge bridge =
                 patchInstance.GetComponent<Patch4LegacySignalBridge>();
+            Patch4CanvasPresentation canvasPresentation =
+                patchInstance.GetComponent<Patch4CanvasPresentation>();
 
-            if (patchRig == null || visibility == null || bridge == null)
+            if (patchRig == null ||
+                visibility == null ||
+                bridge == null ||
+                canvasPresentation == null)
             {
                 FailedRigIds.Add(legacyRig.GetInstanceID());
                 Debug.LogError(
                     "Patch 4 runtime installation failed: the generated " +
-                    "prefab is missing its rig, visibility guard or legacy " +
-                    "signal bridge.",
+                    "prefab is missing its rig, Canvas presentation, " +
+                    "visibility guard or legacy signal bridge.",
+                    patchInstance);
+                Object.Destroy(patchInstance);
+                return null;
+            }
+
+            RectTransform legacyCharacterRoot =
+                legacyRig.transform as RectTransform;
+            if (!canvasPresentation.ConfigureForGameplayRoom(
+                    legacyCharacterRoot))
+            {
+                FailedRigIds.Add(legacyRig.GetInstanceID());
+                Debug.LogError(
+                    "Patch 4 runtime installation failed: the painted layer " +
+                    "presentation could not bind to the LivingGameplayScene " +
+                    "Canvas. Patch 3.5 remains active.",
                     patchInstance);
                 Object.Destroy(patchInstance);
                 return null;
@@ -135,7 +155,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             Debug.Log(
                 "Patch 4 installed automatically beside the LivingGameplayScene " +
-                "character in locked rollback mode. Patch 3.5 remains visible.",
+                "character with a Canvas-ready painted layer presentation in " +
+                "locked rollback mode. Patch 3.5 remains visible.",
                 patchInstance);
             return patchInstance;
         }
