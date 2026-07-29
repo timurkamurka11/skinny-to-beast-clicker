@@ -35,6 +35,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Runtime/Patch4RigContract.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4CharacterRigController.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4ArtReadinessAsset.cs",
+    "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
     "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
     "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
@@ -197,6 +198,38 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
             fail(errors, f"Automatic tool may approve production art: {relative}")
 
 
+def validate_runtime_installation(root: Path, errors: list[str]) -> None:
+    installer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
+        errors,
+    )
+    if installer:
+        required_snippets = (
+            'PrefabResourcePath = "FatMan_Patch4"',
+            'GameplayRoomName = "LivingGameplayScene"',
+            "legacyRig.VisualRoot",
+            "patchRig.BindRollbackRoot(rollbackRoot)",
+            "visibility.BindRollbackRoot(rollbackRoot)",
+            "bridge.BindLegacy(legacyRig, legacySkin)",
+            "patchRig.SetPatch4Enabled(false)",
+        )
+        for snippet in required_snippets:
+            if snippet not in installer:
+                fail(errors, f"Runtime rollback installer is missing: {snippet}")
+
+        if "patchRig.SetPatch4Enabled(true)" in installer:
+            fail(errors, "Runtime installer must never enable Patch 4 automatically")
+
+    builder = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4PrefabBuilder.cs",
+        errors,
+    )
+    if builder and 'PrefabRoot = "Assets/GameWorkPatch4/Resources"' not in builder:
+        fail(errors, "Patch 4 prefab must be generated into isolated Resources")
+
+
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
@@ -242,6 +275,7 @@ def main() -> int:
     validate_contract(root, errors)
     validate_json_files(root, errors)
     validate_readiness_gate(root, errors)
+    validate_runtime_installation(root, errors)
     validate_protected_paths(root, args.base_ref, errors)
 
     if errors:
@@ -254,6 +288,7 @@ def main() -> int:
     print("- contract counts and uniqueness verified")
     print("- approved master SHA and manifests verified")
     print("- automatic readiness approval blocked")
+    print("- runtime installation remains locked to rollback mode")
     print("- protected menu, video, music and settings paths unchanged")
     return 0
 

@@ -36,6 +36,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public int missingLayerCount;
             public bool artApproved;
             public bool patch4InitiallyHidden;
+            public bool runtimeResourceLoadable;
             public List<Finding> findings = new();
         }
 
@@ -70,6 +71,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 return false;
             }
 
+            ValidateRuntimeResource(prefab, report);
+
             GameObject contents = null;
             try
             {
@@ -98,6 +101,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             Finish(report);
             return report.passed;
+        }
+
+        private static void ValidateRuntimeResource(
+            GameObject prefab,
+            SmokeReport report)
+        {
+            GameObject runtimePrefab = Resources.Load<GameObject>(
+                Patch4PrefabBuilder.PrefabResourcePath);
+            report.runtimeResourceLoadable = runtimePrefab == prefab;
+            if (!report.runtimeResourceLoadable)
+            {
+                AddError(
+                    report,
+                    "RUNTIME_RESOURCE_MISSING",
+                    "The generated Patch 4 prefab cannot be loaded from " +
+                    "Resources at runtime.");
+            }
         }
 
         [MenuItem(

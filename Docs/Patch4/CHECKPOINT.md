@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-07-28
+Last updated: 2026-07-30
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -225,6 +225,47 @@ Detailed instructions:
 
 `Docs/Patch4/P4_0_D_VERIFICATION.md`
 
+### Real Unity verification completed
+
+Unity `6000.3.19f1` produced a passing automatic verification result:
+
+- EditMode: `4 passed`;
+- PlayMode: `3 passed`;
+- compilation snapshot: passed;
+- rig contract: passed;
+- Editor prefab smoke: passed;
+- readiness gate: correctly locked.
+
+`Patch4AutomatedTestRunner` writes the combined JSON and two NUnit XML reports
+under `Library/GameWorkPatch4Reports/`.
+
+## P4.0-E runtime room integration
+
+Repository inspection confirmed that the playable room is not an authored scene
+containing `CharacterRigController`. `GameplayWindowController` builds
+`LivingGameplayScene` dynamically, and `GameplayVisualStageController`
+instantiates:
+
+`Resources/UI/Gameplay/Living/CharacterRig2D.prefab`
+
+The Patch 4 integration therefore stays isolated:
+
+- `Patch4PrefabBuilder` generates the locked prefab under
+  `Assets/GameWorkPatch4/Resources/`;
+- `Patch4RuntimeInstaller` scans only below `LivingGameplayScene`;
+- `GameEntryScreen` is excluded;
+- the Patch 4 instance is parented beside the real legacy rig;
+- rollback root and legacy gameplay signals are bound at runtime;
+- `SetPatch4Enabled(false)` is applied explicitly;
+- Patch 3.5 remains visible;
+- production-art approval is never changed.
+
+An additional PlayMode test verifies the real runtime-resource installation
+contract. After the next local pull, the expected automatic count is:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`.
+
 ## Production dashboard
 
 Open in Unity:
@@ -284,22 +325,21 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-### P4.0-C manual art completion and first real Unity verification
-
-1. Open the project in Unity `6000.3.19f1` on branch `patch-4.0`.
-2. Wait for compilation and inspect the generated compilation report.
-3. Open the Patch 4 Production Dashboard.
-4. Run Adobe download and draft bake commands.
-5. Inspect `layer-bake-report.json`.
-6. Manually redraw hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees, ankles, belly and shirt hem.
-7. Replace geometric face fallbacks with real eye whites, irises, eyelids, cheeks, open mouth and smile.
-8. Reassemble the neutral pose and compare it against the approved master.
-9. Re-run pixel and joint validation.
-10. Rebuild the locked prefab.
-11. Run Editor smoke validation.
-12. Run all EditMode and PlayMode tests.
-13. Test all ten animations in the room.
-14. Only after successful human review, approve the readiness asset for the exact master SHA.
+1. Pull the runtime-room integration commit into Unity `6000.3.19f1`.
+2. Let `Patch4AutoContinuation` rebuild the Resources prefab and run all
+   validations without manual clicks.
+3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
+4. Add a Canvas-compatible Patch 4 layer presentation for
+   `LivingGameplayScene`, still hidden behind the readiness gate.
+5. Reassemble the neutral pose and compare it against the approved master.
+6. Refine hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees,
+   ankles, belly and shirt hem.
+7. Replace geometric face fallbacks with final eye whites, irises, eyelids,
+   cheeks, open mouth and smile.
+8. Complete Sprite Skin weight painting.
+9. Review all ten animations in the actual room.
+10. Only after successful technical and human review, approve the readiness
+    asset for the exact master SHA.
 
 Detailed art instructions:
 
@@ -311,10 +351,13 @@ Detailed verification instructions:
 
 ## Known limitations
 
-- Unity compilation has not yet been executed in the actual editor.
-- The committed tests have not yet produced real passing EditMode or PlayMode results.
-- Adobe source files and generated PNG layers are downloaded/generated inside Unity and are not yet committed as binary repository assets.
+- The new runtime-room installer has not yet received its local `4/4` PlayMode
+  confirmation.
+- Generated PNG layers and generated runtime assets exist locally in Unity and
+  are not committed as binary repository assets.
 - Hidden joint artwork still requires manual painting.
 - Final face poses still require manual painting.
 - Sprite Skin weight painting has not yet been completed.
+- Patch 4 painted layers still need a Canvas-compatible runtime presentation
+  before they can be visually reviewed in `LivingGameplayScene`.
 - Figma Starter MCP limit currently prevents additional write calls.

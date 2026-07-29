@@ -116,6 +116,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             return bone;
         }
 
+        public void BindRollbackRoot(GameObject rollbackRoot)
+        {
+            patch35RollbackRoot = rollbackRoot;
+            patch4Enabled = false;
+            RebuildBoneMap();
+            ApplyVisualState();
+        }
+
         public bool SetPatch4Enabled(bool enabled)
         {
             if (enabled)

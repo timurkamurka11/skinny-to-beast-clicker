@@ -22,7 +22,31 @@ namespace SkinnyToBeast.Gameplay.Patch4
             rigController = GetComponent<Patch4CharacterRigController>();
         }
 
+        public void BindRollbackRoot(GameObject rollbackRoot)
+        {
+            patch35RollbackRoot = rollbackRoot;
+            ApplyExpectedState();
+        }
+
         private void LateUpdate()
+        {
+            bool repaired = ApplyExpectedState();
+
+            if (repaired && logRepairs && !repairLogged)
+            {
+                repairLogged = true;
+                Debug.LogWarning(
+                    "Patch 4 visibility guard repaired a conflicting body " +
+                    "state. Only one character system is now visible.",
+                    this);
+            }
+            else if (!repaired)
+            {
+                repairLogged = false;
+            }
+        }
+
+        private bool ApplyExpectedState()
         {
             bool shouldShowPatch4 =
                 rigController != null &&
@@ -43,18 +67,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 repaired = true;
             }
 
-            if (repaired && logRepairs && !repairLogged)
-            {
-                repairLogged = true;
-                Debug.LogWarning(
-                    "Patch 4 visibility guard repaired a conflicting body " +
-                    "state. Only one character system is now visible.",
-                    this);
-            }
-            else if (!repaired)
-            {
-                repairLogged = false;
-            }
+            return repaired;
         }
     }
 }

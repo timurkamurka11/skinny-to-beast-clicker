@@ -8,8 +8,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     public static class Patch4PrefabBuilder
     {
-        public const string PrefabRoot = "Assets/GameWorkPatch4/Prefabs";
+        public const string PrefabRoot = "Assets/GameWorkPatch4/Resources";
         public const string PrefabPath = PrefabRoot + "/FatMan_Patch4.prefab";
+        public const string PrefabResourcePath = "FatMan_Patch4";
 
         private sealed class BoneSpec
         {

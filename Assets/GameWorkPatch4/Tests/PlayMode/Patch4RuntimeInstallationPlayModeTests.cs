@@ -1,0 +1,172 @@
+using System;
+using System.Collections;
+using System.Linq;
+using System.Reflection;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
+
+namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
+{
+    public sealed class Patch4RuntimeInstallationPlayModeTests
+    {
+        private const string LegacyPrefabResourcePath =
+            "UI/Gameplay/Living/CharacterRig2D";
+        private const string Patch4PrefabResourcePath = "FatMan_Patch4";
+        private const string Patch4InstanceName = "FatMan_Patch4_Instance";
+
+        [UnityTest]
+        public IEnumerator LivingGameplayRoomGetsLockedRollbackInstance()
+        {
+            GameObject room = new(
+                "LivingGameplayScene",
+                typeof(RectTransform));
+
+            try
+            {
+                GameObject legacyPrefab =
+                    Resources.Load<GameObject>(LegacyPrefabResourcePath);
+                Assert.NotNull(
+                    legacyPrefab,
+                    "The existing CharacterRig2D resource is missing.");
+
+                GameObject patch4Prefab =
+                    Resources.Load<GameObject>(Patch4PrefabResourcePath);
+                Assert.NotNull(
+                    patch4Prefab,
+                    "The generated Patch 4 runtime resource is missing.");
+
+                GameObject legacyRoot = UnityEngine.Object.Instantiate(
+                    legacyPrefab,
+                    room.transform,
+                    false);
+                legacyRoot.name = "CharacterRoot";
+
+                Component legacyRig = BuildLegacyRig(legacyRoot);
+                Assert.NotNull(legacyRig);
+
+                Type installerType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4RuntimeInstaller");
+                MethodInfo install = installerType.GetMethod(
+                    "InstallAvailableGameplayRigs",
+                    BindingFlags.Static | BindingFlags.Public);
+                Assert.NotNull(install);
+                install.Invoke(null, null);
+
+                yield return null;
+
+                Transform patchInstance =
+                    legacyRoot.transform.Find(Patch4InstanceName);
+                Assert.NotNull(
+                    patchInstance,
+                    "Patch 4 was not installed beside the gameplay rig.");
+                Assert.AreSame(
+                    legacyRoot.transform,
+                    patchInstance.parent);
+
+                Type patchRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterRigController");
+                Component patchRig =
+                    patchInstance.GetComponent(patchRigType);
+                Assert.NotNull(patchRig);
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "A runtime installation must stay locked.");
+
+                Transform patchVisual =
+                    patchInstance.Find("Patch4VisualRoot");
+                Assert.NotNull(patchVisual);
+                Assert.IsFalse(patchVisual.gameObject.activeSelf);
+
+                Transform rollbackVisual =
+                    GetObjectProperty(legacyRig, "VisualRoot") as Transform;
+                Assert.NotNull(rollbackVisual);
+                Assert.IsTrue(
+                    rollbackVisual.gameObject.activeSelf,
+                    "Patch 3.5 must remain visible in rollback mode.");
+
+                Type bridgeType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4LegacySignalBridge");
+                Component bridge = patchInstance.GetComponent(bridgeType);
+                Assert.NotNull(bridge);
+                Assert.AreSame(
+                    legacyRig,
+                    GetPrivateField(bridge, "legacyRig"));
+
+                Type visibilityType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterVisibilityGuard");
+                Component visibility =
+                    patchInstance.GetComponent(visibilityType);
+                Assert.NotNull(visibility);
+                Assert.AreSame(
+                    rollbackVisual.gameObject,
+                    GetPrivateField(visibility, "patch35RollbackRoot"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(room);
+            }
+        }
+
+        private static Component BuildLegacyRig(GameObject root)
+        {
+            Type rigType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterRigController");
+            Type faceType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterFaceController");
+
+            Component rig = root.GetComponent(rigType);
+            Component face = root.GetComponent(faceType);
+            Assert.NotNull(rig);
+            Assert.NotNull(face);
+
+            MethodInfo build = rigType.GetMethod(
+                "Build",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(build);
+            build.Invoke(
+                rig,
+                new object[]
+                {
+                    root.GetComponent<RectTransform>(),
+                    face
+                });
+            return rig;
+        }
+
+        private static bool GetBoolProperty(object target, string name)
+        {
+            return (bool)GetObjectProperty(target, name);
+        }
+
+        private static object GetObjectProperty(object target, string name)
+        {
+            PropertyInfo property = target.GetType().GetProperty(
+                name,
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(property, name);
+            return property.GetValue(target);
+        }
+
+        private static object GetPrivateField(object target, string name)
+        {
+            FieldInfo field = target.GetType().GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field, name);
+            return field.GetValue(target);
+        }
+
+        private static Type RequireType(string fullName)
+        {
+            Type type = AppDomain.CurrentDomain
+                .GetAssemblies()
+                .Select(assembly => assembly.GetType(fullName, false))
+                .FirstOrDefault(candidate => candidate != null);
+            Assert.NotNull(type, "Could not find " + fullName + ".");
+            return type;
+        }
+    }
+}

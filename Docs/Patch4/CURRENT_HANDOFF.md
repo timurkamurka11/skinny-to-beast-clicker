@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-07-30 00:10 (+03:00)**
+Last updated: **2026-07-30**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -8,11 +8,12 @@ Working branch: `patch-4.0`
 
 Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 
-This file is the **latest operational continuation point**. Read it before doing more Patch 4 work.
+This file is the latest operational continuation point. Read it before doing
+more Patch 4 work.
 
 ## User workflow preference
 
-The assistant must edit and commit Patch 4 files directly to GitHub.
+The assistant edits and commits Patch 4 files directly to GitHub.
 
 The user should normally need only:
 
@@ -20,9 +21,13 @@ The user should normally need only:
 git pull origin patch-4.0
 ```
 
-Do not introduce Unity installers, Unity Hub installers, PowerShell auto-install scripts, branch switching automation, stash/reset workflows or unrelated local-file synchronization unless the user explicitly requests them.
+Do not ask the user to edit code or operate Patch 4 Dashboard/Test Runner
+buttons. Continue the workflow through `Patch4AutoContinuation` whenever a safe
+automatic step can replace a manual click.
 
-Do not ask the user to write or edit project code manually. Fix errors directly in GitHub, then tell the user to run `git pull origin patch-4.0`.
+Do not introduce Unity installers, Unity Hub installers, branch switching
+automation, stash/reset workflows or unrelated local-file synchronization
+unless the user explicitly requests them.
 
 ## Protected scope
 
@@ -33,146 +38,125 @@ Do not change:
 - music, ambient audio or audio mixers;
 - settings UI, persistence, language, vibration or notifications.
 
-Patch 4 work must remain isolated under:
+Patch 4 work remains isolated under:
 
 - `Assets/GameWorkPatch4/`
 - `Docs/Patch4/`
 
-## Unity environment confirmed
+## Confirmed Unity environment
 
 - Unity Editor: `6000.3.19f1`
-- Project successfully opened in the real Unity Editor.
-- The initial Safe Mode compilation problem was resolved.
-- Safe Mode disappeared and the project opened normally.
-- `Assets/Scenes/SampleScene.unity` was opened.
-- The scene currently contains only `Main Camera`, `Global Light 2D` and `DontDestroyOnLoad`; it is not the full gameplay room.
+- Project opens and compiles outside Safe Mode.
+- `Assets/Scenes/SampleScene.unity` is only a bootstrap scene.
+- The full gameplay room is created dynamically at runtime.
 
-## Real compilation fixes already completed
+## Completed art and validation pipeline
 
-### Texture maximum size
+- Expired Adobe links were replaced by repository-owned local source
+  restoration.
+- The approved `1024 × 1536` neutral master and ten deterministic masks restore
+  locally.
+- The draft baker produces all 40 canonical layers.
+- Hidden joint scaffolds and the synthetic shadow satisfy the pixel/joint
+  validator.
+- The Animator Controller contains all ten required clips, including
+  `FatMan_Blink_Random`.
+- Rig contract validation passes.
+- Compilation and Editor prefab smoke validation pass.
+- The readiness gate stays locked and Patch 3.5 remains active.
 
-Old direct `TextureImporter.maxTextureSize` usage was incompatible with the installed Unity version.
+Important commits in that path include:
 
-Fixed by using `TextureImporterPlatformSettings`.
+- `a921ea1` — embedded approved draft art source;
+- `12e37f2` — local source/mask restoration;
+- `0794670` — hidden joint scaffolds and shadow;
+- `9e5e295` — correct FX leakage validation;
+- `e0fd371` — blink clip bound into the Animator Controller;
+- `524b449` — automatic animation-library verification;
+- `83eabc1` — automatic EditMode and PlayMode test runner.
 
-Commit:
+## Real Unity test result
 
-`b1ab5f6 fix(patch4): configure max texture size through platform settings`
+The user ran the automatic test continuation successfully.
 
-### Sprite pivot and alignment
+Confirmed Console result:
 
-Old direct `TextureImporter.spriteAlignment` usage was incompatible with Unity `6000.3.19f1`.
-
-Fixed through `TextureImporterSettings` plus `ReadTextureSettings` / `SetTextureSettings`.
-
-Commit:
-
-`61951d6 fix(patch4): apply sprite pivot through TextureImporterSettings`
-
-The corrected local file was restored with:
-
-```bat
-git fetch origin patch-4.0 && git restore --source=origin/patch-4.0 -- Assets/GameWorkPatch4/Editor/Patch4LayerImportPostprocessor.cs
+```text
+Patch 4 automated verification PASSED.
+EditMode: 4 passed; PlayMode: 3 passed.
 ```
 
-After this, Unity left Safe Mode and compiled successfully.
+Reports:
 
-## Production Dashboard status
+- `Library/GameWorkPatch4Reports/patch4-test-report.json`
+- `Library/GameWorkPatch4Reports/patch4-editmode-results.xml`
+- `Library/GameWorkPatch4Reports/patch4-playmode-results.xml`
 
-Dashboard path:
+This is a real Unity result from `6000.3.19f1`, not a static inference.
 
-`Tools → GameWork → Patch 4.0 → Open Production Dashboard`
+## Actual gameplay-room discovery
 
-The user ran button 1, previously named:
+There is no authored scene containing a persistent
+`CharacterRigController`.
 
-`1. Download Adobe Sources`
+The runtime path is:
 
-It failed with:
+```text
+GameplayWindow
+└── LivingGameplayScene
+    └── CharacterActors
+        └── CharacterRoot (CharacterRigController)
+```
 
-- approved neutral master: HTTP 403;
-- rigging reference: HTTP 404;
-- masks: HTTP 404;
-- total: `0 files downloaded, 12 failed`.
+`GameplayVisualStageController.BuildCharacter()` instantiates:
 
-Cause: old Adobe short URLs were temporary and expired.
+```text
+Resources/UI/Gameplay/Living/CharacterRig2D.prefab
+```
 
-## Adobe dependency removed
+The separate `GameEntryScreen` also creates a temporary legacy character, but
+Patch 4 must not attach there during this integration step.
 
-Patch 4 no longer depends on the expired Adobe links.
+## Current GitHub implementation awaiting local verification
 
-### Embedded repository art source
+The next integration is implemented entirely inside `Assets/GameWorkPatch4/`:
 
-Added:
-
-`Assets/GameWorkPatch4/Editor/Patch4EmbeddedArtSource.cs`
-
-It stores a compact repository-owned representation of the approved character source and expands it locally in Unity.
-
-Commit:
-
-`a921ea1 fix(patch4): embed approved draft art source in repository`
-
-### Local source and mask restoration
-
-Replaced network downloading in:
-
-`Assets/GameWorkPatch4/Editor/Patch4AdobeMaskDownloader.cs`
-
-The existing menu/button name is preserved for compatibility, but the command now works entirely locally. It creates:
-
-- `FatMan_NeutralFront_Master.png` at `1024 × 1536`;
-- `FatMan_Rigging_Reference.png`;
-- 10 deterministic masks:
-  - hair;
-  - face base;
-  - eyebrows;
-  - nose;
-  - ears;
-  - neck;
-  - upper clothes;
-  - lower clothes;
-  - hands;
-  - shoes.
-
-No Adobe request is made.
-
-Commit:
-
-`12e37f2 fix(patch4): replace expired Adobe URLs with repository-owned source restoration`
+- `Patch4PrefabBuilder` now generates the locked prefab under the isolated
+  Patch 4 `Resources` folder so runtime code can load it.
+- `Patch4RuntimeInstaller` waits for a `CharacterRigController` specifically
+  below `LivingGameplayScene`.
+- It instantiates `FatMan_Patch4_Instance` beside the real runtime character.
+- It binds rollback visibility and legacy gameplay signals.
+- It explicitly calls `SetPatch4Enabled(false)`.
+- Patch 3.5 remains visible and the production-art approval flag is untouched.
+- Editor smoke validation now confirms that the runtime resource is loadable.
+- A fourth PlayMode test verifies installation, binding, hidden Patch 4 visuals
+  and visible Patch 3.5 rollback.
+- The static guard verifies that runtime installation cannot enable Patch 4.
 
 ## Exact next action
 
-The user has not yet pulled commits `a921ea1` and `12e37f2` into the local Unity project.
-
-First run:
+After the integration commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
 ```
 
-Wait for Unity to finish recompiling.
+Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
-Then open:
+1. rebuild the resource-loadable locked prefab;
+2. run pixel, rig, compilation and Editor smoke validation;
+3. run all EditMode tests;
+4. enter Play Mode and run all PlayMode tests;
+5. exit Play Mode and open Console.
 
-`Tools → GameWork → Patch 4.0 → Open Production Dashboard`
-
-Press:
-
-`1. Download Adobe Sources`
-
-Despite the old label, this now restores the character and masks locally from repository data.
-
-Expected Console message:
+Expected final count:
 
 ```text
-Patch 4 restored the neutral master, rigging reference and 10 deterministic masks from GitHub-owned data. No Adobe download is required. Run Art/Bake Draft Layer Pack next.
+EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-Then press:
-
-`2. Bake Draft Layer Pack`
-
-After the bake completes, inspect Console and the Dashboard. The next assistant should request a screenshot only if there is a new error or if the PASS/WAIT status needs interpretation.
+No Dashboard or Test Runner click is required.
 
 ## Do not do yet
 
@@ -182,22 +166,12 @@ After the bake completes, inspect Console and the Dashboard. The next assistant 
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Remaining work after the local bake
+## Work after the 4/4 runtime-installation test
 
-- Run draft-layer validation.
-- Rebuild locked runtime assets.
-- Run safety validation.
-- Run compilation and Editor smoke reports.
-- Run EditMode and PlayMode tests.
-- Find/open the actual gameplay room containing the legacy `CharacterRigController`.
-- Install Patch 4 beside the selected legacy character in rollback mode.
-- Manually repaint hidden joints and final facial poses.
+- Add and validate a Canvas-compatible presentation for the painted Patch 4
+  layers inside `LivingGameplayScene`.
+- Keep that presentation hidden behind the readiness gate.
+- Complete/review hidden joint artwork and final facial poses.
 - Complete Sprite Skin weight painting.
-- Review all ten animations in Play Mode.
-- Approve readiness only after all technical and human checks pass.
-
-## Exact prompt for a new chat
-
-Copy and send this message in the new chat:
-
-> Продолжаем GameWork Patch 4.0. Репозиторий `timurkamurka11/skinny-to-beast-clicker`, ветка `patch-4.0`. Сначала прочитай через GitHub файлы `Docs/Patch4/CURRENT_HANDOFF.md` и `Docs/Patch4/CHECKPOINT.md`, ничего не придумывай и продолжай строго с последней точки. Ты сам редактируешь и коммитишь файлы прямо в GitHub, а я только выполняю `git pull origin patch-4.0` и проверяю Unity. Unity `6000.3.19f1` уже установлен. Последние важные коммиты: `a921ea1` и `12e37f2`; Adobe-ссылки удалены из рабочего процесса, button 1 Dashboard теперь восстанавливает мастер и 10 масок локально. Не меняй `MainMenuLoop.mp4`, меню, музыку и настройки. Текущий следующий шаг: после моего `git pull` повторно запустить button 1 в Production Dashboard, затем button 2 Bake Draft Layer Pack.
+- Review all ten animations in the actual room.
+- Approve readiness only after technical and human visual review.

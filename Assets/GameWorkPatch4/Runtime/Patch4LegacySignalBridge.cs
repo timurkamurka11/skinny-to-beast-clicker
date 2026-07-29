@@ -37,6 +37,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             InitializeObservation();
         }
 
+        public void BindLegacy(
+            CharacterRigController rig,
+            CharacterSkinController skin)
+        {
+            legacyRig = rig;
+            legacySkin = skin;
+            initialized = false;
+            InitializeObservation();
+        }
+
         private void Update()
         {
             if (legacyRig == null || stateMachine == null)
