@@ -22,12 +22,18 @@ Figma Starter has reached its current MCP write-call limit. The latest attempted
 
 ## Adobe Photoshop / Firefly
 
-Approved P4.0-C source:
+Current P4.0-H quality source:
 
-- asset ID: `urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb`
-- source URL: https://at.adobe.com/SGSnfFAvaBd9wjrT
+- repository:
+  `Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png`
+- exact Photoshop/Firefly output:
+  https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:72e5364f-ba61-4f62-96f5-51c0d8ac09bf
 - canvas: `1024 × 1536` RGBA PNG
-- approved SHA-256: `5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c`
+- approved SHA-256: `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`
+
+The previous repository preview was `96 × 144` and is retained only in Git
+history. Unity restores the committed 1024 PNG and creates all masks locally;
+none of these links is a workflow dependency.
 
 Firefly rigging-parts reference:
 
@@ -37,7 +43,10 @@ Adobe mask source manifest:
 
 `Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json`
 
-The mask pipeline contains valid selections for hair, face, eyebrows, nose, ears, neck, clothing, hands and shoes. Failed whole-subject selections are explicitly invalid and excluded from production download.
+The mask pipeline records the historical selections for hair, face, eyebrows,
+nose, ears, neck, clothing, hands and shoes. Unity regenerates the ten usable
+masks locally. Failed whole-subject selections remain explicitly invalid and
+are never treated as production input.
 
 ## Canva
 

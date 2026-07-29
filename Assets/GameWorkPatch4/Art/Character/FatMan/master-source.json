@@ -1,21 +1,33 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "characterId": "fat-man-stage-0",
-  "status": "approved-neutral-front-master-layer-production-in-progress",
+  "status": "quality-master-integrated-hidden-art-and-human-review-pending",
   "runtimeReady": false,
   "activationAllowed": false,
   "raster": {
     "fileName": "FatMan_NeutralFront_Master.png",
+    "repositoryPath": "Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png",
     "width": 1024,
     "height": 1536,
     "format": "PNG",
     "colorMode": "RGBA",
     "transparentBackground": true,
-    "sha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c"
+    "sha256": "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3"
+  },
+  "qualityPass": {
+    "previousRepositoryPreviewWidth": 96,
+    "previousRepositoryPreviewHeight": 144,
+    "previousBehavior": "gpu-bilinear-upscale-to-1024x1536",
+    "tool": "Adobe Photoshop and Firefly",
+    "transparentCutoutReference": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:ed713a35-9981-4019-828c-dee81893c4af",
+    "exact1024MasterReference": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:72e5364f-ba61-4f62-96f5-51c0d8ac09bf",
+    "repositoryOwnsExactBytes": true,
+    "networkDependency": false,
+    "humanProductionApprovalStillRequired": true
   },
   "adobe": {
-    "currentCreativeCloudAssetId": "urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb",
-    "currentAssetLink": "https://at.adobe.com/SGSnfFAvaBd9wjrT",
+    "historicalCreativeCloudAssetId": "urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb",
+    "historicalAssetLink": "https://at.adobe.com/SGSnfFAvaBd9wjrT",
     "earlierCreativeCloudAssetId": "urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde",
     "earlierAssetLink": "https://at.adobe.com/PIAb1ihVhwnISLAU",
     "vectorTraceLink": "https://to.adobe.com/aN0OeN9oa589DR97",
@@ -43,7 +55,7 @@
   },
   "readiness": {
     "assetPath": "Assets/GameWorkPatch4/Art/Patch4ArtReadiness.asset",
-    "requiredMasterSha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c",
+    "requiredMasterSha256": "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3",
     "automaticApprovalAllowed": false,
     "currentlyApproved": false
   },
@@ -55,5 +67,5 @@
     "flattenedRuntimeSpriteAllowed": false,
     "draftLayersMayActivateRuntime": false
   },
-  "nextStep": "Run the Unity P4.0-C dashboard, download Adobe sources, bake the 40-layer draft pack, manually repaint hidden joints and final face poses, validate, rebuild the locked prefab, then compile and Play Mode test before human readiness approval."
+  "nextStep": "Pull patch-4.0 once. Patch4AutoContinuation restores this exact repository master, rebakes all 40 draft layers, validates, rebuilds the locked prefab and runs EditMode plus PlayMode tests without manual clicks. Then review the sharper neutral-pose panel before hidden-joint, face-pose, weight-paint and animation work."
 }

@@ -136,3 +136,20 @@ The verification source code is committed, but Unity has not physically compiled
 - main-menu scenes and prefabs
 - music and audio configuration
 - settings UI and persistence
+
+## 2026-07-30 — P4.0-H exact quality-master replacement
+
+- [x] Verified the previous embedded source was only `96 × 144`.
+- [x] Re-rendered and cut out the character with Adobe Photoshop/Firefly.
+- [x] Produced a real `1024 × 1536` transparent RGBA master.
+- [x] Committed the exact master bytes under the isolated Patch 4 art root.
+- [x] Replaced GPU upscaling with SHA-checked byte-for-byte local restoration.
+- [x] Removed `Patch4EmbeddedArtSource`.
+- [x] Kept all Adobe URLs out of the Unity execution path.
+- [x] Made one pull automatically restore masks, rebake all 40 layers, rebuild
+  the locked prefab, validate and run EditMode plus PlayMode tests.
+- [x] Excluded the runtime-only ground shadow from master pixel comparison while
+  preserving it in the runtime layer pack.
+- [x] Kept `productionArtApproved` false and Patch 3.5 visible.
+- [ ] Confirm the new quality pass in Unity `6000.3.19f1` with the automatic
+  `4/4` run and three-panel screenshot.

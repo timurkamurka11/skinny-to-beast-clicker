@@ -4,9 +4,17 @@ This directory is reserved for the new original hand-drawn Patch 4 character.
 
 ## Current state
 
-The neutral front master has been approved and exported as a 1024 × 1536 transparent RGBA PNG. It has also been uploaded to Adobe Creative Cloud and converted to an editable SVG trace.
+The current neutral front quality master is committed here as
+`FatMan_NeutralFront_Master.png`: an exact 1024 × 1536 transparent RGBA PNG.
+It replaces the former 96 × 144 indexed preview that Unity enlarged at runtime.
+The replacement was re-rendered and cut out with Adobe Photoshop/Firefly, then
+stored in GitHub so the Unity workflow has no Adobe or network dependency.
 
-The master is still a single visual reference and must be manually separated into the layer contract below before Unity Sprite Skin import. Do not place the flattened master or concept sheet into the runtime prefab as the final character.
+The master is still a single visual reference and must be separated into the
+layer contract below before Unity Sprite Skin import. The automated split remains
+a locked draft: hidden joints, alternate face poses, weight painting and motion
+still require review. Do not place the flattened master or concept sheet into the
+runtime prefab as the final character.
 
 Source metadata, checksum, Adobe references and Figma node IDs are stored in `master-source.json`.
 

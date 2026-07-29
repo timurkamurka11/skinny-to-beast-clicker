@@ -27,20 +27,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorGUILayout.Space(6f);
 
             DrawStatus(
-                "Adobe mask manifest",
+                "Repository mask manifest",
                 AssetDatabase.LoadAssetAtPath<TextAsset>(
                     Patch4AdobeMaskDownloader.ManifestPath) != null,
                 Patch4AdobeMaskDownloader.ManifestPath);
             DrawStatus(
-                "Approved neutral master downloaded",
+                "Exact neutral master restored",
                 FileExists(Patch4MaskDrivenLayerBaker.MasterPath),
                 Patch4MaskDrivenLayerBaker.MasterPath);
 
             int maskCount = CountPng(Patch4AdobeMaskDownloader.DownloadedMaskRoot);
             DrawStatus(
-                "Valid Adobe masks downloaded",
-                maskCount >= 8,
-                maskCount + " PNG file(s); target is at least 8 valid masks");
+                "Repository masks restored",
+                maskCount >= 10,
+                maskCount + " PNG file(s); target is 10 local masks");
 
             int layerCount = CountPng(Patch4MaskDrivenLayerBaker.LayerRoot);
             DrawStatus(
@@ -101,14 +101,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             EditorGUILayout.Space(12f);
             EditorGUILayout.HelpBox(
-                "Required order: download Adobe sources → bake draft layers → " +
+                "Required order: restore repository sources → bake draft layers → " +
                 "manually repaint hidden joints and facial poses → validate → " +
                 "rebuild runtime assets → run compile/smoke reports → run " +
                 "EditMode and PlayMode tests → review in the room → approve " +
                 "readiness. Draft generation never approves or enables Patch 4.",
                 MessageType.Info);
 
-            if (GUILayout.Button("1. Download Adobe Sources"))
+            if (GUILayout.Button("1. Restore Repository Sources"))
             {
                 Patch4ProductionPipeline.DownloadSources();
             }

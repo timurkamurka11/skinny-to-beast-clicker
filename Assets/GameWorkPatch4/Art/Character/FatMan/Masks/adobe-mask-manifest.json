@@ -1,13 +1,15 @@
 {
-  "schemaVersion": 1,
-  "status": "draft-mask-sources",
-  "approvedMasterSha256": "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c",
+  "schemaVersion": 2,
+  "status": "repository-generated-draft-mask-sources",
+  "approvedMasterSha256": "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3",
   "source": {
-    "assetId": "urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb",
+    "id": "repository-quality-master-v1",
     "fileName": "FatMan_NeutralFront_Master.png",
-    "url": "https://at.adobe.com/SGSnfFAvaBd9wjrT",
+    "repositoryPath": "Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png",
     "width": 1024,
-    "height": 1536
+    "height": 1536,
+    "networkDependency": false,
+    "adobeQualityPassReference": "https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:72e5364f-ba61-4f62-96f5-51c0d8ac09bf"
   },
   "riggingReference": {
     "fileName": "FatMan_RiggingParts_AdobeReference.png",

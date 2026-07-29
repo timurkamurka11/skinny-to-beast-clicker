@@ -19,7 +19,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [Header("Production Art Gate")]
         [SerializeField] private Patch4ArtReadinessAsset artReadiness;
         [SerializeField] private string expectedSourceSha256 =
-            "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c";
+            "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3";
 
         [Header("Rollback")]
         [SerializeField] private GameObject patch35RollbackRoot;

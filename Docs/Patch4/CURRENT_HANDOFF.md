@@ -54,8 +54,15 @@ Patch 4 work remains isolated under:
 
 - Expired Adobe links were replaced by repository-owned local source
   restoration.
-- The approved `1024 × 1536` neutral master and ten deterministic masks restore
-  locally.
+- The former embedded source was only `96 × 144` and was being enlarged to
+  `1024 × 1536`; this was the confirmed cause of the weak/pixelated review.
+- A real `1024 × 1536` transparent Photoshop/Firefly quality master is now
+  committed at
+  `Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png`.
+- Button 1/local automation restores the exact committed bytes only after
+  checking SHA-256, dimensions and RGBA format; no Adobe/network access is
+  required in Unity.
+- Ten deterministic masks restore locally from that quality master.
 - The draft baker produces all 40 canonical layers.
 - Hidden joint scaffolds and the synthetic shadow satisfy the pixel/joint
   validator.
@@ -75,7 +82,8 @@ Important commits in that path include:
 - `524b449` — automatic animation-library verification;
 - `83eabc1` — automatic EditMode and PlayMode test runner;
 - `c596512` — locked runtime installation in `LivingGameplayScene`;
-- `0386784` — Canvas-compatible 40-layer room presentation.
+- `0386784` — Canvas-compatible 40-layer room presentation;
+- `5ea24ef` — locked neutral-pose review and automatic `4/4` verification.
 
 ## Real Unity test result
 
@@ -173,18 +181,40 @@ Patch 4 automated verification PASSED.
 EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-## Current neutral-pose QA awaiting local verification
+## Neutral-pose QA verified in real Unity
 
-The next diagnostic step remains isolated and read-only:
+The user completed the automatic neutral-pose run in Unity `6000.3.19f1`:
 
-- `Patch4NeutralPoseValidator` composites the neutral state from 36 canonical
-  layers in the same stable order as the Canvas presentation.
-- Alternate open/smile mouths, sweat and impact FX are excluded from neutral.
-- The runtime Canvas now also starts those four state layers hidden.
-- It compares the assembled pose pixel-by-pixel with the approved master.
-- It writes composite, difference, three-panel review PNG and JSON metrics to
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- the three-panel approved / assembled / difference window opened
+  automatically;
+- Patch 4 remained locked and Patch 3.5 remained visible.
+
+The comparison proved that the split/reassembly preserved the old source, but
+also revealed that the old source itself was visibly low-resolution. Repository
+inspection found the exact cause: a `96 × 144` indexed preview was being
+bilinearly enlarged to `1024 × 1536`.
+
+## Current quality-master pass awaiting local verification
+
+The replacement pass remains isolated and read-only:
+
+- the committed exact source is `1024 × 1536`, 8-bit RGBA;
+- SHA-256 is
+  `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`;
+- the former embedded preview class was removed;
+- local restoration refuses a mismatched checksum, size or PNG format;
+- `Patch4NeutralPoseValidator` composites 35 comparison layers;
+- alternate open/smile mouths, sweat, impact FX and the runtime-only ground
+  shadow are excluded from the master comparison;
+- the ground shadow still exists in the runtime layer pack, but no longer
+  creates a false magenta difference beneath the shoes;
+- it compares the assembled pose pixel-by-pixel with the current master;
+- it writes composite, difference, three-panel review PNG and JSON metrics to
   `Library/GameWorkPatch4Reports/`.
-- The report always records `humanReviewRequired: true` and
+- the report always records `humanReviewRequired: true` and
   `activationAllowed: false`.
 - Editor smoke validation requires a complete neutral composite and confirms
   that activation remains blocked.
@@ -195,7 +225,7 @@ The next diagnostic step remains isolated and read-only:
 
 ## Exact next action
 
-After the neutral-pose QA commit is present on `patch-4.0`, run only:
+After the quality-master commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -203,13 +233,15 @@ git pull origin patch-4.0
 
 Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
-1. rebuild the resource-loadable locked prefab;
-2. assemble and compare the locked neutral pose;
-3. write the neutral-pose preview and diagnostic report;
-4. run pixel, rig, compilation and Editor smoke validation;
-5. run all EditMode tests;
-6. enter Play Mode and run all PlayMode tests;
-7. exit Play Mode and open the three-panel review window.
+1. verify and restore the exact repository master;
+2. regenerate all ten masks and all 40 draft layers;
+3. rebuild the resource-loadable locked prefab;
+4. assemble and compare the locked neutral pose;
+5. write the neutral-pose preview and diagnostic report;
+6. run pixel, rig, compilation and Editor smoke validation;
+7. run all EditMode tests;
+8. enter Play Mode and run all PlayMode tests;
+9. exit Play Mode and open the three-panel review window.
 
 Expected final count:
 
@@ -217,7 +249,10 @@ Expected final count:
 EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-No Dashboard, Test Runner or review-window click is required.
+No Dashboard, Test Runner or review-window click is required. The new left and
+middle panels should be substantially sharper than the previously reviewed
+pixelated source. The right panel should no longer show the deliberate ground
+shadow as a foot-area mismatch.
 
 ## Do not do yet
 
@@ -227,10 +262,10 @@ No Dashboard, Test Runner or review-window click is required.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the 4/4 neutral-pose QA test
+## Work after the quality-master 4/4 test
 
-- Inspect the automatically opened master / assembled / difference panels while
-  keeping production activation locked.
+- Inspect the automatically opened master / assembled / difference panels and
+  confirm the sharper source while keeping production activation locked.
 - Complete/review hidden joint artwork and final facial poses.
 - Complete Sprite Skin weight painting.
 - Review all ten animations in the actual room.

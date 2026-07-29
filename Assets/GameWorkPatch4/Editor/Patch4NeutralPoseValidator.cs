@@ -54,7 +54,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const int ExpectedHeight = 1536;
         private const byte VisibleThreshold = 8;
         private const int CloseColorThreshold = 12;
-        private const int NeutralStateOverlayCount = 4;
+        private const int ExcludedComparisonLayerCount = 5;
 
         public static string ReportPath => Path.Combine(
             Patch4CompilationMonitor.ReportDirectory,
@@ -93,13 +93,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             };
 
             if (report.neutralLayerCount !=
-                report.requiredLayerCount - NeutralStateOverlayCount)
+                report.requiredLayerCount - ExcludedComparisonLayerCount)
             {
                 errors.Add(
                     "Neutral-pose layer count is " +
                     report.neutralLayerCount + "; expected " +
                     (report.requiredLayerCount -
-                     NeutralStateOverlayCount) + ".");
+                     ExcludedComparisonLayerCount) + ".");
             }
 
             DeletePreviousPreview(CompositePath, errors);
@@ -293,6 +293,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                    !string.Equals(
                        contractPath,
                        "FX/ImpactFold",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
+                       "FX/Shadow",
                        StringComparison.Ordinal);
         }
 

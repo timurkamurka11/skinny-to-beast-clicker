@@ -9,14 +9,20 @@ any machine that has Python and git.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import struct
 import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
 
-EXPECTED_SHA = "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c"
+EXPECTED_SHA = "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3"
+REPOSITORY_MASTER = (
+    "Assets/GameWorkPatch4/Art/Character/FatMan/"
+    "FatMan_NeutralFront_Master.png"
+)
 EXPECTED_COUNTS = {
     "RequiredBoneNames": 31,
     "RequiredLayerPaths": 40,
@@ -42,6 +48,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
+    REPOSITORY_MASTER,
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
     "Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json",
     "Docs/Patch4/CHECKPOINT.md",
@@ -148,6 +155,8 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
             fail(errors, "master-source.json must describe a 1024 x 1536 source")
         if raster.get("transparentBackground") is not True:
             fail(errors, "master-source.json must require a transparent background")
+        if raster.get("repositoryPath") != REPOSITORY_MASTER:
+            fail(errors, "master-source.json does not point at the exact repository master")
 
     if masks:
         if masks.get("approvedMasterSha256") != EXPECTED_SHA:
@@ -170,6 +179,87 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
                 fail(errors, "Draft layer status must never allow runtime activation")
         except json.JSONDecodeError as exc:
             fail(errors, f"layer-draft-status.json is invalid JSON: {exc}")
+
+
+def validate_repository_master(root: Path, errors: list[str]) -> None:
+    path = root / REPOSITORY_MASTER
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        fail(errors, f"Repository master is unreadable: {exc}")
+        return
+
+    actual_sha = hashlib.sha256(data).hexdigest()
+    if actual_sha != EXPECTED_SHA:
+        fail(
+            errors,
+            "Repository master SHA-256 does not match the quality master: "
+            f"{actual_sha}",
+        )
+
+    if (
+        len(data) < 29
+        or data[:8] != b"\x89PNG\r\n\x1a\n"
+        or data[12:16] != b"IHDR"
+    ):
+        fail(errors, "Repository master is not a valid PNG with an IHDR header")
+        return
+
+    width, height = struct.unpack(">II", data[16:24])
+    if (width, height) != (1024, 1536):
+        fail(
+            errors,
+            f"Repository master is {width} x {height}; expected 1024 x 1536",
+        )
+    if data[24] != 8 or data[25] != 6:
+        fail(errors, "Repository master must be 8-bit RGBA PNG data")
+
+
+def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
+    downloader = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AdobeMaskDownloader.cs",
+        errors,
+    )
+    if downloader:
+        required_snippets = (
+            "FatMan_NeutralFront_Master.png",
+            EXPECTED_SHA,
+            "ReadAndValidateRepositoryMaster()",
+            "SHA256.Create()",
+            "WriteBytes(",
+        )
+        for snippet in required_snippets:
+            if snippet not in downloader:
+                fail(errors, f"Repository restore pipeline is missing: {snippet}")
+        if "Patch4EmbeddedArtSource" in downloader:
+            fail(errors, "Repository restore must not use the former 96 x 144 preview")
+        if "private static Texture2D Resize(" in downloader:
+            fail(errors, "Repository restore must not upscale a compact preview")
+
+    automatic = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AutoContinuation.cs",
+        errors,
+    )
+    if automatic:
+        ordered_steps = (
+            'RunId = "quality-master-v1"',
+            "RestoreRepositorySources()",
+            "BakeDraftLayers()",
+            "RebuildRuntimeAssets()",
+            "RunSafetyValidation()",
+            "RunAll()",
+        )
+        last_index = -1
+        for snippet in ordered_steps:
+            index = automatic.find(snippet)
+            if index < 0:
+                fail(errors, f"Automatic quality pass is missing: {snippet}")
+                continue
+            if index <= last_index:
+                fail(errors, f"Automatic quality pass is out of order at: {snippet}")
+            last_index = index
 
 
 def validate_readiness_gate(root: Path, errors: list[str]) -> None:
@@ -273,6 +363,7 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             '"Face/MouthSmile"',
             '"FX/Sweat"',
             '"FX/ImpactFold"',
+            '"FX/Shadow"',
             "patch4-neutral-pose-review.png",
         )
         for snippet in required_snippets:
@@ -353,6 +444,8 @@ def main() -> int:
 
     validate_contract(root, errors)
     validate_json_files(root, errors)
+    validate_repository_master(root, errors)
+    validate_repository_restore_pipeline(root, errors)
     validate_readiness_gate(root, errors)
     validate_runtime_installation(root, errors)
     validate_neutral_pose_qa(root, errors)
@@ -366,7 +459,8 @@ def main() -> int:
 
     print("Patch 4 static guard PASSED")
     print("- contract counts and uniqueness verified")
-    print("- approved master SHA and manifests verified")
+    print("- exact 1024 x 1536 RGBA repository master and SHA verified")
+    print("- automatic quality restore and full rebake order verified")
     print("- automatic readiness approval blocked")
     print("- Canvas runtime installation remains locked to rollback mode")
     print("- neutral-pose QA remains read-only and human-gated")

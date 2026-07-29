@@ -4,7 +4,10 @@
 
 P4.0-C converts the approved neutral front master into an actual layered character suitable for the new Patch 4 skeleton.
 
-The automated pipeline is intentionally conservative. It can download Adobe sources, split visible pixels into a complete contract-shaped draft pack, measure coverage and identify missing overlap. It cannot invent final hidden anatomy or approve production art.
+The automated pipeline is intentionally conservative. It restores the exact
+repository source, splits visible pixels into a complete contract-shaped draft
+pack, measures coverage and identifies missing overlap. It cannot invent final
+hidden anatomy or approve production art.
 
 ## Sources
 
@@ -12,9 +15,15 @@ The automated pipeline is intentionally conservative. It can download Adobe sour
 
 - Canvas: `1024 × 1536`
 - Format: RGBA PNG with real transparency
-- Adobe asset: `urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb`
-- Adobe source URL: `https://at.adobe.com/SGSnfFAvaBd9wjrT`
-- Approved SHA-256: `5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c`
+- Repository path:
+  `Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png`
+- Approved SHA-256: `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`
+- Photoshop/Firefly quality-pass reference:
+  `https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:72e5364f-ba61-4f62-96f5-51c0d8ac09bf`
+
+The former compact source was only `96 × 144` and was enlarged in Unity. It
+has been removed. The current workflow uses the exact committed 1024 source and
+has no Adobe/network dependency.
 
 ### Adobe rigging reference
 
@@ -67,19 +76,18 @@ The dashboard reports:
 
 ## Ordered Unity pipeline
 
-### Step 1 — Download Adobe sources
+### Step 1 — Restore repository sources
 
 Menu:
 
 `Tools → GameWork → Patch 4.0 → Pipeline → 1. Download Adobe Sources`
 
-Downloads:
+The legacy menu name is retained for compatibility, but the command performs no
+download. It:
 
-- approved neutral master to `Source/`
-- valid Adobe masks to `Masks/Downloaded/`
-- Firefly rigging reference to `References/`
-
-Invalid whole-subject masks are skipped.
+- verifies the committed master SHA-256, size and RGBA format;
+- copies the exact bytes to `Source/` and `References/`;
+- regenerates ten deterministic masks in `Masks/Downloaded/`.
 
 ### Step 2 — Bake draft layers
 
@@ -97,9 +105,9 @@ File naming replaces `/` with `_`:
 
 The draft baker:
 
-- intersects source alpha with Adobe masks when valid;
+- intersects source alpha with the locally generated masks when available;
 - splits bilateral masks at the master center line;
-- applies controlled normalized regions when Adobe detection failed;
+- applies controlled normalized regions when a dedicated mask is unavailable;
 - never trims the canvas;
 - records missing masks and manual redraw reasons;
 - writes `layer-draft-status.json` with `activationAllowed: false`.

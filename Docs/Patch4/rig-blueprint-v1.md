@@ -2,10 +2,16 @@
 
 ## Current production slice
 
-The approved neutral front master is a 1024 × 1536 RGBA PNG with real transparency. It is suitable as the visual reference for manual layer cutting, but it is not yet a runtime-ready Sprite Skin source.
+The current neutral front quality master is a real 1024 × 1536 RGBA PNG with
+transparency. It replaces the former 96 × 144 embedded preview and is suitable
+as the visual reference for manual layer cutting, but it is not yet a
+runtime-ready Sprite Skin source.
 
-- Raster master SHA-256: `5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c`
-- Adobe Creative Cloud asset: `urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde`
+- Raster master SHA-256: `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`
+- Repository source:
+  `Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png`
+- Photoshop/Firefly exact output:
+  https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:72e5364f-ba61-4f62-96f5-51c0d8ac09bf
 - Adobe vector trace: https://to.adobe.com/aN0OeN9oa589DR97
 - Figma rig blueprint: https://www.figma.com/design/tZSr9vinRs9EbZzgatxjda/GameWork-Patch-4-0-Fat-Man-Art-Rig?node-id=6-3
 

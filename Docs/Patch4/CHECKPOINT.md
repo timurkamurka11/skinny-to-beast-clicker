@@ -17,21 +17,28 @@ The following must remain unchanged:
 - music, ambient audio and audio mixers
 - settings UI, persistence, language, vibration and notifications
 
-## Approved visual source
+## Current visual source
 
 - Neutral front master: transparent PNG, `1024 × 1536`, RGBA.
-- Approved SHA-256: `5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c`.
+- Current exact SHA-256: `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`.
+- Repository source:
+  `Assets/GameWorkPatch4/Art/Character/FatMan/FatMan_NeutralFront_Master.png`.
 - Character: overweight adult man, heavy belly, thick arms and thighs, short dark hair, dirty gray sleeveless shirt, dark pants and gray shoes.
 - Figma file: `tZSr9vinRs9EbZzgatxjda`.
 - Concept board: node `4:3`.
 - Rig blueprint board: node `6:3`.
-- Adobe source currently used by P4.0-C: `urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb`.
-- Adobe source URL: `https://at.adobe.com/SGSnfFAvaBd9wjrT`.
+- Historical Adobe source: `urn:aaid:sc:AP:aa1abfc7-66c2-4260-a320-6781833d46cb`.
+- Historical Adobe source URL: `https://at.adobe.com/SGSnfFAvaBd9wjrT`.
+- Exact 1024 quality-pass reference:
+  `https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:72e5364f-ba61-4f62-96f5-51c0d8ac09bf`.
 - Earlier Creative Cloud copy: `urn:aaid:sc:AP:5086d367-0290-430e-b9a7-39e5392bdbde`.
 - Adobe vector trace: `https://to.adobe.com/aN0OeN9oa589DR97`.
 - Adobe rigging-parts reference: `https://photoshop-api.adobe.io/v2/short-url/urn:aaid:ps:US:5b427aac-252e-45c2-9a79-272568e505b8`.
 
-The master is approved as the visual source, but it is not a final one-piece Unity sprite. The Firefly rigging sheet is reference-only and may not replace the exact approved master.
+The repository owns the exact master bytes and Unity has no Adobe/network
+dependency. This master is the current quality source, but it is not final
+production art and is not approved by the readiness gate. The Firefly rigging
+sheet is reference-only and may not replace the exact repository master.
 
 ## Completed P4.0-A — art and rig foundation
 
@@ -91,7 +98,7 @@ Patch 4 does not edit the existing gameplay controller. `Patch4LegacySignalBridg
 
 It mirrors those signals into the new Patch 4 Animator while Patch 3.5 stays available as rollback.
 
-## Completed P4.0-C automation — Adobe masks and layer production pipeline
+## Completed P4.0-C automation — mask and layer production pipeline
 
 ### Adobe work completed
 
@@ -148,7 +155,9 @@ Every draft remains `1024 × 1536`. Filenames replace `/` with `_`:
 - `LegR_Foot.png`
 - `FX_Shadow.png`
 
-The baker prefers valid Adobe masks and uses bounded geometric fallback regions only when Adobe detection failed. It writes `layer-draft-status.json` with `activationAllowed: false`.
+The current baker prefers the ten locally regenerated repository masks and uses
+bounded geometric fallback regions when a dedicated mask is unavailable. It
+writes `layer-draft-status.json` with `activationAllowed: false`.
 
 ### Pixel and joint QA
 
@@ -301,9 +310,9 @@ and zero errors:
 
 ## P4.0-G locked neutral-pose QA
 
-The next review step is automated without changing readiness:
+The review step was verified in Unity `6000.3.19f1` without changing readiness:
 
-- `Patch4NeutralPoseValidator` composites 36 neutral-state layers in canonical
+- `Patch4NeutralPoseValidator` originally composited 36 neutral-state layers in canonical
   order;
 - open/smile mouths, sweat and impact FX are excluded from the neutral pose;
 - the same four state layers now start hidden in the runtime Canvas;
@@ -317,8 +326,40 @@ The next review step is automated without changing readiness:
 - the read-only review window opens automatically after the existing `4/4`
   test sequence.
 
-This implementation awaits local Unity verification. It cannot approve art or
-make Patch 4 visible.
+The user's real Unity run completed with zero warnings/errors and:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- the three-panel review window opened automatically;
+- Patch 4 remained hidden and Patch 3.5 remained visible.
+
+The review established that splitting/reassembly was technically sound, but the
+left and middle panels were both visibly pixelated. The old embedded repository
+source was then decoded and measured at only `96 × 144`; Unity had been
+bilinearly enlarging it to `1024 × 1536`.
+
+## P4.0-H repository quality-master replacement
+
+- Photoshop/Firefly produced a cleaner character while preserving the neutral
+  pose, silhouette, clothes and skeleton placement.
+- Background removal and exact resize produced a real `1024 × 1536` 8-bit RGBA
+  master.
+- The subject alignment remains close to the old target: the new visible bbox
+  is `580 × 1075` at `(222, 156)`.
+- The exact PNG is committed under the isolated Patch 4 art directory.
+- SHA-256 is
+  `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`.
+- `Patch4EmbeddedArtSource` and its `96 × 144` payload were removed.
+- `Patch4AdobeMaskDownloader` now validates SHA, dimensions and RGBA format,
+  copies the exact bytes and generates masks locally.
+- The static guard independently validates the committed PNG header and hash.
+- Neutral comparison now excludes the runtime-only ground shadow in addition
+  to alternate mouths, sweat and impact FX: 35 comparison layers.
+- The shadow still exists at runtime, but it no longer appears as a deliberate
+  magenta mismatch under the shoes.
+- `Patch4AutoContinuation` performs restore, mask creation, full 40-layer bake,
+  locked rebuild, safety validation and all tests after one pull.
+- Production activation remains locked and still requires later human review.
 
 ## Production dashboard
 
@@ -328,7 +369,7 @@ Open in Unity:
 
 Ordered commands:
 
-1. Download Adobe sources.
+1. Restore repository sources.
 2. Bake draft layers.
 3. Validate draft layers.
 4. Rebuild locked runtime assets.
@@ -379,12 +420,14 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the neutral-pose QA commit into Unity `6000.3.19f1`.
-2. Let `Patch4AutoContinuation` assemble the neutral pose, write the comparison
+1. Pull the repository quality-master commit into Unity `6000.3.19f1`.
+2. Let `Patch4AutoContinuation` verify/restore the exact source, regenerate
+   masks and all 40 layers, assemble the neutral pose, write the comparison
    previews and run all validations without manual clicks.
 3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
-4. Inspect the automatically opened approved / assembled / difference panels
-   while the readiness gate remains locked.
+4. Inspect the automatically opened master / assembled / difference panels and
+   confirm the improved detail and removal of the false shadow difference while
+   the readiness gate remains locked.
 5. Refine hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees,
    ankles, belly and shirt hem.
 6. Replace geometric face fallbacks with final eye whites, irises, eyelids,
@@ -404,7 +447,7 @@ Detailed verification instructions:
 
 ## Known limitations
 
-- The locked neutral-pose QA has not yet received its local Unity `4/4`
+- The new repository quality master has not yet received its local Unity `4/4`
   confirmation or screenshot review.
 - Generated PNG layers and generated runtime assets exist locally in Unity and
   are not committed as binary repository assets.

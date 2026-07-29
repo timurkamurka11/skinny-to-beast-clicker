@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using UnityEditor;
 using UnityEngine;
 
@@ -20,6 +21,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             ArtRoot + "/Masks/Downloaded";
         public const string SourceRoot = ArtRoot + "/Source";
         public const string ReferenceRoot = ArtRoot + "/References";
+        public const string RepositoryMasterPath =
+            ArtRoot + "/FatMan_NeutralFront_Master.png";
+        public const string ExpectedMasterSha256 =
+            "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3";
 
         private const int MasterWidth = 1024;
         private const int MasterHeight = 1536;
@@ -42,13 +47,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             RestoreRepositorySources();
         }
 
-        public static void RestoreRepositorySources()
+        public static bool RestoreRepositorySources()
         {
             EnsureFolder(SourceRoot);
             EnsureFolder(ReferenceRoot);
             EnsureFolder(DownloadedMaskRoot);
 
-            Texture2D embedded = null;
             Texture2D master = null;
             try
             {
@@ -57,14 +61,38 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "Restoring repository-owned character master",
                     0.1f);
 
-                embedded = Patch4EmbeddedArtSource.CreateTexture();
-                master = Resize(embedded, MasterWidth, MasterHeight);
+                byte[] masterBytes = ReadAndValidateRepositoryMaster();
+                master = new Texture2D(
+                    2,
+                    2,
+                    TextureFormat.RGBA32,
+                    false,
+                    false)
+                {
+                    name = "FatMan_NeutralFront_Master",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+                if (!master.LoadImage(masterBytes, false))
+                {
+                    throw new InvalidDataException(
+                        "Repository master is not a readable PNG.");
+                }
 
-                WriteTexture(
-                    master,
+                if (master.width != MasterWidth ||
+                    master.height != MasterHeight)
+                {
+                    throw new InvalidDataException(
+                        "Repository master is " + master.width + "x" +
+                        master.height + "; expected " + MasterWidth + "x" +
+                        MasterHeight + ".");
+                }
+
+                WriteBytes(
+                    masterBytes,
                     SourceRoot + "/FatMan_NeutralFront_Master.png");
-                WriteTexture(
-                    master,
+                WriteBytes(
+                    masterBytes,
                     ReferenceRoot + "/FatMan_Rigging_Reference.png");
 
                 MaskSpec[] masks = BuildMaskSpecs();
@@ -82,21 +110,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "Patch 4 restored the neutral master, rigging reference and " +
                     masks.Length + " deterministic masks from GitHub-owned data. " +
                     "No Adobe download is required. Run Art/Bake Draft Layer Pack next.");
+                return true;
             }
             catch (Exception exception)
             {
                 Debug.LogError(
                     "Patch 4 could not restore repository-owned art sources: " +
                     exception);
+                return false;
             }
             finally
             {
                 EditorUtility.ClearProgressBar();
-                if (embedded != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(embedded);
-                }
-
                 if (master != null)
                 {
                     UnityEngine.Object.DestroyImmediate(master);
@@ -199,42 +224,49 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             return false;
         }
 
-        private static Texture2D Resize(Texture2D source, int width, int height)
+        private static byte[] ReadAndValidateRepositoryMaster()
         {
-            RenderTexture temporary = RenderTexture.GetTemporary(
-                width,
-                height,
-                0,
-                RenderTextureFormat.ARGB32,
-                RenderTextureReadWrite.Default);
-            RenderTexture previous = RenderTexture.active;
-
-            try
+            string absolutePath = ToAbsolutePath(RepositoryMasterPath);
+            if (!File.Exists(absolutePath))
             {
-                temporary.filterMode = FilterMode.Bilinear;
-                Graphics.Blit(source, temporary);
-                RenderTexture.active = temporary;
+                throw new FileNotFoundException(
+                    "Repository master is missing.",
+                    absolutePath);
+            }
 
-                Texture2D result = new Texture2D(
-                    width,
-                    height,
-                    TextureFormat.RGBA32,
-                    false,
-                    false)
-                {
-                    name = "FatMan_NeutralFront_Master",
-                    filterMode = FilterMode.Bilinear,
-                    wrapMode = TextureWrapMode.Clamp
-                };
-                result.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
-                result.Apply(false, false);
-                return result;
-            }
-            finally
+            byte[] bytes = File.ReadAllBytes(absolutePath);
+            string actualSha;
+            using (SHA256 sha256 = SHA256.Create())
             {
-                RenderTexture.active = previous;
-                RenderTexture.ReleaseTemporary(temporary);
+                actualSha = BitConverter.ToString(
+                        sha256.ComputeHash(bytes))
+                    .Replace("-", string.Empty)
+                    .ToLowerInvariant();
             }
+
+            if (!string.Equals(
+                    actualSha,
+                    ExpectedMasterSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "Repository master SHA-256 is " + actualSha +
+                    "; expected " + ExpectedMasterSha256 + ".");
+            }
+
+            return bytes;
+        }
+
+        private static void WriteBytes(byte[] bytes, string assetPath)
+        {
+            string absolutePath = ToAbsolutePath(assetPath);
+            string directory = Path.GetDirectoryName(absolutePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllBytes(absolutePath, bytes);
         }
 
         private static void WriteTexture(Texture2D texture, string assetPath)

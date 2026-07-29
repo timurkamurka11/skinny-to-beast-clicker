@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -11,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
     public sealed class Patch4ContractEditModeTests
     {
         private const string ExpectedSha =
-            "5873cf6df0df2b5ebd4947b687693162d4b34899202326d1b1ae62df9f50587c";
+            "7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3";
 
         [Test]
         public void Contract_CollectionsHaveExpectedCountsAndNoDuplicates()
@@ -23,6 +25,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             AssertCollection(contract, "RequiredLayerPaths", 40);
             AssertCollection(contract, "RequiredClipNames", 10);
             AssertCollection(contract, "ProtectedPathFragments", 6);
+            AssertRepositoryMaster();
         }
 
         [Test]
@@ -162,6 +165,36 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.IsFalse(
                 values.Any(string.IsNullOrWhiteSpace),
                 propertyName + " contains an empty value.");
+        }
+
+        private static void AssertRepositoryMaster()
+        {
+            string path = Path.Combine(
+                Directory.GetParent(Application.dataPath).FullName,
+                "Assets",
+                "GameWorkPatch4",
+                "Art",
+                "Character",
+                "FatMan",
+                "FatMan_NeutralFront_Master.png");
+            Assert.IsTrue(
+                File.Exists(path),
+                "Exact Patch 4 repository master is missing.");
+
+            byte[] bytes = File.ReadAllBytes(path);
+            string actualSha;
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                actualSha = BitConverter.ToString(
+                        sha256.ComputeHash(bytes))
+                    .Replace("-", string.Empty)
+                    .ToLowerInvariant();
+            }
+
+            Assert.AreEqual(
+                ExpectedSha,
+                actualSha,
+                "Repository master bytes do not match the readiness contract.");
         }
 
         private static IReadOnlyList<string> GetStrings(

@@ -8,8 +8,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     /// <summary>
     /// Builds a complete full-canvas draft layer set from the approved master.
-    /// Valid Adobe masks are preferred; precise geometric regions are used when
-    /// Adobe could not identify a stylized body part. The result is deliberately
+    /// Repository-generated masks are preferred; precise geometric regions are
+    /// used where a dedicated mask is unavailable. The result is deliberately
     /// marked as draft and cannot unlock Patch 4 production activation.
     /// </summary>
     public static class Patch4MaskDrivenLayerBaker
@@ -63,7 +63,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (master == null)
             {
                 Debug.LogError(
-                    "Patch 4 master is missing. Run Art/Download Adobe Sources first.");
+                    "Patch 4 master is missing. Restore Repository Sources first.");
                 return;
             }
 
@@ -114,7 +114,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4DraftLayerValidator.ValidateAndWriteReport();
             Debug.Log(
                 $"Patch 4 created {specs.Count} draft layers from " +
-                $"{masks.Count} valid Adobe masks. Production activation remains locked.");
+                $"{masks.Count} repository masks. Production activation remains locked.");
         }
 
         private static List<Spec> BuildSpecs()
@@ -285,7 +285,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (requestedMasks && !foundMask)
             {
-                warnings.Add(spec.path + " used geometry because its Adobe mask was unavailable.");
+                warnings.Add(
+                    spec.path +
+                    " used geometry because its repository mask was unavailable.");
             }
 
             return result;
