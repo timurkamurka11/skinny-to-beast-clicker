@@ -247,6 +247,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             AnimatorState idle = AddState(machine, clips["FatMan_Idle_Breathe"]);
             AnimatorState shift = AddState(machine, clips["FatMan_Idle_ShiftWeight"]);
+            // Random blink timing is driven by Patch4FaceController. Keep the
+            // authored clip referenced by the controller for contract review.
+            AddState(machine, clips["FatMan_Blink_Random"]);
             AnimatorState look = AddState(machine, clips["FatMan_LookAround"]);
             AnimatorState tap1 = AddState(machine, clips["FatMan_TapReact_01"]);
             AnimatorState tap2 = AddState(machine, clips["FatMan_TapReact_02"]);
