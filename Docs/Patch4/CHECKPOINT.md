@@ -289,8 +289,36 @@ The painted PNG layers now have an isolated Canvas-compatible presentation:
   room scale, pelvis alignment and locked rollback state.
 
 This implementation does not approve art, does not enable Patch 4 and does not
-modify the legacy gameplay-room builder. It awaits the next automatic local
-Unity verification.
+modify the legacy gameplay-room builder.
+
+Unity `6000.3.19f1` confirmed the Canvas-ready installation with zero warnings
+and zero errors:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- Patch 4 stayed hidden;
+- Patch 3.5 stayed visible.
+
+## P4.0-G locked neutral-pose QA
+
+The next review step is automated without changing readiness:
+
+- `Patch4NeutralPoseValidator` composites 36 neutral-state layers in canonical
+  order;
+- open/smile mouths, sweat and impact FX are excluded from the neutral pose;
+- the same four state layers now start hidden in the runtime Canvas;
+- the assembled pose is compared pixel-by-pixel with the approved master;
+- coverage, leakage, silhouette IoU, mean color error and close-color match are
+  recorded;
+- composite, difference and three-panel review PNGs are written under
+  `Library/GameWorkPatch4Reports/`;
+- the JSON report always requires human review and blocks activation;
+- Editor smoke validation checks the diagnostic gate;
+- the read-only review window opens automatically after the existing `4/4`
+  test sequence.
+
+This implementation awaits local Unity verification. It cannot approve art or
+make Patch 4 visible.
 
 ## Production dashboard
 
@@ -351,11 +379,11 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the Canvas-presentation commit into Unity `6000.3.19f1`.
-2. Let `Patch4AutoContinuation` rebuild the Resources prefab, generate the 40
-   Canvas images and run all validations without manual clicks.
+1. Pull the neutral-pose QA commit into Unity `6000.3.19f1`.
+2. Let `Patch4AutoContinuation` assemble the neutral pose, write the comparison
+   previews and run all validations without manual clicks.
 3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
-4. Reassemble the neutral pose and compare it against the approved master
+4. Inspect the automatically opened approved / assembled / difference panels
    while the readiness gate remains locked.
 5. Refine hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees,
    ankles, belly and shirt hem.
@@ -376,13 +404,12 @@ Detailed verification instructions:
 
 ## Known limitations
 
-- The Canvas presentation has not yet received its local Unity `4/4`
-  confirmation.
+- The locked neutral-pose QA has not yet received its local Unity `4/4`
+  confirmation or screenshot review.
 - Generated PNG layers and generated runtime assets exist locally in Unity and
   are not committed as binary repository assets.
 - Hidden joint artwork still requires manual painting.
 - Final face poses still require manual painting.
 - Sprite Skin weight painting has not yet been completed.
-- The Canvas presentation remains hidden behind readiness and still requires a
-  later controlled human visual review in `LivingGameplayScene`.
+- The Canvas presentation remains hidden behind readiness.
 - Figma Starter MCP limit currently prevents additional write calls.

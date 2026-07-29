@@ -143,8 +143,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Patch4LayerCatalog.Entry entry =
                     entries[orderedIndices[i]];
                 if (entry == null ||
-                    string.IsNullOrWhiteSpace(entry.contractPath) ||
-                    !entry.visibleByDefault)
+                    string.IsNullOrWhiteSpace(entry.contractPath))
                 {
                     continue;
                 }
@@ -329,6 +328,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             image.preserveAspect = false;
             image.type = Image.Type.Simple;
             image.useSpriteMesh = true;
+            layerObject.SetActive(
+                IsInitiallyVisible(
+                    entry.contractPath,
+                    entry.visibleByDefault));
 
             return new LayerBinding
             {
@@ -338,6 +341,33 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 imageTransform = rect,
                 image = image
             };
+        }
+
+        private static bool IsInitiallyVisible(
+            string contractPath,
+            bool visibleByDefault)
+        {
+            if (!visibleByDefault)
+            {
+                return false;
+            }
+
+            return !string.Equals(
+                       contractPath,
+                       "Face/MouthOpen",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
+                       "Face/MouthSmile",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
+                       "FX/Sweat",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
+                       "FX/ImpactFold",
+                       StringComparison.Ordinal);
         }
 
         private void ResolveReferences()

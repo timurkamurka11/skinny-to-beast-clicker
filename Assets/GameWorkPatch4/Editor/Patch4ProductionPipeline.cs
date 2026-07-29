@@ -51,6 +51,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public static void RunSafetyValidation()
         {
             Patch4DraftLayerValidator.ValidateAndWriteReport();
+            Patch4NeutralPoseValidator.ValidateAndWriteReport();
             Patch4RigContractValidator.VerifyProtectedPaths();
             Patch4CompilationMonitor.WriteCompilationSnapshot();
 
@@ -95,6 +96,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         [MenuItem("Tools/GameWork/Patch 4.0/Pipeline/6. Run Editor Smoke Report")]
         public static void RunEditorSmokeReport()
         {
+            Patch4NeutralPoseValidator.ValidateAndWriteReport();
             Patch4CompilationMonitor.WriteCompilationSnapshot();
             Patch4EditorSmokeValidator.ValidateAndWriteReport();
         }

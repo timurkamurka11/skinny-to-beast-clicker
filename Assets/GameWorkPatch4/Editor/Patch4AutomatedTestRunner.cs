@@ -377,7 +377,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report.playMode.resultState + ". Report: " + ReportPath);
             }
 
-            EditorApplication.delayCall += OpenConsole;
+            EditorApplication.delayCall += OpenResults;
         }
 
         private static TestReport ReadReport()
@@ -468,10 +468,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             activeRunner = null;
         }
 
-        private static void OpenConsole()
+        private static void OpenResults()
         {
-            EditorApplication.delayCall -= OpenConsole;
+            EditorApplication.delayCall -= OpenResults;
             EditorApplication.ExecuteMenuItem("Window/General/Console");
+            Patch4NeutralPoseReviewWindow.Open();
         }
     }
 }

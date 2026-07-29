@@ -74,6 +74,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     "FatMan_UpgradeReact"
                 },
                 clips);
+
+            Type neutralPoseValidator = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4NeutralPoseValidator");
+            PropertyInfo neutralReportPath =
+                neutralPoseValidator.GetProperty(
+                    "ReportPath",
+                    BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(
+                neutralReportPath,
+                "Neutral-pose QA report path is missing.");
         }
 
         [Test]

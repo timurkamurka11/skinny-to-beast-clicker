@@ -39,6 +39,8 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
     "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
     "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
     "Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json",
@@ -191,6 +193,8 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4ArtReadinessAssetBuilder.cs",
         "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
         "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
     )
     dangerous = re.compile(r"productionArtApproved[^\n]{0,100}(?:=|boolValue\s*=)\s*true", re.IGNORECASE)
     for relative in automatic_files:
@@ -255,6 +259,56 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         fail(errors, "Patch 4 prefab must be generated into isolated Resources")
 
 
+def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
+    validator = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
+        errors,
+    )
+    if validator:
+        required_snippets = (
+            "humanReviewRequired = true",
+            "report.activationAllowed = false",
+            '"Face/MouthOpen"',
+            '"Face/MouthSmile"',
+            '"FX/Sweat"',
+            '"FX/ImpactFold"',
+            "patch4-neutral-pose-review.png",
+        )
+        for snippet in required_snippets:
+            if snippet not in validator:
+                fail(errors, f"Neutral-pose QA is missing: {snippet}")
+
+        if "SetPatch4Enabled(" in validator:
+            fail(errors, "Neutral-pose QA must never change Patch 4 activation")
+
+    presentation = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4CanvasPresentation.cs",
+        errors,
+    )
+    if presentation:
+        for hidden_layer in (
+            '"Face/MouthOpen"',
+            '"Face/MouthSmile"',
+            '"FX/Sweat"',
+            '"FX/ImpactFold"',
+        ):
+            if hidden_layer not in presentation:
+                fail(
+                    errors,
+                    f"Canvas neutral visibility is missing: {hidden_layer}",
+                )
+
+    pipeline = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
+        errors,
+    )
+    if pipeline and "Patch4NeutralPoseValidator.ValidateAndWriteReport();" not in pipeline:
+        fail(errors, "Safety pipeline does not run neutral-pose QA")
+
+
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
@@ -301,6 +355,7 @@ def main() -> int:
     validate_json_files(root, errors)
     validate_readiness_gate(root, errors)
     validate_runtime_installation(root, errors)
+    validate_neutral_pose_qa(root, errors)
     validate_protected_paths(root, args.base_ref, errors)
 
     if errors:
@@ -314,6 +369,7 @@ def main() -> int:
     print("- approved master SHA and manifests verified")
     print("- automatic readiness approval blocked")
     print("- Canvas runtime installation remains locked to rollback mode")
+    print("- neutral-pose QA remains read-only and human-gated")
     print("- protected menu, video, music and settings paths unchanged")
     return 0
 

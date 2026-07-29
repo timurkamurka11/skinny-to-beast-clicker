@@ -74,7 +74,8 @@ Important commits in that path include:
 - `e0fd371` — blink clip bound into the Animator Controller;
 - `524b449` — automatic animation-library verification;
 - `83eabc1` — automatic EditMode and PlayMode test runner;
-- `c596512` — locked runtime installation in `LivingGameplayScene`.
+- `c596512` — locked runtime installation in `LivingGameplayScene`;
+- `0386784` — Canvas-compatible 40-layer room presentation.
 
 ## Real Unity test result
 
@@ -143,10 +144,10 @@ Patch 4 automated verification PASSED.
 EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-## Current Canvas implementation awaiting local verification
+## Verified Canvas room presentation
 
-The next integration is implemented without changing the legacy room, menu,
-audio or settings code:
+Unity `6000.3.19f1` confirmed the Canvas integration without changes to the
+legacy room, menu, audio or settings code:
 
 - `Patch4CanvasPresentation` converts all 40 full-canvas painted sprites into
   non-interactive `UI.Image` layers.
@@ -164,9 +165,37 @@ audio or settings code:
 - `Patch4CanvasPresentation` has no activation API and never changes readiness.
 - `Patch4VisualRoot` remains inactive and Patch 3.5 remains visible.
 
+The user's Console showed the Canvas-ready installation message, zero
+warnings/errors and:
+
+```text
+Patch 4 automated verification PASSED.
+EditMode: 4 passed; PlayMode: 4 passed.
+```
+
+## Current neutral-pose QA awaiting local verification
+
+The next diagnostic step remains isolated and read-only:
+
+- `Patch4NeutralPoseValidator` composites the neutral state from 36 canonical
+  layers in the same stable order as the Canvas presentation.
+- Alternate open/smile mouths, sweat and impact FX are excluded from neutral.
+- The runtime Canvas now also starts those four state layers hidden.
+- It compares the assembled pose pixel-by-pixel with the approved master.
+- It writes composite, difference, three-panel review PNG and JSON metrics to
+  `Library/GameWorkPatch4Reports/`.
+- The report always records `humanReviewRequired: true` and
+  `activationAllowed: false`.
+- Editor smoke validation requires a complete neutral composite and confirms
+  that activation remains blocked.
+- After automatic EditMode/PlayMode verification,
+  `Patch4NeutralPoseReviewWindow` opens by itself with approved master,
+  assembled neutral pose and pixel difference.
+- No review button, Dashboard command or Test Runner click is required.
+
 ## Exact next action
 
-After the Canvas-presentation commit is present on `patch-4.0`, run only:
+After the neutral-pose QA commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -175,11 +204,12 @@ git pull origin patch-4.0
 Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. rebuild the resource-loadable locked prefab;
-2. build and validate the 40-layer Canvas presentation;
-3. run pixel, rig, compilation and Editor smoke validation;
-4. run all EditMode tests;
-5. enter Play Mode and run all PlayMode tests;
-6. exit Play Mode and open Console.
+2. assemble and compare the locked neutral pose;
+3. write the neutral-pose preview and diagnostic report;
+4. run pixel, rig, compilation and Editor smoke validation;
+5. run all EditMode tests;
+6. enter Play Mode and run all PlayMode tests;
+7. exit Play Mode and open the three-panel review window.
 
 Expected final count:
 
@@ -187,7 +217,7 @@ Expected final count:
 EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-No Dashboard or Test Runner click is required.
+No Dashboard, Test Runner or review-window click is required.
 
 ## Do not do yet
 
@@ -197,9 +227,9 @@ No Dashboard or Test Runner click is required.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the 4/4 Canvas-presentation test
+## Work after the 4/4 neutral-pose QA test
 
-- Reassemble and inspect the neutral pose against the approved master while
+- Inspect the automatically opened master / assembled / difference panels while
   keeping production activation locked.
 - Complete/review hidden joint artwork and final facial poses.
 - Complete Sprite Skin weight painting.

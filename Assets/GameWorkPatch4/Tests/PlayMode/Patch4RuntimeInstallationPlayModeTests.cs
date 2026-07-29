@@ -122,6 +122,27 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     fallbackRenderers.All(renderer => !renderer.enabled),
                     "SpriteRenderer fallbacks must not compete with UI Images.");
 
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.MouthClosed",
+                    true);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.MouthOpen",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.MouthSmile",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.FX.Sweat",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.FX.ImpactFold",
+                    false);
+
                 Transform rollbackVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;
                 Assert.NotNull(rollbackVisual);
@@ -177,6 +198,31 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     face
                 });
             return rig;
+        }
+
+        private static void AssertLayerActive(
+            Transform root,
+            string layerName,
+            bool expected)
+        {
+            Transform generatedLayers =
+                root.Find("GeneratedCanvasLayers");
+            Assert.NotNull(
+                generatedLayers,
+                "Generated Canvas layer root is missing.");
+
+            Transform layer = generatedLayers
+                .GetComponentsInChildren<Transform>(true)
+                .FirstOrDefault(candidate =>
+                    string.Equals(
+                        candidate.name,
+                        layerName,
+                        StringComparison.Ordinal));
+            Assert.NotNull(layer, layerName);
+            Assert.AreEqual(
+                expected,
+                layer.gameObject.activeSelf,
+                layerName);
         }
 
         private static bool GetBoolProperty(object target, string name)

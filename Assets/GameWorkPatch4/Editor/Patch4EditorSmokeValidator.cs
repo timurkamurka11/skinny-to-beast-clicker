@@ -23,6 +23,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         }
 
         [Serializable]
+        private sealed class NeutralPoseGateReport
+        {
+            public bool passedTechnicalChecks;
+            public bool humanReviewRequired;
+            public bool activationAllowed;
+        }
+
+        [Serializable]
         private sealed class SmokeReport
         {
             public string generatedUtc = string.Empty;
@@ -42,6 +50,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public int canvasLayerCount;
             public int fallbackSpriteRendererCount;
             public bool fallbackSpriteRenderersDisabled;
+            public bool neutralPoseTechnicalChecksPassed;
+            public bool neutralPoseHumanReviewRequired;
+            public bool neutralPoseActivationBlocked;
             public List<Finding> findings = new();
         }
 
@@ -77,6 +88,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             ValidateRuntimeResource(prefab, report);
+            ValidateNeutralPoseReport(report);
 
             GameObject contents = null;
             try
@@ -123,6 +135,68 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "RUNTIME_RESOURCE_MISSING",
                     "The generated Patch 4 prefab cannot be loaded from " +
                     "Resources at runtime.");
+            }
+        }
+
+        private static void ValidateNeutralPoseReport(
+            SmokeReport report)
+        {
+            if (!File.Exists(Patch4NeutralPoseValidator.ReportPath))
+            {
+                Patch4NeutralPoseValidator.ValidateAndWriteReport();
+            }
+
+            if (!File.Exists(Patch4NeutralPoseValidator.ReportPath))
+            {
+                AddError(
+                    report,
+                    "NEUTRAL_POSE_REPORT_MISSING",
+                    "Neutral-pose QA report was not generated.");
+                return;
+            }
+
+            NeutralPoseGateReport gate;
+            try
+            {
+                gate = JsonUtility.FromJson<NeutralPoseGateReport>(
+                    File.ReadAllText(
+                        Patch4NeutralPoseValidator.ReportPath));
+            }
+            catch (Exception exception)
+            {
+                AddError(
+                    report,
+                    "NEUTRAL_POSE_REPORT_UNREADABLE",
+                    exception.Message);
+                return;
+            }
+
+            if (gate == null)
+            {
+                AddError(
+                    report,
+                    "NEUTRAL_POSE_REPORT_UNREADABLE",
+                    "Neutral-pose QA report contains no readable data.");
+                return;
+            }
+
+            report.neutralPoseTechnicalChecksPassed =
+                gate.passedTechnicalChecks;
+            report.neutralPoseHumanReviewRequired =
+                gate.humanReviewRequired;
+            report.neutralPoseActivationBlocked =
+                !gate.activationAllowed;
+
+            if (!report.neutralPoseTechnicalChecksPassed ||
+                !report.neutralPoseHumanReviewRequired ||
+                !report.neutralPoseActivationBlocked)
+            {
+                AddError(
+                    report,
+                    "NEUTRAL_POSE_GATE_INVALID",
+                    "Neutral-pose QA must produce a complete technical " +
+                    "composite while explicitly requiring human review and " +
+                    "blocking activation.");
             }
         }
 
