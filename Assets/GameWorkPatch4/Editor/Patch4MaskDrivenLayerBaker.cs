@@ -281,12 +281,245 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 }
             }
 
+            ApplyDraftScaffolding(master, spec, result);
+
             if (requestedMasks && !foundMask)
             {
                 warnings.Add(spec.path + " used geometry because its Adobe mask was unavailable.");
             }
 
             return result;
+        }
+
+        private static void ApplyDraftScaffolding(
+            ImageData master,
+            Spec spec,
+            Color32[] result)
+        {
+            if (string.Equals(spec.path, "FX/Shadow", StringComparison.Ordinal))
+            {
+                PaintSyntheticShadow(spec, result);
+            }
+
+            Vector2[] jointPoints = ResolveJointPoints(spec.path);
+            for (int i = 0; i < jointPoints.Length; i++)
+            {
+                PaintJointScaffold(master, result, jointPoints[i]);
+            }
+        }
+
+        private static void PaintSyntheticShadow(Spec spec, Color32[] result)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                float topY = 1f - (y + .5f) / Height;
+                for (int x = 0; x < Width; x++)
+                {
+                    float nx = (x + .5f) / Width;
+                    if (!Contains(spec.region, spec.shape, nx, topY))
+                    {
+                        continue;
+                    }
+
+                    float dx =
+                        (nx - spec.region.center.x) /
+                        Mathf.Max(.0001f, spec.region.width * .5f);
+                    float dy =
+                        (topY - spec.region.center.y) /
+                        Mathf.Max(.0001f, spec.region.height * .5f);
+                    float falloff = Mathf.Clamp01(1f - dx * dx - dy * dy);
+                    byte alpha = (byte)Mathf.RoundToInt(
+                        Mathf.Lerp(32f, 96f, falloff));
+                    result[y * Width + x] =
+                        new Color32(24, 26, 31, alpha);
+                }
+            }
+        }
+
+        private static Vector2[] ResolveJointPoints(string path)
+        {
+            switch (path)
+            {
+                case "Body/Neck":
+                case "Head/HeadBase":
+                    return new[] { new Vector2(.5f, .225f) };
+
+                case "Body/ChestSoft":
+                    return new[]
+                    {
+                        new Vector2(.34f, .285f),
+                        new Vector2(.66f, .285f)
+                    };
+
+                case "ArmL/Upper":
+                    return new[]
+                    {
+                        new Vector2(.34f, .285f),
+                        new Vector2(.285f, .405f)
+                    };
+
+                case "ArmR/Upper":
+                    return new[]
+                    {
+                        new Vector2(.66f, .285f),
+                        new Vector2(.715f, .405f)
+                    };
+
+                case "ArmL/Forearm":
+                    return new[]
+                    {
+                        new Vector2(.285f, .405f),
+                        new Vector2(.255f, .495f)
+                    };
+
+                case "ArmR/Forearm":
+                    return new[]
+                    {
+                        new Vector2(.715f, .405f),
+                        new Vector2(.745f, .495f)
+                    };
+
+                case "ArmL/Hand":
+                    return new[] { new Vector2(.255f, .495f) };
+
+                case "ArmR/Hand":
+                    return new[] { new Vector2(.745f, .495f) };
+
+                case "Body/TorsoBase":
+                    return new[]
+                    {
+                        new Vector2(.42f, .505f),
+                        new Vector2(.58f, .505f)
+                    };
+
+                case "LegL/Thigh":
+                    return new[]
+                    {
+                        new Vector2(.42f, .505f),
+                        new Vector2(.40f, .625f)
+                    };
+
+                case "LegR/Thigh":
+                    return new[]
+                    {
+                        new Vector2(.58f, .505f),
+                        new Vector2(.60f, .625f)
+                    };
+
+                case "LegL/Shin":
+                    return new[]
+                    {
+                        new Vector2(.40f, .625f),
+                        new Vector2(.385f, .735f)
+                    };
+
+                case "LegR/Shin":
+                    return new[]
+                    {
+                        new Vector2(.60f, .625f),
+                        new Vector2(.615f, .735f)
+                    };
+
+                case "LegL/Foot":
+                    return new[] { new Vector2(.385f, .735f) };
+
+                case "LegR/Foot":
+                    return new[] { new Vector2(.615f, .735f) };
+
+                case "Body/BellyFront":
+                case "Clothes/ShirtBellyOverlay":
+                    return new[] { new Vector2(.5f, .48f) };
+
+                default:
+                    return Array.Empty<Vector2>();
+            }
+        }
+
+        private static void PaintJointScaffold(
+            ImageData master,
+            Color32[] result,
+            Vector2 normalizedTopPoint)
+        {
+            const int radius = 5;
+            int centerX = Mathf.Clamp(
+                Mathf.RoundToInt(normalizedTopPoint.x * Width),
+                0,
+                Width - 1);
+            int centerY = Mathf.Clamp(
+                Mathf.RoundToInt(Height - normalizedTopPoint.y * Height),
+                0,
+                Height - 1);
+            Color32 sample =
+                FindNearestVisibleColor(master, centerX, centerY);
+
+            int minX = Mathf.Max(0, centerX - radius);
+            int maxX = Mathf.Min(Width - 1, centerX + radius);
+            int minY = Mathf.Max(0, centerY - radius);
+            int maxY = Mathf.Min(Height - 1, centerY + radius);
+            int radiusSquared = radius * radius;
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int dx = x - centerX;
+                    int dy = y - centerY;
+                    if (dx * dx + dy * dy > radiusSquared)
+                    {
+                        continue;
+                    }
+
+                    int index = y * Width + x;
+                    Color32 color = master.pixels[index];
+                    if (color.a <= 8)
+                    {
+                        color = sample;
+                    }
+
+                    color.a = 255;
+                    result[index] = color;
+                }
+            }
+        }
+
+        private static Color32 FindNearestVisibleColor(
+            ImageData master,
+            int centerX,
+            int centerY)
+        {
+            const int searchRadius = 96;
+            Color32 best = new Color32(128, 128, 128, 255);
+            int bestDistance = int.MaxValue;
+            int minX = Mathf.Max(0, centerX - searchRadius);
+            int maxX = Mathf.Min(Width - 1, centerX + searchRadius);
+            int minY = Mathf.Max(0, centerY - searchRadius);
+            int maxY = Mathf.Min(Height - 1, centerY + searchRadius);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    Color32 candidate = master.pixels[y * Width + x];
+                    if (candidate.a <= 8)
+                    {
+                        continue;
+                    }
+
+                    int dx = x - centerX;
+                    int dy = y - centerY;
+                    int distance = dx * dx + dy * dy;
+                    if (distance >= bestDistance)
+                    {
+                        continue;
+                    }
+
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+
+            best.a = 255;
+            return best;
         }
 
         private static bool MatchesSide(float x, Side side)
