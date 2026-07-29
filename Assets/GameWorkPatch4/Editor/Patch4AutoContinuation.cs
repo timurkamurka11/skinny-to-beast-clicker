@@ -12,7 +12,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        private const string RunId = "draft-validation-diagnostics-v1";
+        private const string RunId = "draft-validation-diagnostics-v2";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -63,6 +63,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 automatic continuation finished. Review the " +
                     "validator messages in Console.");
+                EditorApplication.ExecuteMenuItem(
+                    "Window/General/Console");
             }
             catch (Exception exception)
             {
