@@ -12,7 +12,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        private const string RunId = "animation-library-blink-v1";
+        private const string RunId = "automated-edit-playmode-tests-v1";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -57,13 +57,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic continuation started: rebuilding the " +
-                    "animation library and locked prefab. No Dashboard click is required.");
-                Patch4ProductionPipeline.RebuildRuntimeAssets();
-                Patch4ProductionPipeline.RunSafetyValidation();
-                Debug.Log(
-                    "Patch 4 automatic continuation finished. Review the " +
-                    "safety and smoke messages in Console.");
+                    "Patch 4 automatic continuation started: running " +
+                    "EditMode and PlayMode verification. No Dashboard or " +
+                    "Test Runner click is required.");
+                Patch4AutomatedTestRunner.RunAll();
                 EditorApplication.ExecuteMenuItem(
                     "Window/General/Console");
             }
