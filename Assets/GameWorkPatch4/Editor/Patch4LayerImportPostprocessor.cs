@@ -36,16 +36,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             importer.wrapMode = TextureWrapMode.Clamp;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
 
-            // Unity 6 no longer exposes maxTextureSize directly on
-            // TextureImporter. Configure the default platform settings instead.
+            // Unity 6 stores the default maximum size in platform settings.
             TextureImporterPlatformSettings defaultSettings =
                 importer.GetDefaultPlatformTextureSettings();
             defaultSettings.maxTextureSize = 2048;
             importer.SetPlatformTextureSettings(defaultSettings);
 
-            importer.spritePixelsPerUnit = 100f;
-            importer.spriteAlignment = (int)SpriteAlignment.Custom;
-            importer.spritePivot = pivot;
+            // Unity 6000.3 no longer exposes spriteAlignment directly on
+            // TextureImporter. Read and write the sprite-specific fields through
+            // TextureImporterSettings instead.
+            TextureImporterSettings spriteSettings = new TextureImporterSettings();
+            importer.ReadTextureSettings(spriteSettings);
+            spriteSettings.spriteMode = (int)SpriteImportMode.Single;
+            spriteSettings.spritePixelsPerUnit = 100f;
+            spriteSettings.spriteAlignment = (int)SpriteAlignment.Custom;
+            spriteSettings.spritePivot = pivot;
+            importer.SetTextureSettings(spriteSettings);
         }
     }
 }
