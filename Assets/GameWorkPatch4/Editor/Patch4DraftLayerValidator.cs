@@ -112,18 +112,33 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             float leakage = 0f;
             if (master.width == ExpectedWidth && master.height == ExpectedHeight)
             {
-                MeasureCoverage(master, layers.Values, out coverage, out leakage);
+                List<ImageData> characterLayers = new();
+                foreach (KeyValuePair<string, ImageData> entry in layers)
+                {
+                    if (!entry.Key.StartsWith("FX/", StringComparison.Ordinal))
+                    {
+                        characterLayers.Add(entry.Value);
+                    }
+                }
+
+                MeasureCoverage(
+                    master,
+                    characterLayers,
+                    out coverage,
+                    out leakage);
                 if (coverage < 0.965f)
                 {
                     errors.Add(
-                        "Layer union covers only " + FormatPercent(coverage) +
+                        "Character layer union covers only " +
+                        FormatPercent(coverage) +
                         " of the approved master alpha. Minimum is 96.5%." );
                 }
 
                 if (leakage > 0.0025f)
                 {
                     errors.Add(
-                        "Layer union leaks " + FormatPercent(leakage) +
+                        "Character layer union leaks " +
+                        FormatPercent(leakage) +
                         " outside the approved master alpha. Maximum is 0.25%." );
                 }
             }
