@@ -179,6 +179,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
             else
             {
+                for (int i = 0; i < errors.Count; i++)
+                {
+                    Debug.LogWarning(
+                        "Patch 4 draft blocker " + (i + 1) + "/" + errors.Count +
+                        ": " + errors[i]);
+                }
+
                 Debug.LogWarning(
                     "Patch 4 draft layer validation found " + errors.Count +
                     " blocking issue(s). See " + ReportPath + ".");
