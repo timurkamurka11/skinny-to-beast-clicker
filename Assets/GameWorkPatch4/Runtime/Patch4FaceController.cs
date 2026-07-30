@@ -17,6 +17,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
         }
 
         [SerializeField] private Patch4CharacterRigController rigController;
+        [SerializeField] private GameObject eyeWhiteLeft;
+        [SerializeField] private GameObject eyeWhiteRight;
+        [SerializeField] private GameObject irisLeft;
+        [SerializeField] private GameObject irisRight;
         [SerializeField] private Transform lidLeft;
         [SerializeField] private Transform lidRight;
         [SerializeField] private GameObject mouthClosed;
@@ -29,6 +33,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [SerializeField, Min(0.02f)] private float openDuration = 0.09f;
         [SerializeField] private Vector2 blinkInterval = new(2.2f, 5.5f);
         [SerializeField, Range(0.01f, 0.25f)] private float openScaleY = 0.04f;
+        [SerializeField, Range(0.25f, 0.75f)]
+        private float eyeSwapThreshold = 0.52f;
 
         private Vector3 leftClosedScale = Vector3.one;
         private Vector3 rightClosedScale = Vector3.one;
@@ -117,12 +123,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
         }
 
         public void BindPresentationLayers(
+            GameObject leftEyeWhite,
+            GameObject rightEyeWhite,
+            GameObject leftIris,
+            GameObject rightIris,
             Transform leftLid,
             Transform rightLid,
             GameObject closedMouth,
             GameObject openMouth,
             GameObject smileMouth)
         {
+            eyeWhiteLeft = leftEyeWhite;
+            eyeWhiteRight = rightEyeWhite;
+            irisLeft = leftIris;
+            irisRight = rightIris;
             lidLeft = leftLid;
             lidRight = rightLid;
             mouthClosed = closedMouth;
@@ -151,6 +165,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void ApplyLidClosure(float closure)
         {
             closure = Mathf.Clamp01(closure);
+            SetOpenEyesActive(closure < eyeSwapThreshold);
             if (lidLeft != null)
             {
                 Vector3 scale = leftClosedScale;
@@ -174,6 +189,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void RestoreOpenEyes()
         {
+            SetOpenEyesActive(true);
             if (lidLeft != null)
             {
                 lidLeft.localScale = leftClosedScale;
@@ -208,6 +224,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             SetActive(
                 lidRight != null ? lidRight.gameObject : null,
                 active);
+        }
+
+        private void SetOpenEyesActive(bool active)
+        {
+            SetActive(eyeWhiteLeft, active);
+            SetActive(eyeWhiteRight, active);
+            SetActive(irisLeft, active);
+            SetActive(irisRight, active);
         }
 
         private static void SetActive(GameObject target, bool active)

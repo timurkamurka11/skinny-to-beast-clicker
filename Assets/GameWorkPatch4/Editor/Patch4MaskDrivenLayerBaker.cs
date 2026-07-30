@@ -381,18 +381,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     PaintSkinUnderlay(
                         master,
                         result,
-                        LeftEyePatch,
-                        overlayOnly: false);
+                        LeftEyePatch);
                     PaintSkinUnderlay(
                         master,
                         result,
-                        RightEyePatch,
-                        overlayOnly: false);
+                        RightEyePatch);
                     PaintSkinUnderlay(
                         master,
                         result,
-                        MouthPatch,
-                        overlayOnly: false);
+                        MouthPatch);
                     break;
 
                 case "Face/EyeWhiteL":
@@ -405,21 +402,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 case "Face/LidL":
                     ClearLayer(result);
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        LeftEyePatch,
-                        overlayOnly: true);
                     PaintClosedLid(result, LeftEyePatch);
                     break;
 
                 case "Face/LidR":
                     ClearLayer(result);
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        RightEyePatch,
-                        overlayOnly: true);
                     PaintClosedLid(result, RightEyePatch);
                     break;
 
@@ -429,22 +416,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 case "Face/MouthOpen":
                     ClearLayer(result);
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        MouthPatch,
-                        overlayOnly: true);
                     PaintOpenMouth(result);
                     break;
 
                 case "Face/MouthSmile":
                     ClearLayer(result);
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        MouthPatch,
-                        overlayOnly: true);
                     PaintSmile(result);
+                    break;
+
+                case "Face/CheekL":
+                    ClearPatch(result, LeftEyePatch);
+                    ClearPatch(result, MouthPatch);
+                    break;
+
+                case "Face/CheekR":
+                    ClearPatch(result, RightEyePatch);
+                    ClearPatch(result, MouthPatch);
                     break;
             }
         }
@@ -471,11 +458,29 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
         }
 
+        private static void ClearPatch(
+            Color32[] result,
+            Rect patch)
+        {
+            GetPixelBounds(
+                patch,
+                out int minX,
+                out int maxX,
+                out int minY,
+                out int maxY);
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    result[y * Width + x] = default;
+                }
+            }
+        }
+
         private static void PaintSkinUnderlay(
             ImageData master,
             Color32[] result,
-            Rect patch,
-            bool overlayOnly)
+            Rect patch)
         {
             GetPixelBounds(
                 patch,
@@ -484,25 +489,52 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 out int minY,
                 out int maxY);
 
-            const float featherPixels = 6f;
+            int localWidth = maxX - minX + 1;
+            int localHeight = maxY - minY + 1;
+            Color32[] skinField =
+                new Color32[localWidth * localHeight];
+            bool[] inpaintMask =
+                new bool[skinField.Length];
+            float[] blendCoverage =
+                new float[skinField.Length];
+
+            float centerX = (minX + maxX) * .5f;
+            float centerY = (minY + maxY) * .5f;
+            float radiusX = Mathf.Max(1f, localWidth * .49f);
+            float radiusY = Mathf.Max(1f, localHeight * .47f);
+
             for (int y = minY; y <= maxY; y++)
             {
                 for (int x = minX; x <= maxX; x++)
                 {
-                    float edgeDistance = Mathf.Min(
-                        Mathf.Min(x - minX, maxX - x),
-                        Mathf.Min(y - minY, maxY - y));
-                    float coverage = Mathf.SmoothStep(
-                        0f,
-                        1f,
-                        Mathf.Clamp01(edgeDistance / featherPixels));
-                    if (coverage <= 0f)
+                    int localIndex =
+                        (y - minY) * localWidth +
+                        x - minX;
+                    int sourceIndex = y * Width + x;
+                    float dx = (x - centerX) / radiusX;
+                    float dy = (y - centerY) / radiusY;
+                    float radialDistance =
+                        Mathf.Sqrt(dx * dx + dy * dy);
+
+                    skinField[localIndex] =
+                        master.pixels[sourceIndex];
+                    blendCoverage[localIndex] =
+                        1f -
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            Mathf.InverseLerp(
+                                .76f,
+                                .96f,
+                                radialDistance));
+
+                    if (radialDistance > .92f)
                     {
                         continue;
                     }
 
-                    int index = y * Width + x;
-                    Color32 skin = SampleSkinField(
+                    inpaintMask[localIndex] = true;
+                    skinField[localIndex] = SampleSkinField(
                         master,
                         patch,
                         x,
@@ -511,29 +543,96 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         maxX,
                         minY,
                         maxY);
+                }
+            }
 
-                    if (overlayOnly)
+            SolveSkinInpaint(
+                skinField,
+                inpaintMask,
+                localWidth,
+                localHeight);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int localIndex =
+                        (y - minY) * localWidth +
+                        x - minX;
+                    float coverage = blendCoverage[localIndex];
+                    if (coverage <= 0f)
                     {
-                        skin.a = ScaleAlpha(255, coverage);
-                        result[index] = BlendOver(
-                            result[index],
-                            skin);
+                        continue;
                     }
-                    else
+
+                    int resultIndex = y * Width + x;
+                    Color32 current = result[resultIndex];
+                    if (current.a <= 8)
                     {
-                        Color32 current = result[index];
-                        if (current.a <= 8)
+                        continue;
+                    }
+
+                    Color32 skin = skinField[localIndex];
+                    skin.a = current.a;
+                    result[resultIndex] = LerpColor(
+                        current,
+                        skin,
+                        coverage);
+                }
+            }
+        }
+
+        private static void SolveSkinInpaint(
+            Color32[] pixels,
+            IReadOnlyList<bool> inpaintMask,
+            int width,
+            int height)
+        {
+            const int iterationCount = 128;
+            Color32[] output = pixels;
+            Color32[] next = new Color32[pixels.Length];
+
+            for (int iteration = 0;
+                 iteration < iterationCount;
+                 iteration++)
+            {
+                Array.Copy(pixels, next, pixels.Length);
+                for (int y = 1; y < height - 1; y++)
+                {
+                    for (int x = 1; x < width - 1; x++)
+                    {
+                        int index = y * width + x;
+                        if (!inpaintMask[index])
                         {
                             continue;
                         }
 
-                        skin.a = current.a;
-                        result[index] = LerpColor(
-                            current,
-                            skin,
-                            coverage);
+                        Color32 left = pixels[index - 1];
+                        Color32 right = pixels[index + 1];
+                        Color32 below = pixels[index - width];
+                        Color32 above = pixels[index + width];
+                        next[index] = new Color32(
+                            ClampByte(
+                                (left.r + right.r + below.r + above.r + 2) /
+                                4),
+                            ClampByte(
+                                (left.g + right.g + below.g + above.g + 2) /
+                                4),
+                            ClampByte(
+                                (left.b + right.b + below.b + above.b + 2) /
+                                4),
+                            255);
                     }
                 }
+
+                Color32[] swap = pixels;
+                pixels = next;
+                next = swap;
+            }
+
+            if (!ReferenceEquals(pixels, output))
+            {
+                Array.Copy(pixels, output, pixels.Length);
             }
         }
 
@@ -608,110 +707,105 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             float left = eyePatch.xMin + .007f;
             float right = eyePatch.xMax - .007f;
             float center = eyePatch.center.x;
-            float edgeY = eyePatch.yMin + eyePatch.height * .51f;
-            float centerY = edgeY + .007f;
+            float edgeY = eyePatch.yMin + eyePatch.height * .45f;
+            float centerY = edgeY + .005f;
 
             DrawQuadraticStroke(
                 result,
                 ToPixel(left, edgeY),
                 ToPixel(center, centerY),
                 ToPixel(right, edgeY),
-                new Color32(183, 105, 88, 150),
-                7f);
+                new Color32(178, 102, 88, 135),
+                5.5f);
             DrawQuadraticStroke(
                 result,
                 ToPixel(left, edgeY),
                 ToPixel(center, centerY),
                 ToPixel(right, edgeY),
                 new Color32(68, 43, 46, 235),
-                3.2f);
+                2.6f);
             DrawQuadraticStroke(
                 result,
-                ToPixel(left + .004f, edgeY - .004f),
-                ToPixel(center, centerY - .004f),
-                ToPixel(right - .004f, edgeY - .004f),
+                ToPixel(left + .005f, edgeY - .003f),
+                ToPixel(center, centerY - .003f),
+                ToPixel(right - .005f, edgeY - .003f),
                 new Color32(245, 176, 132, 105),
-                1.6f);
+                1.2f);
         }
 
         private static void PaintOpenMouth(Color32[] result)
         {
-            Vector2 center = ToPixel(.5f, .2215f);
-            DrawSoftEllipse(
-                result,
-                center,
-                30f,
-                22f,
-                new Color32(143, 72, 69, 235),
-                2.5f);
+            Vector2 center = ToPixel(.5f, .2205f);
             DrawSoftEllipse(
                 result,
                 center,
                 25f,
-                18f,
-                new Color32(58, 32, 40, 255),
-                2f);
+                19f,
+                new Color32(143, 74, 71, 225),
+                2.8f);
             DrawSoftEllipse(
                 result,
-                ToPixel(.5f, .2145f),
-                17f,
-                6f,
-                new Color32(238, 226, 207, 245),
-                1.5f);
+                center,
+                21f,
+                15.5f,
+                new Color32(56, 31, 39, 255),
+                2.2f);
             DrawSoftEllipse(
                 result,
-                ToPixel(.5f, .229f),
-                16f,
-                7f,
-                new Color32(177, 83, 88, 225),
-                1.5f);
+                ToPixel(.5f, .214f),
+                13.5f,
+                4.5f,
+                new Color32(238, 226, 208, 240),
+                1.8f);
+            DrawSoftEllipse(
+                result,
+                ToPixel(.5f, .227f),
+                12.5f,
+                5.5f,
+                new Color32(174, 82, 88, 220),
+                1.8f);
             DrawQuadraticStroke(
                 result,
-                ToPixel(.478f, .2075f),
-                ToPixel(.5f, .2035f),
-                ToPixel(.522f, .2075f),
-                new Color32(235, 145, 120, 155),
-                2.2f);
+                ToPixel(.481f, .209f),
+                ToPixel(.5f, .205f),
+                ToPixel(.519f, .209f),
+                new Color32(232, 141, 118, 145),
+                1.8f);
         }
 
         private static void PaintSmile(Color32[] result)
         {
-            Vector2 center = ToPixel(.5f, .218f);
-            DrawSoftEllipse(
-                result,
-                center,
-                36f,
-                15f,
-                new Color32(142, 72, 70, 235),
-                2.5f);
-            DrawSoftEllipse(
-                result,
-                ToPixel(.5f, .219f),
-                31f,
-                11f,
-                new Color32(62, 34, 42, 255),
-                2f);
-            DrawSoftEllipse(
-                result,
-                ToPixel(.5f, .2145f),
-                24f,
-                6f,
-                new Color32(239, 227, 209, 245),
-                1.5f);
-            DrawSoftEllipse(
-                result,
-                ToPixel(.5f, .2245f),
-                19f,
-                4.5f,
-                new Color32(177, 84, 89, 210),
-                1.5f);
             DrawQuadraticStroke(
                 result,
-                ToPixel(.466f, .213f),
-                ToPixel(.5f, .232f),
-                ToPixel(.534f, .213f),
-                new Color32(83, 45, 49, 210),
-                2.4f);
+                ToPixel(.474f, .216f),
+                ToPixel(.5f, .229f),
+                ToPixel(.526f, .216f),
+                new Color32(84, 46, 49, 225),
+                4.2f);
+            DrawQuadraticStroke(
+                result,
+                ToPixel(.477f, .217f),
+                ToPixel(.5f, .2245f),
+                ToPixel(.523f, .217f),
+                new Color32(154, 78, 77, 220),
+                2.2f);
+            DrawQuadraticStroke(
+                result,
+                ToPixel(.481f, .2205f),
+                ToPixel(.5f, .228f),
+                ToPixel(.519f, .2205f),
+                new Color32(229, 139, 119, 145),
+                1.5f);
+            DrawSoftCircle(
+                result,
+                ToPixel(.474f, .216f),
+                2.2f,
+                new Color32(73, 42, 45, 185));
+            DrawSoftCircle(
+                result,
+                ToPixel(.526f, .216f),
+                2.2f,
+                new Color32(73, 42, 45, 185));
         }
 
         private static void DrawQuadraticStroke(

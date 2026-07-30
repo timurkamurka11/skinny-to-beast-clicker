@@ -124,6 +124,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
 
                 AssertLayerActive(
                     patchVisual,
+                    "Layer.Face.EyeWhiteL",
+                    true);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.EyeWhiteR",
+                    true);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.IrisL",
+                    true);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.IrisR",
+                    true);
+                AssertLayerActive(
+                    patchVisual,
                     "Layer.Face.MouthClosed",
                     true);
                 AssertLayerActive(
@@ -150,6 +166,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     patchVisual,
                     "Layer.FX.ImpactFold",
                     false);
+
+                Type patchFaceType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4FaceController");
+                Component patchFace =
+                    patchInstance.GetComponent(patchFaceType);
+                Assert.NotNull(patchFace);
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "eyeWhiteLeft"));
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "eyeWhiteRight"));
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "irisLeft"));
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "irisRight"));
 
                 Transform rollbackVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;

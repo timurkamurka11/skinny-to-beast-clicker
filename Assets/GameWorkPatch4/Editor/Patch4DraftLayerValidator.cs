@@ -55,6 +55,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
         }
 
+        private readonly struct FaceReplacementCheck
+        {
+            public readonly string path;
+            public readonly Rect normalizedTopRegion;
+            public readonly float maximumVisibleRatio;
+
+            public FaceReplacementCheck(
+                string path,
+                Rect normalizedTopRegion,
+                float maximumVisibleRatio = .48f)
+            {
+                this.path = path;
+                this.normalizedTopRegion = normalizedTopRegion;
+                this.maximumVisibleRatio = maximumVisibleRatio;
+            }
+        }
+
         [MenuItem("Tools/GameWork/Patch 4.0/Validate/Draft Layer Pack")]
         public static void ValidateAndWriteReport()
         {
@@ -107,6 +124,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 layers[contractPath] = layer;
             }
+
+            ValidateFaceReplacementLayers(layers, errors);
 
             float coverage = 0f;
             float leakage = 0f;
@@ -230,6 +249,88 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             };
         }
 
+        private static void ValidateFaceReplacementLayers(
+            IReadOnlyDictionary<string, ImageData> layers,
+            ICollection<string> errors)
+        {
+            FaceReplacementCheck[] checks =
+            {
+                new(
+                    "Face/LidL",
+                    new Rect(.438f, .164f, .063f, .045f)),
+                new(
+                    "Face/LidR",
+                    new Rect(.499f, .164f, .063f, .045f)),
+                new(
+                    "Face/MouthOpen",
+                    new Rect(.452f, .198f, .096f, .052f)),
+                new(
+                    "Face/MouthSmile",
+                    new Rect(.452f, .198f, .096f, .052f))
+            };
+
+            for (int i = 0; i < checks.Length; i++)
+            {
+                FaceReplacementCheck check = checks[i];
+                if (!layers.TryGetValue(check.path, out ImageData layer))
+                {
+                    continue;
+                }
+
+                GetPixelBounds(
+                    check.normalizedTopRegion,
+                    out int minX,
+                    out int maxX,
+                    out int minY,
+                    out int maxY);
+                int regionPixelCount =
+                    (maxX - minX + 1) *
+                    (maxY - minY + 1);
+                int visiblePixels = CountVisible(layer.pixels);
+                int visibleInside = 0;
+                int visibleBorder = 0;
+                const int borderWidth = 3;
+
+                for (int y = minY; y <= maxY; y++)
+                {
+                    for (int x = minX; x <= maxX; x++)
+                    {
+                        if (layer.pixels[y * ExpectedWidth + x].a <=
+                            VisibleThreshold)
+                        {
+                            continue;
+                        }
+
+                        visibleInside++;
+                        if (x - minX < borderWidth ||
+                            maxX - x < borderWidth ||
+                            y - minY < borderWidth ||
+                            maxY - y < borderWidth)
+                        {
+                            visibleBorder++;
+                        }
+                    }
+                }
+
+                float visibleRatio =
+                    regionPixelCount == 0
+                        ? 1f
+                        : (float)visibleInside / regionPixelCount;
+                int outside = visiblePixels - visibleInside;
+                if (outside > 0 ||
+                    visibleBorder > 0 ||
+                    visibleRatio > check.maximumVisibleRatio)
+                {
+                    errors.Add(
+                        $"Layer {check.path} still behaves like a backing " +
+                        $"rectangle: {visibleRatio:P2} region fill, " +
+                        $"{visibleBorder} border pixels and {outside} pixels " +
+                        "outside its face region. Replacement poses must " +
+                        "contain only their painted feature.");
+                }
+            }
+        }
+
         private static int CountLocalOverlap(
             ImageData first,
             ImageData second,
@@ -345,6 +446,35 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             return count;
+        }
+
+        private static void GetPixelBounds(
+            Rect region,
+            out int minX,
+            out int maxX,
+            out int minY,
+            out int maxY)
+        {
+            minX = Mathf.Clamp(
+                Mathf.FloorToInt(region.xMin * ExpectedWidth),
+                0,
+                ExpectedWidth - 1);
+            maxX = Mathf.Clamp(
+                Mathf.CeilToInt(region.xMax * ExpectedWidth) - 1,
+                0,
+                ExpectedWidth - 1);
+            minY = Mathf.Clamp(
+                Mathf.FloorToInt(
+                    ExpectedHeight -
+                    region.yMax * ExpectedHeight),
+                0,
+                ExpectedHeight - 1);
+            maxY = Mathf.Clamp(
+                Mathf.CeilToInt(
+                    ExpectedHeight -
+                    region.yMin * ExpectedHeight) - 1,
+                0,
+                ExpectedHeight - 1);
         }
 
         private static ImageData LoadImage(string assetPath)

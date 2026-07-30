@@ -12,7 +12,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        private const string RunId = "joint-face-candidates-v1";
+        private const string RunId = "seamless-face-replacements-v2";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -57,9 +57,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic joint/face pass started: restoring the " +
+                    "Patch 4 automatic seamless-face pass started: restoring the " +
                     "repository master, rebaking all 40 layers with hidden " +
-                    "continuations and independent facial poses, rebuilding " +
+                    "continuations and true replacement facial poses, rebuilding " +
                     "the locked runtime prefab and running the full " +
                     "verification. Both review windows will open automatically.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())

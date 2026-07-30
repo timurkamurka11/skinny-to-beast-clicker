@@ -400,6 +400,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             faceController.BindPresentationLayers(
+                FindLayerObject("Face/EyeWhiteL"),
+                FindLayerObject("Face/EyeWhiteR"),
+                FindLayerObject("Face/IrisL"),
+                FindLayerObject("Face/IrisR"),
                 FindLayerTransform("Face/LidL"),
                 FindLayerTransform("Face/LidR"),
                 FindLayerObject("Face/MouthClosed"),

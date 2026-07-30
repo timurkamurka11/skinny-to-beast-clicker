@@ -402,6 +402,39 @@ The next isolated candidate pass replaces the remaining technical stand-ins:
 This pass is still a human-review candidate. It does not approve art, enable
 Patch 4 or change the exact master SHA.
 
+Unity `6000.3.19f1` completed this pass with:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- the four-panel face review opened automatically.
+
+Human review rejected the alternate expressions. Blink, open-mouth and smile
+showed visible straight-edged skin backing rectangles even though all technical
+tests passed. This is a visual blocker, so Patch 4 stayed locked.
+
+## P4.0-J seamless face replacements
+
+The corrective candidate pass removes the source of the rectangles:
+
+- `Head/HeadBase` now uses elliptical boundary-driven inpainting beneath the
+  eyes and mouth instead of a rectangular color field;
+- lid, open-mouth and smile layers contain only their painted feature with
+  transparent surroundings;
+- overlapping cheek layers are cleared inside replaceable eye and mouth
+  regions;
+- the blink controller binds and hides both eye whites and both irises only
+  during the closed phase, then restores them;
+- the review compositor builds neutral, blink, open-mouth and smile from
+  mutually exclusive canonical layer sets in runtime order;
+- draft validation rejects dense rectangular backing alpha, border contact and
+  any paint outside the allowed face region;
+- the QA and Editor smoke reports require
+  `facePoseUsesReplacementComposition: true` and
+  `faceReplacementLayersClean: true`;
+- the open mouth is smaller and the smile is a restrained painted closed smile;
+- readiness and runtime activation remain locked.
+
 ## Production dashboard
 
 Open in Unity:
@@ -461,9 +494,9 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-I candidate commit into Unity `6000.3.19f1`.
+1. Pull the P4.0-J seamless-replacement commit into Unity `6000.3.19f1`.
 2. Let `Patch4AutoContinuation` verify/restore the exact source, regenerate
-   masks and all 40 layers, paint the joint/face candidates, assemble the
+   masks and all 40 layers, paint the joint/face replacements, assemble the
    neutral pose, write both review previews and run all validations without
    manual clicks.
 3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
@@ -488,8 +521,9 @@ Detailed verification instructions:
 
 - Generated PNG layers and generated runtime assets exist locally in Unity and
   are not committed as binary repository assets.
-- The new P4.0-I joint and facial candidates have not yet received their local
-  Unity `4/4` run or close-up screenshot review.
+- P4.0-I passed local Unity `4/4`, but its face close-up failed human review
+  because alternate expressions contained visible rectangular skin backings.
+- P4.0-J has not yet received its local Unity `4/4` run and close-up review.
 - Sprite Skin weight painting has not yet been completed.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.

@@ -60,9 +60,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
                 "Neutral, blink, open-mouth and smile are assembled from " +
-                "independent painted layers. This review is read-only; human " +
-                "approval is still required and production activation remains " +
-                "locked.",
+                "mutually exclusive replacement layers. No rectangular skin " +
+                "backing or straight patch edge is acceptable. This review is " +
+                "read-only; human approval is still required and production " +
+                "activation remains locked.",
                 MessageType.Info);
 
             if (contactSheet == null)

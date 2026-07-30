@@ -239,29 +239,45 @@ The verified pass remains isolated and read-only:
   assembled neutral pose and pixel difference.
 - No review button, Dashboard command or Test Runner click is required.
 
-## Current P4.0-I joint and face candidate pass
+## P4.0-I real Unity result and visual rejection
 
-The next automatic pass:
+The user completed the automatic P4.0-I run in Unity `6000.3.19f1`:
 
-- replaces every legacy five-pixel joint disk with an elliptical continuation
-  that copies the real master texture through the moving joint and adds only a
-  three-pixel feather outside the silhouette;
-- raises the ordinary joint overlap requirement from 24 to 180 pixels and the
-  belly/shirt requirement to 360 pixels;
-- removes open eyes and the closed mouth from the head base underlay so
-  alternate expressions can fully replace them;
-- restores exact neutral eye/mouth patches from the master;
-- paints independent closed lids, open mouth and smile layers;
-- keeps both lids hidden in the neutral runtime state;
-- fixes blink direction so the lid grows from open to closed, then retracts and
-  hides;
-- writes a four-panel neutral / blink / open-mouth / smile close-up;
-- opens that face review automatically after the existing neutral review;
-- still writes `humanReviewRequired: true` and `activationAllowed: false`.
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- the four-expression review opened automatically.
+
+The technical pass did not pass human visual review. Neutral remained sharp,
+but blink, open-mouth and smile showed large straight-edged skin rectangles.
+The cause was architectural: alternate features were composited on top of the
+already-active open eyes and closed mouth, so each alternate carried an opaque
+skin backing to erase the previous feature. Patch 4 remained locked.
+
+## Current P4.0-J seamless face replacement pass
+
+The corrective pass:
+
+- keeps the verified joint continuations from P4.0-I;
+- replaces rectangular skin fills with elliptical, boundary-driven inpainting
+  inside `Head/HeadBase`;
+- makes lid, open-mouth and smile PNGs feature-only transparent layers;
+- removes neutral eye and mouth pixels from overlapping cheek layers;
+- hides both eye whites and both irises during the closed phase of a blink;
+- restores all four open-eye layers when the blink opens;
+- changes the preview to rebuild each pose from mutually exclusive canonical
+  layers, exactly matching runtime visibility;
+- reduces the open-mouth size and replaces the pasted teeth smile with a
+  smaller painted closed smile;
+- blocks any future face layer that fills more than 48% of its allowed region,
+  touches its rectangular three-pixel border, or paints outside that region;
+- records `facePoseUsesReplacementComposition: true` and
+  `faceReplacementLayersClean: true` in the locked QA report;
+- keeps `humanReviewRequired: true` and `activationAllowed: false`.
 
 ## Exact next action
 
-After the P4.0-I commit is present on `patch-4.0`, run only:
+After the P4.0-J commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -271,7 +287,7 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. paint the hidden continuations and four independent face states;
+3. paint the hidden continuations and four seamless replacement face states;
 4. rebuild the resource-loadable locked prefab;
 5. assemble and compare the locked neutral pose;
 6. write the neutral and four-expression review images;
@@ -299,7 +315,7 @@ window remains open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-I 4/4 test
+## Work after the P4.0-J 4/4 test
 
 - Inspect the automatically opened face close-ups and neutral comparison while
   keeping production activation locked.

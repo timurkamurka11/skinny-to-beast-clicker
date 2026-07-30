@@ -18,7 +18,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         [Serializable]
         private sealed class NeutralPoseReport
         {
-            public int schemaVersion = 1;
+            public int schemaVersion = 2;
             public string generatedUtc = string.Empty;
             public bool passedTechnicalChecks;
             public bool technicalCompositeCreated;
@@ -41,6 +41,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public float meanColorError;
             public float closeColorMatchRatio;
             public bool facePosePreviewCreated;
+            public bool facePoseUsesReplacementComposition;
+            public bool faceReplacementLayersClean;
             public string[] neutralLayers = Array.Empty<string>();
             public string[] errors = Array.Empty<string>();
             public string[] warnings = Array.Empty<string>();
@@ -142,6 +144,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     ? new Color32[
                         ExpectedWidth * ExpectedHeight]
                     : null;
+            Dictionary<string, Color32[]> faceLayerCrops =
+                new(StringComparer.Ordinal);
             int loadedNeutralLayerCount = 0;
             for (int i = 0; i < neutralPaths.Count; i++)
             {
@@ -168,6 +172,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 if (composite != null)
                 {
                     CompositeLayer(composite, layer.pixels);
+                    faceLayerCrops[contractPath] =
+                        ExtractFaceCrop(layer.pixels);
                 }
             }
 
@@ -188,8 +194,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     difference);
                 Color32[] facePoseContactSheet =
                     BuildFacePoseContactSheet(
-                        composite,
-                        errors);
+                        neutralPaths,
+                        faceLayerCrops,
+                        errors,
+                        out bool usesReplacementComposition,
+                        out bool replacementLayersClean);
+                report.facePoseUsesReplacementComposition =
+                    usesReplacementComposition;
+                report.faceReplacementLayersClean =
+                    replacementLayersClean;
 
                 MeasureComparison(
                     master.pixels,
@@ -244,6 +257,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 errors.Count == 0 &&
                 report.technicalCompositeCreated &&
                 report.facePosePreviewCreated &&
+                report.facePoseUsesReplacementComposition &&
+                report.faceReplacementLayersClean &&
                 report.loadedNeutralLayerCount == report.neutralLayerCount;
             report.activationAllowed = false;
             report.errors = errors.ToArray();
@@ -544,45 +559,68 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         }
 
         private static Color32[] BuildFacePoseContactSheet(
-            Color32[] neutral,
-            ICollection<string> errors)
+            IReadOnlyCollection<string> neutralPaths,
+            IDictionary<string, Color32[]> faceLayerCrops,
+            ICollection<string> errors,
+            out bool usesReplacementComposition,
+            out bool replacementLayersClean)
         {
+            usesReplacementComposition = false;
+            replacementLayersClean = false;
             Color32[][] poses =
             {
-                (Color32[])neutral.Clone(),
-                (Color32[])neutral.Clone(),
-                (Color32[])neutral.Clone(),
-                (Color32[])neutral.Clone()
+                BuildReplacementPoseComposite(
+                    neutralPaths,
+                    faceLayerCrops,
+                    Array.Empty<string>(),
+                    Array.Empty<string>(),
+                    errors),
+                BuildReplacementPoseComposite(
+                    neutralPaths,
+                    faceLayerCrops,
+                    new[]
+                    {
+                        "Face/EyeWhiteL",
+                        "Face/EyeWhiteR",
+                        "Face/IrisL",
+                        "Face/IrisR"
+                    },
+                    new[]
+                    {
+                        "Face/LidL",
+                        "Face/LidR"
+                    },
+                    errors),
+                BuildReplacementPoseComposite(
+                    neutralPaths,
+                    faceLayerCrops,
+                    new[] { "Face/MouthClosed" },
+                    new[] { "Face/MouthOpen" },
+                    errors),
+                BuildReplacementPoseComposite(
+                    neutralPaths,
+                    faceLayerCrops,
+                    new[] { "Face/MouthClosed" },
+                    new[] { "Face/MouthSmile" },
+                    errors)
             };
 
-            bool complete = true;
-            complete &= CompositePoseLayer(
-                poses[1],
-                "Face/LidL",
-                errors);
-            complete &= CompositePoseLayer(
-                poses[1],
-                "Face/LidR",
-                errors);
-            complete &= CompositePoseLayer(
-                poses[2],
-                "Face/MouthOpen",
-                errors);
-            complete &= CompositePoseLayer(
-                poses[3],
-                "Face/MouthSmile",
-                errors);
-            if (!complete)
+            if (poses[0] == null ||
+                poses[1] == null ||
+                poses[2] == null ||
+                poses[3] == null)
             {
                 return null;
             }
 
+            usesReplacementComposition = true;
+            replacementLayersClean =
+                ValidateFaceReplacementLayerCrops(
+                    faceLayerCrops,
+                    errors);
             int sheetWidth = FaceCropWidth * FacePoseCount;
             Color32[] result =
                 new Color32[sheetWidth * FaceCropHeight];
-            int sourceBottom =
-                ExpectedHeight - FaceCropTop - FaceCropHeight;
-
             Color32[] accents =
             {
                 new(65, 210, 120, 255),
@@ -595,12 +633,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 for (int y = 0; y < FaceCropHeight; y++)
                 {
-                    int sourceY = sourceBottom + y;
                     for (int x = 0; x < FaceCropWidth; x++)
                     {
-                        int sourceX = FaceCropX + x;
                         int sourceIndex =
-                            sourceY * ExpectedWidth + sourceX;
+                            y * FaceCropWidth + x;
                         Color32 checker =
                             ((x / 16 + y / 16) & 1) == 0
                                 ? new Color32(42, 45, 52, 255)
@@ -624,32 +660,276 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             return result;
         }
 
-        private static bool CompositePoseLayer(
-            Color32[] destination,
-            string contractPath,
+        private static bool ValidateFaceReplacementLayerCrops(
+            IReadOnlyDictionary<string, Color32[]> faceLayerCrops,
             ICollection<string> errors)
         {
-            ImageData layer = LoadImage(
-                LayerPath(contractPath),
-                errors);
-            if (layer == null)
+            string[] paths =
             {
-                return false;
-            }
+                "Face/LidL",
+                "Face/LidR",
+                "Face/MouthOpen",
+                "Face/MouthSmile"
+            };
+            Rect[] regions =
+            {
+                new(.438f, .164f, .063f, .045f),
+                new(.499f, .164f, .063f, .045f),
+                new(.452f, .198f, .096f, .052f),
+                new(.452f, .198f, .096f, .052f)
+            };
 
-            if (layer.width != ExpectedWidth ||
-                layer.height != ExpectedHeight)
+            bool clean = true;
+            int cropBottom =
+                ExpectedHeight - FaceCropTop - FaceCropHeight;
+            const int borderWidth = 3;
+            const float maximumVisibleRatio = .48f;
+
+            for (int i = 0; i < paths.Length; i++)
             {
+                if (!faceLayerCrops.TryGetValue(
+                        paths[i],
+                        out Color32[] crop) ||
+                    crop == null ||
+                    crop.Length != FaceCropWidth * FaceCropHeight)
+                {
+                    clean = false;
+                    continue;
+                }
+
+                GetFaceRegionBounds(
+                    regions[i],
+                    cropBottom,
+                    out int minX,
+                    out int maxX,
+                    out int minY,
+                    out int maxY);
+                int visibleTotal = 0;
+                int visibleInside = 0;
+                int visibleBorder = 0;
+                for (int y = 0; y < FaceCropHeight; y++)
+                {
+                    for (int x = 0; x < FaceCropWidth; x++)
+                    {
+                        if (crop[y * FaceCropWidth + x].a <=
+                            VisibleThreshold)
+                        {
+                            continue;
+                        }
+
+                        visibleTotal++;
+                        if (x < minX ||
+                            x > maxX ||
+                            y < minY ||
+                            y > maxY)
+                        {
+                            continue;
+                        }
+
+                        visibleInside++;
+                        if (x - minX < borderWidth ||
+                            maxX - x < borderWidth ||
+                            y - minY < borderWidth ||
+                            maxY - y < borderWidth)
+                        {
+                            visibleBorder++;
+                        }
+                    }
+                }
+
+                int regionPixelCount =
+                    (maxX - minX + 1) *
+                    (maxY - minY + 1);
+                float visibleRatio =
+                    regionPixelCount == 0
+                        ? 1f
+                        : (float)visibleInside / regionPixelCount;
+                int outside = visibleTotal - visibleInside;
+                if (outside <= 0 &&
+                    visibleBorder <= 0 &&
+                    visibleRatio <= maximumVisibleRatio)
+                {
+                    continue;
+                }
+
+                clean = false;
                 errors.Add(
-                    contractPath + " pose layer is " +
-                    layer.width + "x" + layer.height +
-                    "; expected " + ExpectedWidth + "x" +
-                    ExpectedHeight + ".");
-                return false;
+                    paths[i] + " failed seamless replacement QA: " +
+                    visibleRatio.ToString("P2", CultureInfo.InvariantCulture) +
+                    " region fill, " + visibleBorder +
+                    " border pixels and " + outside +
+                    " pixels outside its face region.");
             }
 
-            CompositeLayer(destination, layer.pixels);
-            return true;
+            return clean;
+        }
+
+        private static void GetFaceRegionBounds(
+            Rect region,
+            int cropBottom,
+            out int minX,
+            out int maxX,
+            out int minY,
+            out int maxY)
+        {
+            minX = Mathf.Clamp(
+                Mathf.FloorToInt(region.xMin * ExpectedWidth) -
+                FaceCropX,
+                0,
+                FaceCropWidth - 1);
+            maxX = Mathf.Clamp(
+                Mathf.CeilToInt(region.xMax * ExpectedWidth) - 1 -
+                FaceCropX,
+                0,
+                FaceCropWidth - 1);
+            minY = Mathf.Clamp(
+                Mathf.FloorToInt(
+                    ExpectedHeight -
+                    region.yMax * ExpectedHeight) -
+                cropBottom,
+                0,
+                FaceCropHeight - 1);
+            maxY = Mathf.Clamp(
+                Mathf.CeilToInt(
+                    ExpectedHeight -
+                    region.yMin * ExpectedHeight) - 1 -
+                cropBottom,
+                0,
+                FaceCropHeight - 1);
+        }
+
+        private static Color32[] BuildReplacementPoseComposite(
+            IReadOnlyCollection<string> neutralPaths,
+            IDictionary<string, Color32[]> faceLayerCrops,
+            IReadOnlyCollection<string> excludedPaths,
+            IReadOnlyCollection<string> replacementPaths,
+            ICollection<string> errors)
+        {
+            HashSet<string> excluded = new(
+                excludedPaths,
+                StringComparer.Ordinal);
+            List<string> selected = new();
+            foreach (string path in neutralPaths)
+            {
+                if (!excluded.Contains(path))
+                {
+                    selected.Add(path);
+                }
+            }
+
+            foreach (string path in replacementPaths)
+            {
+                if (!selected.Contains(path))
+                {
+                    selected.Add(path);
+                }
+            }
+
+            selected.Sort(CompareContractPaths);
+            Color32[] composite =
+                new Color32[FaceCropWidth * FaceCropHeight];
+            bool complete = true;
+            for (int i = 0; i < selected.Count; i++)
+            {
+                string contractPath = selected[i];
+                if (!faceLayerCrops.TryGetValue(
+                        contractPath,
+                        out Color32[] crop))
+                {
+                    ImageData layer = LoadImage(
+                        LayerPath(contractPath),
+                        errors);
+                    if (layer == null)
+                    {
+                        complete = false;
+                        continue;
+                    }
+
+                    if (layer.width != ExpectedWidth ||
+                        layer.height != ExpectedHeight)
+                    {
+                        errors.Add(
+                            contractPath + " replacement-pose layer is " +
+                            layer.width + "x" + layer.height +
+                            "; expected " + ExpectedWidth + "x" +
+                            ExpectedHeight + ".");
+                        complete = false;
+                        continue;
+                    }
+
+                    crop = ExtractFaceCrop(layer.pixels);
+                    faceLayerCrops[contractPath] = crop;
+                }
+
+                if (crop == null ||
+                    crop.Length != FaceCropWidth * FaceCropHeight)
+                {
+                    errors.Add(
+                        contractPath +
+                        " has an invalid replacement-pose face crop.");
+                    complete = false;
+                    continue;
+                }
+
+                CompositeLayer(composite, crop);
+            }
+
+            return complete ? composite : null;
+        }
+
+        private static int CompareContractPaths(
+            string left,
+            string right)
+        {
+            int order = Patch4LayerPlacement.ResolveSortingOrder(left)
+                .CompareTo(
+                    Patch4LayerPlacement.ResolveSortingOrder(right));
+            if (order != 0)
+            {
+                return order;
+            }
+
+            return FindContractIndex(left).CompareTo(
+                FindContractIndex(right));
+        }
+
+        private static int FindContractIndex(string path)
+        {
+            IReadOnlyList<string> required =
+                Patch4RigContract.RequiredLayerPaths;
+            for (int i = 0; i < required.Count; i++)
+            {
+                if (string.Equals(
+                    required[i],
+                    path,
+                    StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+
+            return int.MaxValue;
+        }
+
+        private static Color32[] ExtractFaceCrop(
+            IReadOnlyList<Color32> source)
+        {
+            Color32[] crop =
+                new Color32[FaceCropWidth * FaceCropHeight];
+            int sourceBottom =
+                ExpectedHeight - FaceCropTop - FaceCropHeight;
+            for (int y = 0; y < FaceCropHeight; y++)
+            {
+                int sourceY = sourceBottom + y;
+                for (int x = 0; x < FaceCropWidth; x++)
+                {
+                    int sourceX = FaceCropX + x;
+                    crop[y * FaceCropWidth + x] =
+                        source[sourceY * ExpectedWidth + sourceX];
+                }
+            }
+
+            return crop;
         }
 
         private static void MeasureComparison(

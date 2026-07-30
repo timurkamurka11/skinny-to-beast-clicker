@@ -245,7 +245,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            'RunId = "joint-face-candidates-v1"',
+            'RunId = "seamless-face-replacements-v2"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -334,6 +334,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "legacyPresentationScale = 0.74f",
             "ConfigureForGameplayRoom(",
             "DisableFallbackSpriteRenderers()",
+            'FindLayerObject("Face/EyeWhiteL")',
+            'FindLayerObject("Face/IrisR")',
         )
         for snippet in required_snippets:
             if snippet not in presentation:
@@ -371,6 +373,10 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "patch4-neutral-pose-review.png",
             "patch4-face-pose-review.png",
             "report.facePosePreviewCreated = true",
+            "report.facePoseUsesReplacementComposition",
+            "report.faceReplacementLayersClean",
+            "BuildReplacementPoseComposite(",
+            "ValidateFaceReplacementLayerCrops(",
         )
         for snippet in required_snippets:
             if snippet not in validator:
@@ -416,6 +422,7 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         for required in (
             "PaintJointContinuation(",
             "PaintSkinUnderlay(",
+            "SolveSkinInpaint(",
             "PaintClosedLid(",
             "PaintOpenMouth(",
             "PaintSmile(",
@@ -424,6 +431,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
                 fail(errors, f"Joint/face candidate baker is missing: {required}")
         if "PaintJointScaffold(" in baker:
             fail(errors, "Legacy five-pixel joint scaffolding is still present")
+        if "overlayOnly: true" in baker:
+            fail(errors, "Alternate facial layers still contain opaque backing patches")
 
     face = read_text(
         root,
@@ -434,10 +443,19 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         for required in (
             "ApplyLidClosure(",
             "SetLidsActive(false)",
+            "SetOpenEyesActive(",
             "openScaleY",
         ):
             if required not in face:
                 fail(errors, f"Independent blink controller is missing: {required}")
+
+    draft_validator = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
+        errors,
+    )
+    if draft_validator and "ValidateFaceReplacementLayers(" not in draft_validator:
+        fail(errors, "Draft validation does not reject rectangular face backings")
 
 
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:

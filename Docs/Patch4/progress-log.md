@@ -168,7 +168,28 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Corrected blink direction and hid lids in the neutral runtime state.
 - [x] Added an automatic four-panel neutral / blink / open-mouth / smile review.
 - [x] Kept `productionArtApproved` false and Patch 3.5 visible.
-- [ ] Confirm the candidate pass in Unity `6000.3.19f1` with automatic `4/4`
-  verification and the face close-up window.
+- [x] Confirmed automatic Unity verification: EditMode `4 passed`, PlayMode
+  `4 passed`, zero warnings/errors and the face close-up opened.
+- [x] Rejected the candidate during human visual review because blink,
+  open-mouth and smile exposed straight-edged rectangular skin backings.
+
+## 2026-07-30 — P4.0-J seamless face replacements
+
+- [x] Replaced rectangular face fills with elliptical boundary-driven
+  inpainting inside `Head/HeadBase`.
+- [x] Made alternate lid and mouth PNGs transparent feature-only layers.
+- [x] Removed replaceable eye/mouth pixels from overlapping cheek layers.
+- [x] Bound eye whites and irises to the blink controller for true replacement.
+- [x] Rebuilt the four review poses from mutually exclusive runtime-order layer
+  sets instead of stacking alternates over the neutral face.
+- [x] Added a blocking alpha-density, border and outside-region check for every
+  alternate face layer.
+- [x] Added QA and smoke-report proof that replacement composition was used
+  and every alternate layer passed sparse-alpha seam checks.
+- [x] Reduced the open mouth and changed the smile to a smaller painted closed
+  expression.
+- [x] Kept `productionArtApproved` false and Patch 3.5 visible.
+- [ ] Confirm P4.0-J in Unity `6000.3.19f1` with automatic `4/4` verification
+  and the new seam-free face close-up.
 - [ ] Complete Sprite Skin weight painting after the candidate art passes
   visual review.

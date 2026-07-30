@@ -100,6 +100,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             RequireType(
                 "SkinnyToBeast.Gameplay.Patch4.Editor." +
                 "Patch4FacePoseReviewWindow");
+
+            Type faceController = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Patch4FaceController");
+            MethodInfo bindPresentationLayers =
+                faceController.GetMethod(
+                    "BindPresentationLayers",
+                    BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(bindPresentationLayers);
+            Assert.AreEqual(
+                9,
+                bindPresentationLayers.GetParameters().Length,
+                "Blink replacement must bind open-eye layers as well as lids.");
         }
 
         [Test]

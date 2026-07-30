@@ -27,6 +27,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             public bool passedTechnicalChecks;
             public bool facePosePreviewCreated;
+            public bool facePoseUsesReplacementComposition;
+            public bool faceReplacementLayersClean;
             public bool humanReviewRequired;
             public bool activationAllowed;
         }
@@ -53,6 +55,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool fallbackSpriteRenderersDisabled;
             public bool neutralPoseTechnicalChecksPassed;
             public bool facePosePreviewCreated;
+            public bool facePoseUsesReplacementComposition;
+            public bool faceReplacementLayersClean;
             public bool neutralPoseHumanReviewRequired;
             public bool neutralPoseActivationBlocked;
             public List<Finding> findings = new();
@@ -186,6 +190,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 gate.passedTechnicalChecks;
             report.facePosePreviewCreated =
                 gate.facePosePreviewCreated;
+            report.facePoseUsesReplacementComposition =
+                gate.facePoseUsesReplacementComposition;
+            report.faceReplacementLayersClean =
+                gate.faceReplacementLayersClean;
             report.neutralPoseHumanReviewRequired =
                 gate.humanReviewRequired;
             report.neutralPoseActivationBlocked =
@@ -193,6 +201,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (!report.neutralPoseTechnicalChecksPassed ||
                 !report.facePosePreviewCreated ||
+                !report.facePoseUsesReplacementComposition ||
+                !report.faceReplacementLayersClean ||
                 !report.neutralPoseHumanReviewRequired ||
                 !report.neutralPoseActivationBlocked)
             {
@@ -200,7 +210,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report,
                     "NEUTRAL_POSE_GATE_INVALID",
                     "Neutral-pose QA must produce a complete technical " +
-                    "composite and independent face-pose preview while " +
+                    "composite and seam-safe replacement face-pose preview while " +
                     "explicitly requiring human review and blocking activation.");
             }
         }
