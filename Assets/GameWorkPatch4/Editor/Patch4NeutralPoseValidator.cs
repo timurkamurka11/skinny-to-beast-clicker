@@ -661,7 +661,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         }
 
         private static bool ValidateFaceReplacementLayerCrops(
-            IReadOnlyDictionary<string, Color32[]> faceLayerCrops,
+            IDictionary<string, Color32[]> faceLayerCrops,
             ICollection<string> errors)
         {
             string[] paths =
