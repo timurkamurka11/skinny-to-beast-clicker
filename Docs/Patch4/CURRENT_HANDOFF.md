@@ -254,30 +254,59 @@ The cause was architectural: alternate features were composited on top of the
 already-active open eyes and closed mouth, so each alternate carried an opaque
 skin backing to erase the previous feature. Patch 4 remained locked.
 
-## Current P4.0-J seamless face replacement pass
+## P4.0-J real Unity result and visual rejection
 
-The corrective pass:
+The user completed P4.0-J in Unity `6000.3.19f1`.
+
+The first import exposed one compile-time `IDictionary` /
+`IReadOnlyDictionary` mismatch in `Patch4NeutralPoseValidator`. Commit
+`06e63fa` corrected only that signature. The subsequent automatic run produced:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- the four-expression review opened automatically.
+
+P4.0-J was a major visual improvement over P4.0-I, but human review still
+rejected it. Small light rectangular seams remained around both closed eyes,
+the open mouth and the smile. The alternate layers were already transparent;
+the remaining seam came from two neutral-state operations:
+
+- `Face/EyeWhiteL`, `Face/EyeWhiteR` and `Face/MouthClosed` still copied their
+  whole rectangular master regions;
+- `Face/CheekL` and `Face/CheekR` removed those regions with a hard rectangular
+  alpha cut.
+
+Technical `4/4` therefore did not approve the art. Patch 4 stayed locked.
+
+## Current P4.0-K feathered face-transition pass
+
+The next corrective pass:
 
 - keeps the verified joint continuations from P4.0-I;
-- replaces rectangular skin fills with elliptical, boundary-driven inpainting
-  inside `Head/HeadBase`;
-- makes lid, open-mouth and smile PNGs feature-only transparent layers;
-- removes neutral eye and mouth pixels from overlapping cheek layers;
+- keeps the elliptical boundary-driven inpainting inside `Head/HeadBase`;
+- extracts neutral open eyes and the closed mouth as sparse transparent
+  high-detail features by comparing the master against the inpainted skin
+  field instead of copying rectangular master patches;
+- removes neutral eye and mouth details from overlapping cheek layers with a
+  soft elliptical alpha feather rather than a hard rectangle;
+- keeps lid, open-mouth and smile PNGs feature-only and transparent;
 - hides both eye whites and both irises during the closed phase of a blink;
 - restores all four open-eye layers when the blink opens;
-- changes the preview to rebuild each pose from mutually exclusive canonical
-  layers, exactly matching runtime visibility;
-- reduces the open-mouth size and replaces the pasted teeth smile with a
-  smaller painted closed smile;
-- blocks any future face layer that fills more than 48% of its allowed region,
-  touches its rectangular three-pixel border, or paints outside that region;
+- continues to rebuild every preview pose from mutually exclusive canonical
+  layers in runtime order;
+- validates all nine swappable neutral/alternate feature layers for sparse
+  alpha, border contact and paint outside the allowed face region;
+- counts abrupt transparent-to-opaque pixels along every former rectangular
+  cheek boundary and blocks the layer pack if more than six remain;
 - records `facePoseUsesReplacementComposition: true` and
-  `faceReplacementLayersClean: true` in the locked QA report;
+  `faceReplacementLayersClean: true`, plus
+  `faceTransitionLayersFeathered: true`, in the locked QA report;
 - keeps `humanReviewRequired: true` and `activationAllowed: false`.
 
 ## Exact next action
 
-After the P4.0-J commit is present on `patch-4.0`, run only:
+After the P4.0-K commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -287,7 +316,7 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. paint the hidden continuations and four seamless replacement face states;
+3. paint the hidden continuations and four feathered replacement face states;
 4. rebuild the resource-loadable locked prefab;
 5. assemble and compare the locked neutral pose;
 6. write the neutral and four-expression review images;
@@ -315,7 +344,7 @@ window remains open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-J 4/4 test
+## Work after the P4.0-K 4/4 test
 
 - Inspect the automatically opened face close-ups and neutral comparison while
   keeping production activation locked.

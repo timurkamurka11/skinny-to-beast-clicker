@@ -18,7 +18,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         [Serializable]
         private sealed class NeutralPoseReport
         {
-            public int schemaVersion = 2;
+            public int schemaVersion = 3;
             public string generatedUtc = string.Empty;
             public bool passedTechnicalChecks;
             public bool technicalCompositeCreated;
@@ -43,6 +43,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool facePosePreviewCreated;
             public bool facePoseUsesReplacementComposition;
             public bool faceReplacementLayersClean;
+            public bool faceTransitionLayersFeathered;
             public string[] neutralLayers = Array.Empty<string>();
             public string[] errors = Array.Empty<string>();
             public string[] warnings = Array.Empty<string>();
@@ -198,11 +199,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         faceLayerCrops,
                         errors,
                         out bool usesReplacementComposition,
-                        out bool replacementLayersClean);
+                        out bool replacementLayersClean,
+                        out bool transitionLayersFeathered);
                 report.facePoseUsesReplacementComposition =
                     usesReplacementComposition;
                 report.faceReplacementLayersClean =
                     replacementLayersClean;
+                report.faceTransitionLayersFeathered =
+                    transitionLayersFeathered;
 
                 MeasureComparison(
                     master.pixels,
@@ -259,6 +263,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 report.facePosePreviewCreated &&
                 report.facePoseUsesReplacementComposition &&
                 report.faceReplacementLayersClean &&
+                report.faceTransitionLayersFeathered &&
                 report.loadedNeutralLayerCount == report.neutralLayerCount;
             report.activationAllowed = false;
             report.errors = errors.ToArray();
@@ -563,10 +568,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             IDictionary<string, Color32[]> faceLayerCrops,
             ICollection<string> errors,
             out bool usesReplacementComposition,
-            out bool replacementLayersClean)
+            out bool replacementLayersClean,
+            out bool transitionLayersFeathered)
         {
             usesReplacementComposition = false;
             replacementLayersClean = false;
+            transitionLayersFeathered = false;
             Color32[][] poses =
             {
                 BuildReplacementPoseComposite(
@@ -618,6 +625,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 ValidateFaceReplacementLayerCrops(
                     faceLayerCrops,
                     errors);
+            transitionLayersFeathered =
+                ValidateFaceTransitionLayerCrops(
+                    faceLayerCrops,
+                    errors);
             int sheetWidth = FaceCropWidth * FacePoseCount;
             Color32[] result =
                 new Color32[sheetWidth * FaceCropHeight];
@@ -666,8 +677,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             string[] paths =
             {
+                "Face/EyeWhiteL",
+                "Face/EyeWhiteR",
+                "Face/IrisL",
+                "Face/IrisR",
                 "Face/LidL",
                 "Face/LidR",
+                "Face/MouthClosed",
                 "Face/MouthOpen",
                 "Face/MouthSmile"
             };
@@ -675,6 +691,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 new(.438f, .164f, .063f, .045f),
                 new(.499f, .164f, .063f, .045f),
+                new(.438f, .164f, .063f, .045f),
+                new(.499f, .164f, .063f, .045f),
+                new(.438f, .164f, .063f, .045f),
+                new(.499f, .164f, .063f, .045f),
+                new(.452f, .198f, .096f, .052f),
                 new(.452f, .198f, .096f, .052f),
                 new(.452f, .198f, .096f, .052f)
             };
@@ -762,6 +783,138 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             return clean;
+        }
+
+        private static bool ValidateFaceTransitionLayerCrops(
+            IDictionary<string, Color32[]> faceLayerCrops,
+            ICollection<string> errors)
+        {
+            string[] paths =
+            {
+                "Face/CheekL",
+                "Face/CheekR",
+                "Face/CheekL",
+                "Face/CheekR"
+            };
+            Rect[] regions =
+            {
+                new(.438f, .164f, .063f, .045f),
+                new(.499f, .164f, .063f, .045f),
+                new(.452f, .198f, .096f, .052f),
+                new(.452f, .198f, .096f, .052f)
+            };
+
+            bool feathered = true;
+            int cropBottom =
+                ExpectedHeight - FaceCropTop - FaceCropHeight;
+            const int maximumHardCutPixels = 6;
+            for (int i = 0; i < paths.Length; i++)
+            {
+                if (!faceLayerCrops.TryGetValue(
+                        paths[i],
+                        out Color32[] crop) ||
+                    crop == null ||
+                    crop.Length != FaceCropWidth * FaceCropHeight)
+                {
+                    feathered = false;
+                    continue;
+                }
+
+                GetFaceRegionBounds(
+                    regions[i],
+                    cropBottom,
+                    out int minX,
+                    out int maxX,
+                    out int minY,
+                    out int maxY);
+                int hardCutPixels = CountHardAlphaCutPixels(
+                    crop,
+                    minX,
+                    maxX,
+                    minY,
+                    maxY);
+                if (hardCutPixels <= maximumHardCutPixels)
+                {
+                    continue;
+                }
+
+                feathered = false;
+                errors.Add(
+                    paths[i] + " failed face-transition QA with " +
+                    hardCutPixels +
+                    " abrupt transparent-to-opaque pixels on a rectangular " +
+                    "patch border. Neutral feature removal must be " +
+                    "elliptically feathered.");
+            }
+
+            return feathered;
+        }
+
+        private static int CountHardAlphaCutPixels(
+            IReadOnlyList<Color32> crop,
+            int minX,
+            int maxX,
+            int minY,
+            int maxY)
+        {
+            int count = 0;
+            if (minY > 0)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    count += IsHardAlphaCut(
+                        crop[minY * FaceCropWidth + x].a,
+                        crop[(minY - 1) * FaceCropWidth + x].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            if (maxY < FaceCropHeight - 1)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    count += IsHardAlphaCut(
+                        crop[maxY * FaceCropWidth + x].a,
+                        crop[(maxY + 1) * FaceCropWidth + x].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            if (minX > 0)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    count += IsHardAlphaCut(
+                        crop[y * FaceCropWidth + minX].a,
+                        crop[y * FaceCropWidth + minX - 1].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            if (maxX < FaceCropWidth - 1)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    count += IsHardAlphaCut(
+                        crop[y * FaceCropWidth + maxX].a,
+                        crop[y * FaceCropWidth + maxX + 1].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            return count;
+        }
+
+        private static bool IsHardAlphaCut(
+            byte insideAlpha,
+            byte outsideAlpha)
+        {
+            return insideAlpha <= VisibleThreshold &&
+                   outsideAlpha >= 64;
         }
 
         private static void GetFaceRegionBounds(

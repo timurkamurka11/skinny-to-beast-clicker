@@ -12,7 +12,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        private const string RunId = "seamless-face-replacements-v2";
+        private const string RunId = "feathered-face-transitions-v3";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -57,9 +57,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic seamless-face pass started: restoring the " +
+                    "Patch 4 automatic feathered-face pass started: restoring the " +
                     "repository master, rebaking all 40 layers with hidden " +
-                    "continuations and true replacement facial poses, rebuilding " +
+                    "continuations, feature-only neutral eyes/mouth and softly " +
+                    "feathered facial transitions, rebuilding " +
                     "the locked runtime prefab and running the full " +
                     "verification. Both review windows will open automatically.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())

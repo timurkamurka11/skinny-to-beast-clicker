@@ -189,7 +189,30 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Reduced the open mouth and changed the smile to a smaller painted closed
   expression.
 - [x] Kept `productionArtApproved` false and Patch 3.5 visible.
-- [ ] Confirm P4.0-J in Unity `6000.3.19f1` with automatic `4/4` verification
-  and the new seam-free face close-up.
+- [x] Fixed the one compile-time collection-interface mismatch found by real
+  Unity import.
+- [x] Confirmed P4.0-J in Unity `6000.3.19f1`: automatic EditMode `4 passed`,
+  PlayMode `4 passed`, zero warnings/errors and the face close-up opened.
+- [x] Rejected P4.0-J during human visual review because smaller light
+  rectangles remained around closed eyes, open mouth and smile.
+
+## 2026-07-30 — P4.0-K feathered face transitions
+
+- [x] Replaced rectangular neutral eye/mouth copies with transparent
+  high-detail extraction against the deterministic inpainted skin field.
+- [x] Constrained every neutral feature with a soft ellipse that reaches zero
+  alpha before the old rectangular patch border.
+- [x] Replaced hard rectangular cheek clearing with feathered elliptical alpha
+  removal.
+- [x] Extended sparse-alpha validation to all nine neutral and alternate
+  swappable facial feature layers.
+- [x] Added blocking hard-alpha-cut checks along both eye regions and the mouth
+  region in both cheek layers.
+- [x] Added `faceTransitionLayersFeathered` to locked neutral QA and Editor
+  smoke validation.
+- [x] Advanced automatic continuation to the P4.0-K run id.
+- [x] Kept `productionArtApproved` false and Patch 3.5 visible.
+- [ ] Confirm P4.0-K in Unity `6000.3.19f1` with automatic `4/4` verification
+  and a close-up with no rectangular or elliptical halo.
 - [ ] Complete Sprite Skin weight painting after the candidate art passes
   visual review.

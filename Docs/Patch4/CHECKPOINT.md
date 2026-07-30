@@ -435,6 +435,43 @@ The corrective candidate pass removes the source of the rectangles:
 - the open mouth is smaller and the smile is a restrained painted closed smile;
 - readiness and runtime activation remain locked.
 
+Unity `6000.3.19f1` initially exposed a single compile-time collection-interface
+mismatch in the new QA call. Commit `06e63fa` fixed that signature without
+changing behavior. The automatic continuation then completed with:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- the four-panel face review opened automatically.
+
+The result was substantially better than P4.0-I, but still failed human visual
+review. Smaller light rectangles remained around closed eyes, the open mouth
+and the smile. Alternate lid and mouth layers were already feature-only. The
+remaining seams came from rectangular neutral eye/mouth master copies and hard
+rectangular alpha cuts in both cheek layers. Patch 4 remained locked.
+
+## P4.0-K feathered face transitions
+
+The next corrective candidate pass removes both remaining rectangular
+operations:
+
+- neutral eye and closed-mouth layers are extracted as transparent high-detail
+  features by comparing the exact master against the deterministic inpainted
+  skin field;
+- extraction is constrained by a softly feathered ellipse, so no neutral
+  feature reaches the old rectangular region border;
+- both cheek layers remove neutral features with an elliptical alpha feather
+  instead of clearing a rectangle;
+- all nine swappable neutral and alternate feature layers are checked for
+  sparse alpha, rectangular-border contact and paint outside their face region;
+- draft and neutral-pose QA count abrupt transparent-to-opaque pixels along
+  every former eye/mouth rectangle and block more than six;
+- the neutral-pose and Editor smoke reports now require
+  `faceTransitionLayersFeathered: true`;
+- the automatic run id is advanced so one pull performs the complete rebake,
+  safety validation and `4/4` test sequence;
+- readiness and runtime activation remain locked.
+
 ## Production dashboard
 
 Open in Unity:
@@ -494,11 +531,11 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-J seamless-replacement commit into Unity `6000.3.19f1`.
+1. Pull the P4.0-K feathered-transition commit into Unity `6000.3.19f1`.
 2. Let `Patch4AutoContinuation` verify/restore the exact source, regenerate
-   masks and all 40 layers, paint the joint/face replacements, assemble the
-   neutral pose, write both review previews and run all validations without
-   manual clicks.
+   masks and all 40 layers, paint the feature-only neutral/alternate face
+   layers, assemble the neutral pose, write both review previews and run all
+   validations without manual clicks.
 3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
 4. Inspect the automatically focused neutral / blink / open-mouth / smile
    close-ups and the neutral comparison behind them.
@@ -523,7 +560,10 @@ Detailed verification instructions:
   are not committed as binary repository assets.
 - P4.0-I passed local Unity `4/4`, but its face close-up failed human review
   because alternate expressions contained visible rectangular skin backings.
-- P4.0-J has not yet received its local Unity `4/4` run and close-up review.
+- P4.0-J passed local Unity `4/4`, but its face close-up still failed human
+  review because neutral feature copies and cheek exclusions left smaller
+  rectangular seams.
+- P4.0-K has not yet received its local Unity `4/4` run and close-up review.
 - Sprite Skin weight painting has not yet been completed.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.

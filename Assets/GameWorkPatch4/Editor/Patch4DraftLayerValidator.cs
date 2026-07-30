@@ -72,6 +72,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
         }
 
+        private readonly struct FaceTransitionCheck
+        {
+            public readonly string path;
+            public readonly Rect normalizedTopRegion;
+
+            public FaceTransitionCheck(
+                string path,
+                Rect normalizedTopRegion)
+            {
+                this.path = path;
+                this.normalizedTopRegion = normalizedTopRegion;
+            }
+        }
+
         [MenuItem("Tools/GameWork/Patch 4.0/Validate/Draft Layer Pack")]
         public static void ValidateAndWriteReport()
         {
@@ -126,6 +140,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             ValidateFaceReplacementLayers(layers, errors);
+            ValidateFaceTransitionLayers(layers, errors);
 
             float coverage = 0f;
             float leakage = 0f;
@@ -256,11 +271,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             FaceReplacementCheck[] checks =
             {
                 new(
+                    "Face/EyeWhiteL",
+                    new Rect(.438f, .164f, .063f, .045f)),
+                new(
+                    "Face/EyeWhiteR",
+                    new Rect(.499f, .164f, .063f, .045f)),
+                new(
+                    "Face/IrisL",
+                    new Rect(.438f, .164f, .063f, .045f)),
+                new(
+                    "Face/IrisR",
+                    new Rect(.499f, .164f, .063f, .045f)),
+                new(
                     "Face/LidL",
                     new Rect(.438f, .164f, .063f, .045f)),
                 new(
                     "Face/LidR",
                     new Rect(.499f, .164f, .063f, .045f)),
+                new(
+                    "Face/MouthClosed",
+                    new Rect(.452f, .198f, .096f, .052f)),
                 new(
                     "Face/MouthOpen",
                     new Rect(.452f, .198f, .096f, .052f)),
@@ -329,6 +359,128 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         "contain only their painted feature.");
                 }
             }
+        }
+
+        private static void ValidateFaceTransitionLayers(
+            IReadOnlyDictionary<string, ImageData> layers,
+            ICollection<string> errors)
+        {
+            FaceTransitionCheck[] checks =
+            {
+                new(
+                    "Face/CheekL",
+                    new Rect(.438f, .164f, .063f, .045f)),
+                new(
+                    "Face/CheekR",
+                    new Rect(.499f, .164f, .063f, .045f)),
+                new(
+                    "Face/CheekL",
+                    new Rect(.452f, .198f, .096f, .052f)),
+                new(
+                    "Face/CheekR",
+                    new Rect(.452f, .198f, .096f, .052f))
+            };
+
+            const int maximumHardCutPixels = 6;
+            for (int i = 0; i < checks.Length; i++)
+            {
+                FaceTransitionCheck check = checks[i];
+                if (!layers.TryGetValue(
+                        check.path,
+                        out ImageData layer))
+                {
+                    continue;
+                }
+
+                int hardCutPixels = CountHardAlphaCutPixels(
+                    layer,
+                    check.normalizedTopRegion);
+                if (hardCutPixels <= maximumHardCutPixels)
+                {
+                    continue;
+                }
+
+                errors.Add(
+                    $"Layer {check.path} has {hardCutPixels} abrupt " +
+                    "transparent-to-opaque pixels on a face patch border. " +
+                    "Neutral feature removal must use an elliptical feather, " +
+                    "never a rectangular cut.");
+            }
+        }
+
+        private static int CountHardAlphaCutPixels(
+            ImageData layer,
+            Rect region)
+        {
+            GetPixelBounds(
+                region,
+                out int minX,
+                out int maxX,
+                out int minY,
+                out int maxY);
+            int count = 0;
+
+            if (minY > 0)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    count += IsHardAlphaCut(
+                        layer.pixels[minY * ExpectedWidth + x].a,
+                        layer.pixels[
+                            (minY - 1) * ExpectedWidth + x].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            if (maxY < ExpectedHeight - 1)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    count += IsHardAlphaCut(
+                        layer.pixels[maxY * ExpectedWidth + x].a,
+                        layer.pixels[
+                            (maxY + 1) * ExpectedWidth + x].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            if (minX > 0)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    count += IsHardAlphaCut(
+                        layer.pixels[y * ExpectedWidth + minX].a,
+                        layer.pixels[
+                            y * ExpectedWidth + minX - 1].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            if (maxX < ExpectedWidth - 1)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    count += IsHardAlphaCut(
+                        layer.pixels[y * ExpectedWidth + maxX].a,
+                        layer.pixels[
+                            y * ExpectedWidth + maxX + 1].a)
+                        ? 1
+                        : 0;
+                }
+            }
+
+            return count;
+        }
+
+        private static bool IsHardAlphaCut(
+            byte insideAlpha,
+            byte outsideAlpha)
+        {
+            return insideAlpha <= VisibleThreshold &&
+                   outsideAlpha >= 64;
         }
 
         private static int CountLocalOverlap(

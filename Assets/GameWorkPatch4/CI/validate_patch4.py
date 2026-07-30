@@ -245,7 +245,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            'RunId = "seamless-face-replacements-v2"',
+            'RunId = "feathered-face-transitions-v3"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -375,8 +375,10 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "report.facePosePreviewCreated = true",
             "report.facePoseUsesReplacementComposition",
             "report.faceReplacementLayersClean",
+            "report.faceTransitionLayersFeathered",
             "BuildReplacementPoseComposite(",
             "ValidateFaceReplacementLayerCrops(",
+            "ValidateFaceTransitionLayerCrops(",
         )
         for snippet in required_snippets:
             if snippet not in validator:
@@ -422,6 +424,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         for required in (
             "PaintJointContinuation(",
             "PaintSkinUnderlay(",
+            "ExtractMasterFeature(",
+            "FeatherClearFeature(",
             "SolveSkinInpaint(",
             "PaintClosedLid(",
             "PaintOpenMouth(",
@@ -433,6 +437,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Legacy five-pixel joint scaffolding is still present")
         if "overlayOnly: true" in baker:
             fail(errors, "Alternate facial layers still contain opaque backing patches")
+        if "CopyMasterPatch(" in baker or "ClearPatch(" in baker:
+            fail(errors, "Face swapping still uses a hard rectangular copy or cut")
 
     face = read_text(
         root,
@@ -454,8 +460,11 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
         errors,
     )
-    if draft_validator and "ValidateFaceReplacementLayers(" not in draft_validator:
-        fail(errors, "Draft validation does not reject rectangular face backings")
+    if draft_validator:
+        if "ValidateFaceReplacementLayers(" not in draft_validator:
+            fail(errors, "Draft validation does not reject rectangular face backings")
+        if "ValidateFaceTransitionLayers(" not in draft_validator:
+            fail(errors, "Draft validation does not reject hard face-transition cuts")
 
 
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:

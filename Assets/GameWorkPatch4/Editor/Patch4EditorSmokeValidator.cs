@@ -29,6 +29,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool facePosePreviewCreated;
             public bool facePoseUsesReplacementComposition;
             public bool faceReplacementLayersClean;
+            public bool faceTransitionLayersFeathered;
             public bool humanReviewRequired;
             public bool activationAllowed;
         }
@@ -57,6 +58,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool facePosePreviewCreated;
             public bool facePoseUsesReplacementComposition;
             public bool faceReplacementLayersClean;
+            public bool faceTransitionLayersFeathered;
             public bool neutralPoseHumanReviewRequired;
             public bool neutralPoseActivationBlocked;
             public List<Finding> findings = new();
@@ -194,6 +196,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 gate.facePoseUsesReplacementComposition;
             report.faceReplacementLayersClean =
                 gate.faceReplacementLayersClean;
+            report.faceTransitionLayersFeathered =
+                gate.faceTransitionLayersFeathered;
             report.neutralPoseHumanReviewRequired =
                 gate.humanReviewRequired;
             report.neutralPoseActivationBlocked =
@@ -203,6 +207,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 !report.facePosePreviewCreated ||
                 !report.facePoseUsesReplacementComposition ||
                 !report.faceReplacementLayersClean ||
+                !report.faceTransitionLayersFeathered ||
                 !report.neutralPoseHumanReviewRequired ||
                 !report.neutralPoseActivationBlocked)
             {

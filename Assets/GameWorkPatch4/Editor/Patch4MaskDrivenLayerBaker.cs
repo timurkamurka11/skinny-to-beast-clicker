@@ -46,6 +46,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public Color32[] pixels;
         }
 
+        private sealed class SkinPatchData
+        {
+            public int minX;
+            public int maxX;
+            public int minY;
+            public int maxY;
+            public int width;
+            public int height;
+            public Color32[] colors;
+            public float[] blendCoverage;
+        }
+
         private sealed class Spec
         {
             public string path;
@@ -73,12 +85,43 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
         }
 
+        private readonly struct FaceFeature
+        {
+            public readonly Rect underlayPatch;
+            public readonly Vector2 normalizedTopCenter;
+            public readonly Vector2 radiusPixels;
+
+            public FaceFeature(
+                Rect underlayPatch,
+                float centerX,
+                float centerTopY,
+                float radiusX,
+                float radiusY)
+            {
+                this.underlayPatch = underlayPatch;
+                normalizedTopCenter =
+                    new Vector2(centerX, centerTopY);
+                radiusPixels =
+                    new Vector2(radiusX, radiusY);
+            }
+        }
+
         private static readonly Rect LeftEyePatch =
             new(.438f, .164f, .063f, .045f);
         private static readonly Rect RightEyePatch =
             new(.499f, .164f, .063f, .045f);
         private static readonly Rect MouthPatch =
             new(.452f, .198f, .096f, .052f);
+        private static readonly FaceFeature LeftEyeFeature =
+            new(LeftEyePatch, .4695f, .1855f, 32f, 25f);
+        private static readonly FaceFeature RightEyeFeature =
+            new(RightEyePatch, .5305f, .1855f, 32f, 25f);
+        private static readonly FaceFeature LeftIrisFeature =
+            new(LeftEyePatch, .4775f, .1865f, 12f, 17f);
+        private static readonly FaceFeature RightIrisFeature =
+            new(RightEyePatch, .5235f, .1865f, 12f, 17f);
+        private static readonly FaceFeature ClosedMouthFeature =
+            new(MouthPatch, .5f, .220f, 40f, 24f);
 
         [MenuItem("Tools/GameWork/Patch 4.0/Art/Bake Draft Layer Pack")]
         public static void BakeDraftLayerPack()
@@ -393,11 +436,31 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     break;
 
                 case "Face/EyeWhiteL":
-                    CopyMasterPatch(master, result, LeftEyePatch);
+                    ExtractMasterFeature(
+                        master,
+                        result,
+                        LeftEyeFeature);
                     break;
 
                 case "Face/EyeWhiteR":
-                    CopyMasterPatch(master, result, RightEyePatch);
+                    ExtractMasterFeature(
+                        master,
+                        result,
+                        RightEyeFeature);
+                    break;
+
+                case "Face/IrisL":
+                    ExtractMasterFeature(
+                        master,
+                        result,
+                        LeftIrisFeature);
+                    break;
+
+                case "Face/IrisR":
+                    ExtractMasterFeature(
+                        master,
+                        result,
+                        RightIrisFeature);
                     break;
 
                 case "Face/LidL":
@@ -411,7 +474,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     break;
 
                 case "Face/MouthClosed":
-                    CopyMasterPatch(master, result, MouthPatch);
+                    ExtractMasterFeature(
+                        master,
+                        result,
+                        ClosedMouthFeature);
                     break;
 
                 case "Face/MouthOpen":
@@ -425,54 +491,155 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     break;
 
                 case "Face/CheekL":
-                    ClearPatch(result, LeftEyePatch);
-                    ClearPatch(result, MouthPatch);
+                    FeatherClearFeature(
+                        result,
+                        LeftEyeFeature);
+                    FeatherClearFeature(
+                        result,
+                        ClosedMouthFeature);
                     break;
 
                 case "Face/CheekR":
-                    ClearPatch(result, RightEyePatch);
-                    ClearPatch(result, MouthPatch);
+                    FeatherClearFeature(
+                        result,
+                        RightEyeFeature);
+                    FeatherClearFeature(
+                        result,
+                        ClosedMouthFeature);
                     break;
             }
         }
 
-        private static void CopyMasterPatch(
+        private static void ExtractMasterFeature(
             ImageData master,
             Color32[] result,
-            Rect patch)
+            FaceFeature feature)
         {
             ClearLayer(result);
-            GetPixelBounds(
-                patch,
-                out int minX,
-                out int maxX,
-                out int minY,
-                out int maxY);
-            for (int y = minY; y <= maxY; y++)
+            SkinPatchData patch = BuildSkinPatch(
+                master,
+                feature.underlayPatch);
+            Vector2 center = ToPixel(
+                feature.normalizedTopCenter.x,
+                feature.normalizedTopCenter.y);
+
+            for (int y = patch.minY; y <= patch.maxY; y++)
             {
-                for (int x = minX; x <= maxX; x++)
+                for (int x = patch.minX; x <= patch.maxX; x++)
                 {
-                    int index = y * Width + x;
-                    result[index] = master.pixels[index];
+                    int localIndex =
+                        (y - patch.minY) * patch.width +
+                        x - patch.minX;
+                    int sourceIndex = y * Width + x;
+                    Color32 source = master.pixels[sourceIndex];
+                    Color32 skin = patch.colors[localIndex];
+                    int colorDifference = Mathf.Max(
+                        Mathf.Abs(source.r - skin.r),
+                        Mathf.Max(
+                            Mathf.Abs(source.g - skin.g),
+                            Mathf.Abs(source.b - skin.b)));
+                    float detailCoverage =
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            Mathf.InverseLerp(
+                                14f,
+                                38f,
+                                colorDifference));
+                    float dx =
+                        (x - center.x) /
+                        Mathf.Max(1f, feature.radiusPixels.x);
+                    float dy =
+                        (y - center.y) /
+                        Mathf.Max(1f, feature.radiusPixels.y);
+                    float distance = Mathf.Sqrt(
+                        dx * dx + dy * dy);
+                    float shapeCoverage =
+                        1f -
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            Mathf.InverseLerp(
+                                .72f,
+                                1f,
+                                distance));
+                    float coverage =
+                        detailCoverage * shapeCoverage;
+                    if (coverage <= .01f)
+                    {
+                        continue;
+                    }
+
+                    source.a = ScaleAlpha(
+                        source.a,
+                        coverage);
+                    if (source.a > 0)
+                    {
+                        result[sourceIndex] = source;
+                    }
                 }
             }
         }
 
-        private static void ClearPatch(
+        private static void FeatherClearFeature(
             Color32[] result,
-            Rect patch)
+            FaceFeature feature)
         {
-            GetPixelBounds(
-                patch,
-                out int minX,
-                out int maxX,
-                out int minY,
-                out int maxY);
+            Vector2 center = ToPixel(
+                feature.normalizedTopCenter.x,
+                feature.normalizedTopCenter.y);
+            int minX = Mathf.Max(
+                0,
+                Mathf.FloorToInt(
+                    center.x - feature.radiusPixels.x - 1f));
+            int maxX = Mathf.Min(
+                Width - 1,
+                Mathf.CeilToInt(
+                    center.x + feature.radiusPixels.x + 1f));
+            int minY = Mathf.Max(
+                0,
+                Mathf.FloorToInt(
+                    center.y - feature.radiusPixels.y - 1f));
+            int maxY = Mathf.Min(
+                Height - 1,
+                Mathf.CeilToInt(
+                    center.y + feature.radiusPixels.y + 1f));
+
             for (int y = minY; y <= maxY; y++)
             {
                 for (int x = minX; x <= maxX; x++)
                 {
-                    result[y * Width + x] = default;
+                    float dx =
+                        (x - center.x) /
+                        Mathf.Max(1f, feature.radiusPixels.x);
+                    float dy =
+                        (y - center.y) /
+                        Mathf.Max(1f, feature.radiusPixels.y);
+                    float distance = Mathf.Sqrt(
+                        dx * dx + dy * dy);
+                    if (distance >= 1f)
+                    {
+                        continue;
+                    }
+
+                    float clearCoverage =
+                        1f -
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            Mathf.InverseLerp(
+                                .64f,
+                                1f,
+                                distance));
+                    int index = y * Width + x;
+                    Color32 current = result[index];
+                    current.a = ScaleAlpha(
+                        current.a,
+                        1f - clearCoverage);
+                    result[index] =
+                        current.a <= 8
+                            ? default
+                            : current;
                 }
             }
         }
@@ -480,6 +647,48 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static void PaintSkinUnderlay(
             ImageData master,
             Color32[] result,
+            Rect patch)
+        {
+            SkinPatchData skinPatch =
+                BuildSkinPatch(master, patch);
+
+            for (int y = skinPatch.minY;
+                 y <= skinPatch.maxY;
+                 y++)
+            {
+                for (int x = skinPatch.minX;
+                     x <= skinPatch.maxX;
+                     x++)
+                {
+                    int localIndex =
+                        (y - skinPatch.minY) * skinPatch.width +
+                        x - skinPatch.minX;
+                    float coverage =
+                        skinPatch.blendCoverage[localIndex];
+                    if (coverage <= 0f)
+                    {
+                        continue;
+                    }
+
+                    int resultIndex = y * Width + x;
+                    Color32 current = result[resultIndex];
+                    if (current.a <= 8)
+                    {
+                        continue;
+                    }
+
+                    Color32 skin = skinPatch.colors[localIndex];
+                    skin.a = current.a;
+                    result[resultIndex] = LerpColor(
+                        current,
+                        skin,
+                        coverage);
+                }
+            }
+        }
+
+        private static SkinPatchData BuildSkinPatch(
+            ImageData master,
             Rect patch)
         {
             GetPixelBounds(
@@ -552,34 +761,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 localWidth,
                 localHeight);
 
-            for (int y = minY; y <= maxY; y++)
+            return new SkinPatchData
             {
-                for (int x = minX; x <= maxX; x++)
-                {
-                    int localIndex =
-                        (y - minY) * localWidth +
-                        x - minX;
-                    float coverage = blendCoverage[localIndex];
-                    if (coverage <= 0f)
-                    {
-                        continue;
-                    }
-
-                    int resultIndex = y * Width + x;
-                    Color32 current = result[resultIndex];
-                    if (current.a <= 8)
-                    {
-                        continue;
-                    }
-
-                    Color32 skin = skinField[localIndex];
-                    skin.a = current.a;
-                    result[resultIndex] = LerpColor(
-                        current,
-                        skin,
-                        coverage);
-                }
-            }
+                minX = minX,
+                maxX = maxX,
+                minY = minY,
+                maxY = maxY,
+                width = localWidth,
+                height = localHeight,
+                colors = skinField,
+                blendCoverage = blendCoverage
+            };
         }
 
         private static void SolveSkinInpaint(
