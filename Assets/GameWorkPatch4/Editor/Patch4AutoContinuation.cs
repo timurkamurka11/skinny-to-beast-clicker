@@ -12,7 +12,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        private const string RunId = "feathered-face-transitions-v3";
+        private const string RunId =
+            "weighted-canvas-room-animation-review-v4";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -57,12 +58,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic feathered-face pass started: restoring the " +
-                    "repository master, rebaking all 40 layers with hidden " +
-                    "continuations, feature-only neutral eyes/mouth and softly " +
-                    "feathered facial transitions, rebuilding " +
-                    "the locked runtime prefab and running the full " +
-                    "verification. Both review windows will open automatically.");
+                    "Patch 4 automatic weighted-animation pass started: restoring " +
+                    "the repository master, rebaking all 40 layers, rebuilding " +
+                    "the locked runtime prefab with Canvas bone-weight grids and " +
+                    "running the full verification. After 4/4, Unity will open " +
+                    "the real LivingGameplayScene, review all ten clips, restore " +
+                    "Patch 3.5 and open the three read-only review windows.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(

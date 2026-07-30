@@ -377,7 +377,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report.playMode.resultState + ". Report: " + ReportPath);
             }
 
-            EditorApplication.delayCall += OpenResults;
+            if (report.passed)
+            {
+                EditorApplication.delayCall +=
+                    StartRoomReviewAfterTests;
+            }
+            else
+            {
+                EditorApplication.delayCall += OpenResults;
+            }
         }
 
         private static TestReport ReadReport()
@@ -474,6 +482,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorApplication.ExecuteMenuItem("Window/General/Console");
             Patch4NeutralPoseReviewWindow.Open();
             Patch4FacePoseReviewWindow.Open();
+        }
+
+        private static void StartRoomReviewAfterTests()
+        {
+            EditorApplication.delayCall -=
+                StartRoomReviewAfterTests;
+            if (!Patch4AnimationRoomReview.StartAfterTests())
+            {
+                OpenResults();
+            }
         }
     }
 }

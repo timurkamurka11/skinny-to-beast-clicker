@@ -100,6 +100,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             RequireType(
                 "SkinnyToBeast.Gameplay.Patch4.Editor." +
                 "Patch4FacePoseReviewWindow");
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4CanvasSkinDeformer");
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4AnimationRoomReviewDriver");
+            Type animationRoomReview = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4AnimationRoomReview");
+            Assert.NotNull(
+                animationRoomReview.GetMethod(
+                    "StartAfterTests",
+                    BindingFlags.Static | BindingFlags.Public));
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4AnimationRoomReviewWindow");
 
             Type faceController = RequireType(
                 "SkinnyToBeast.Gameplay.Patch4.Patch4FaceController");

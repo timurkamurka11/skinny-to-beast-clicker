@@ -103,6 +103,47 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.Greater(
                     GetFloatProperty(canvasPresentation, "RoomScale"),
                     1f);
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        canvasPresentation,
+                        "SkinBindingsReady"),
+                    "Canvas bone-weight bind poses were not captured.");
+                Assert.AreEqual(
+                    40,
+                    GetIntProperty(
+                        canvasPresentation,
+                        "SkinDeformerCount"));
+                Assert.GreaterOrEqual(
+                    GetIntProperty(
+                        canvasPresentation,
+                        "WeightedLayerCount"),
+                    20,
+                    "The painted body and clothing layers need multi-bone " +
+                    "Canvas weights.");
+
+                Type canvasSkinType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CanvasSkinDeformer");
+                Component[] canvasSkins =
+                    patchVisual.GetComponentsInChildren(
+                        canvasSkinType,
+                        true);
+                Assert.AreEqual(
+                    40,
+                    canvasSkins.Length,
+                    "Each required UI Image needs one Canvas skin deformer.");
+                Assert.IsTrue(
+                    canvasSkins.All(
+                        skin =>
+                            GetBoolProperty(skin, "IsBound")),
+                    "Every Canvas skin deformer must retain a valid bind pose.");
+                Assert.GreaterOrEqual(
+                    canvasSkins.Count(
+                        skin =>
+                            GetBoolProperty(
+                                skin,
+                                "HasMultipleBoneWeights")),
+                    20);
 
                 Vector3 localScale = patchInstance.localScale;
                 Assert.AreEqual(

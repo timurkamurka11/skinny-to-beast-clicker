@@ -88,7 +88,8 @@ Important commits in that path include:
 - `c596512` — locked runtime installation in `LivingGameplayScene`;
 - `0386784` — Canvas-compatible 40-layer room presentation;
 - `5ea24ef` — locked neutral-pose review and automatic `4/4` verification;
-- `e25763d` — exact 1024 × 1536 repository quality master.
+- `e25763d` — exact 1024 × 1536 repository quality master;
+- `20c4e43` — feathered feature-only face transitions.
 
 ## Real Unity test result
 
@@ -279,9 +280,9 @@ the remaining seam came from two neutral-state operations:
 
 Technical `4/4` therefore did not approve the art. Patch 4 stayed locked.
 
-## Current P4.0-K feathered face-transition pass
+## P4.0-K feathered face-transition pass verified
 
-The next corrective pass:
+The corrective pass:
 
 - keeps the verified joint continuations from P4.0-I;
 - keeps the elliptical boundary-driven inpainting inside `Head/HeadBase`;
@@ -304,9 +305,44 @@ The next corrective pass:
   `faceTransitionLayersFeathered: true`, in the locked QA report;
 - keeps `humanReviewRequired: true` and `activationAllowed: false`.
 
+Unity `6000.3.19f1` then confirmed:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- neutral, blink, open-mouth and smile all retained the same face;
+- the former rectangular and elliptical halos around eyes and mouths were no
+  longer visible in the close-up supplied by the user;
+- Patch 4 remained locked and Patch 3.5 remained active.
+
+This completes the face-transition correction. It does not approve production
+art.
+
+## Current P4.0-L weighted Canvas animation-review pass
+
+The next isolated pass:
+
+- adds `Patch4CanvasSkinDeformer`, a Canvas-compatible equivalent of Sprite
+  Skin for the actual `UI.Image` presentation used in the room;
+- gives every one of the 40 layers a deterministic skin binding;
+- replaces rigid four-corner rendering on body, clothing and limb layers with
+  subdivided grids and distance-painted weights across adjacent Patch 4 bones;
+- re-captures bind poses after the character is fitted to the
+  `LivingGameplayScene` Canvas;
+- validates all 40 bindings, at least 20 multi-bone layers and the weighted
+  torso, belly, chest, shirt, arms and legs;
+- keeps ordinary SpriteRenderer fallbacks disabled;
+- starts an Editor-only actual-room review after the passing automatic `4/4`;
+- creates `LivingGameplayScene` through its existing public runtime path,
+  cycles all ten required clips, captures one real-room frame per clip and
+  writes a read-only contact sheet;
+- never calls `SetPatch4Enabled(true)` and never changes readiness;
+- restores Patch 3.5, hides Patch 4 and exits Play Mode before opening the
+  review result.
+
 ## Exact next action
 
-After the P4.0-K commit is present on `patch-4.0`, run only:
+After the P4.0-L commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -316,14 +352,18 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. paint the hidden continuations and four feathered replacement face states;
-4. rebuild the resource-loadable locked prefab;
+3. preserve the verified hidden continuations and feathered face states;
+4. rebuild the resource-loadable locked prefab with Canvas bone-weight grids;
 5. assemble and compare the locked neutral pose;
 6. write the neutral and four-expression review images;
-7. run pixel, rig, compilation and Editor smoke validation;
-8. run all EditMode tests;
-9. enter Play Mode and run all PlayMode tests;
-10. exit Play Mode and open both read-only review windows.
+7. validate all 40 skin bindings and multi-bone weight maps;
+8. run pixel, rig, compilation and Editor smoke validation;
+9. run all EditMode tests;
+10. enter Play Mode and run all PlayMode tests;
+11. after `4/4`, enter Play Mode again and create the actual gameplay room;
+12. play and capture all ten Patch 4 clips in locked Editor review mode;
+13. restore Patch 3.5, exit Play Mode and open all three read-only review
+    windows.
 
 Expected final count:
 
@@ -331,10 +371,10 @@ Expected final count:
 EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-No Dashboard, Test Runner or review-window click is required. Inspect the
-automatically focused face window: neutral, blink, open mouth and smile must
-look like the same character without rectangular seams. The neutral comparison
-window remains open behind it.
+No Dashboard, Test Runner, Play button or review-window click is required.
+Unity will briefly show the real room while it cycles the clips. Inspect the
+automatically focused 5 × 2 animation contact sheet after Unity returns to Edit
+Mode. The face and neutral windows remain open behind it.
 
 ## Do not do yet
 
@@ -344,12 +384,11 @@ window remains open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-K 4/4 test
+## Work after the P4.0-L automatic room review
 
-- Inspect the automatically opened face close-ups and neutral comparison while
+- Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.
-- If the facial paint or joint deformation needs revision, keep the gate
-  locked and revise the candidate pass.
-- Complete Sprite Skin weight painting.
-- Review all ten animations in the actual room.
+- Reject and revise any exposed joint, detached layer, excessive stretch,
+  overlap, foot slide or collapse at an animation extreme.
+- Keep the Canvas weight maps locked until the ten motions pass human review.
 - Approve readiness only after technical and human visual review.

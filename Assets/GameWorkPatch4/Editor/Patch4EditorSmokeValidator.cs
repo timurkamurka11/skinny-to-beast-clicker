@@ -52,6 +52,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool runtimeResourceLoadable;
             public bool canvasPresentationPrepared;
             public int canvasLayerCount;
+            public bool canvasSkinBindingsReady;
+            public int canvasSkinDeformerCount;
+            public int weightedCanvasLayerCount;
+            public int canvasSkinVertexCount;
             public int fallbackSpriteRendererCount;
             public bool fallbackSpriteRenderersDisabled;
             public bool neutralPoseTechnicalChecksPassed;
@@ -405,6 +409,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             report.canvasPresentationPrepared =
                 presentation.RebuildCanvasLayers();
             report.canvasLayerCount = presentation.ImageCount;
+            report.canvasSkinBindingsReady =
+                presentation.SkinBindingsReady;
+            report.canvasSkinDeformerCount =
+                presentation.SkinDeformerCount;
+            report.weightedCanvasLayerCount =
+                presentation.WeightedLayerCount;
 
             if (!report.canvasPresentationPrepared ||
                 report.canvasLayerCount !=
@@ -418,6 +428,66 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     Patch4RigContract.RequiredLayerPaths.Count +
                     " required UI Images. Missing: " +
                     string.Join(", ", presentation.MissingLayers));
+            }
+
+            Patch4CanvasSkinDeformer[] skinDeformers =
+                contents.GetComponentsInChildren<
+                    Patch4CanvasSkinDeformer>(true);
+            report.canvasSkinVertexCount = skinDeformers.Sum(
+                deformer =>
+                    deformer != null
+                        ? deformer.ExpectedVertexCount
+                        : 0);
+            bool allSkinBindingsReady =
+                skinDeformers.All(
+                    deformer =>
+                        deformer != null &&
+                        deformer.IsBound);
+            bool coreSoftLayersWeighted =
+                HasWeightedSkin(
+                    skinDeformers,
+                    "Body/TorsoBase") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "Body/BellyFront") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "Body/ChestSoft") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "Clothes/ShirtBase") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "Clothes/ShirtBellyOverlay") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "ArmL/Upper") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "ArmR/Upper") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "LegL/Thigh") &&
+                HasWeightedSkin(
+                    skinDeformers,
+                    "LegR/Thigh");
+
+            if (!report.canvasSkinBindingsReady ||
+                !allSkinBindingsReady ||
+                report.canvasSkinDeformerCount !=
+                Patch4RigContract.RequiredLayerPaths.Count ||
+                skinDeformers.Length !=
+                Patch4RigContract.RequiredLayerPaths.Count ||
+                report.weightedCanvasLayerCount < 20 ||
+                report.canvasSkinVertexCount < 1800 ||
+                !coreSoftLayersWeighted)
+            {
+                AddError(
+                    report,
+                    "CANVAS_SKINNING_INCOMPLETE",
+                    "All 40 Canvas layers must have captured skin bindings; " +
+                    "at least 20 body, clothing and limb layers must use " +
+                    "multi-bone weight-painted grids.");
             }
 
             Image[] canvasImages =
@@ -456,6 +526,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "All 40 SpriteRenderer fallback layers must exist and " +
                     "stay disabled when the Canvas presentation is prepared.");
             }
+        }
+
+        private static bool HasWeightedSkin(
+            IEnumerable<Patch4CanvasSkinDeformer> deformers,
+            string contractPath)
+        {
+            return deformers.Any(
+                deformer =>
+                    deformer != null &&
+                    string.Equals(
+                        deformer.ContractPath,
+                        contractPath,
+                        StringComparison.Ordinal) &&
+                    deformer.HasMultipleBoneWeights &&
+                    deformer.ExpectedVertexCount > 4);
         }
 
         private static int CountTransforms(Transform root)

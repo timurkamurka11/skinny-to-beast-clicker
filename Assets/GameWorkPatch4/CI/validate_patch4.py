@@ -42,12 +42,16 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Runtime/Patch4CharacterRigController.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4ArtReadinessAsset.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4CanvasPresentation.cs",
+    "Assets/GameWorkPatch4/Runtime/Patch4CanvasSkinDeformer.cs",
+    "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
     "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
     "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
     REPOSITORY_MASTER,
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
@@ -245,7 +249,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            'RunId = "feathered-face-transitions-v3"',
+            '"weighted-canvas-room-animation-review-v4"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -287,6 +291,9 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
         "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
         "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
+        "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
     )
     dangerous = re.compile(r"productionArtApproved[^\n]{0,100}(?:=|boolValue\s*=)\s*true", re.IGNORECASE)
     for relative in automatic_files:
@@ -334,6 +341,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "legacyPresentationScale = 0.74f",
             "ConfigureForGameplayRoom(",
             "DisableFallbackSpriteRenderers()",
+            "Patch4CanvasSkinDeformer",
+            "CaptureSkinBindPoses()",
+            "SkinBindingsReady",
+            "ResolveSkinProfile(",
             'FindLayerObject("Face/EyeWhiteL")',
             'FindLayerObject("Face/IrisR")',
         )
@@ -351,6 +362,79 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     if builder and 'PrefabRoot = "Assets/GameWorkPatch4/Resources"' not in builder:
         fail(errors, "Patch 4 prefab must be generated into isolated Resources")
+
+    deformer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4CanvasSkinDeformer.cs",
+        errors,
+    )
+    if deformer:
+        required_snippets = (
+            "class Patch4CanvasSkinDeformer : BaseMeshEffect",
+            "DataUtility.GetOuterUV",
+            "vertexHelper.AddTriangle",
+            "bone.worldToLocalMatrix",
+            "imageTransform.worldToLocalMatrix",
+            "HasMultipleBoneWeights",
+            "CaptureBindPose()",
+        )
+        for snippet in required_snippets:
+            if snippet not in deformer:
+                fail(errors, f"Canvas skin deformer is missing: {snippet}")
+        if "SetPatch4Enabled(" in deformer:
+            fail(errors, "Canvas skin deformer must never change Patch 4 activation")
+
+    review_driver = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
+        errors,
+    )
+    if review_driver:
+        if not review_driver.lstrip().startswith("#if UNITY_EDITOR"):
+            fail(errors, "Locked animation-room driver must be Editor-only")
+        for snippet in (
+            "Patch4RigContract.RequiredClipNames",
+            "ScreenCapture.CaptureScreenshotAsTexture",
+            "humanReviewRequired = true",
+            "activationAllowed = false",
+            "patch35RollbackRoot.SetActive(false)",
+            "patch35RollbackRoot.SetActive(true)",
+            "SetEditorReviewActive(true)",
+            "SetEditorReviewActive(false)",
+        ):
+            if snippet not in review_driver:
+                fail(errors, f"Locked animation-room driver is missing: {snippet}")
+        if "SetPatch4Enabled(true)" in review_driver:
+            fail(errors, "Locked room review must never pass the production gate")
+
+    room_review = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
+        errors,
+    )
+    if room_review:
+        for snippet in (
+            "GameplayWindowController.Show()",
+            "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
+            "Patch4AnimationRoomReviewDriver",
+            "StartAfterTests()",
+            "Patch4AnimationRoomReviewWindow.Open()",
+        ):
+            if snippet not in room_review:
+                fail(errors, f"Actual-room review automation is missing: {snippet}")
+        if "SetPatch4Enabled(true)" in room_review:
+            fail(errors, "Actual-room review automation must not enable Patch 4")
+
+    automated_tests = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AutomatedTestRunner.cs",
+        errors,
+    )
+    if (
+        automated_tests
+        and "Patch4AnimationRoomReview.StartAfterTests()" not in automated_tests
+    ):
+        fail(errors, "Passing 4/4 tests do not start the locked room review")
 
 
 def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
@@ -529,7 +613,8 @@ def main() -> int:
     print("- exact 1024 x 1536 RGBA repository master and SHA verified")
     print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
-    print("- Canvas runtime installation remains locked to rollback mode")
+    print("- Canvas multi-bone grid skinning is bound without an activation API")
+    print("- actual-room ten-clip review is Editor-only and restores rollback mode")
     print("- neutral and independent face-pose QA remain read-only and human-gated")
     print("- protected menu, video, music and settings paths unchanged")
     return 0

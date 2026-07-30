@@ -11,7 +11,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
     ///
     /// Images stay in one flat hierarchy so their canonical sorting order is
     /// deterministic. Their transforms follow the independent rig bones in
-    /// LateUpdate. This component never changes the art-readiness gate and
+    /// LateUpdate, while a Canvas mesh effect blends weighted vertices across
+    /// adjacent bones. This component never changes the art-readiness gate and
     /// never enables Patch 4.
     /// </summary>
     [DefaultExecutionOrder(1200)]
@@ -47,26 +48,68 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public RectTransform followerTransform;
             public RectTransform imageTransform;
             public Image image;
+            public Patch4CanvasSkinDeformer skinDeformer;
+        }
+
+        private sealed class SkinProfile
+        {
+            public readonly string[] boneNames;
+            public readonly int columns;
+            public readonly int rows;
+
+            public SkinProfile(
+                int columns,
+                int rows,
+                params string[] boneNames)
+            {
+                this.columns = columns;
+                this.rows = rows;
+                this.boneNames = boneNames;
+            }
         }
 
         private readonly List<LayerBinding> bindings = new();
         private readonly List<Image> images = new();
+        private readonly List<Patch4CanvasSkinDeformer> skinDeformers = new();
         private readonly List<string> missingLayers = new();
 
         private RectTransform generatedRoot;
         private Canvas hostCanvas;
         private bool prepared;
+        private bool skinBindingsReady;
         private bool gameplayLayoutConfigured;
         private float roomScale;
 
         public bool IsPrepared => prepared;
         public bool IsCanvasReady =>
-            prepared && gameplayLayoutConfigured && hostCanvas != null;
+            prepared &&
+            skinBindingsReady &&
+            gameplayLayoutConfigured &&
+            hostCanvas != null;
         public int ImageCount => images.Count;
         public IReadOnlyList<string> MissingLayers => missingLayers;
         public Canvas HostCanvas => hostCanvas;
         public float RoomScale => roomScale;
         public RectTransform GeneratedRoot => generatedRoot;
+        public int SkinDeformerCount => skinDeformers.Count;
+        public int WeightedLayerCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < skinDeformers.Count; i++)
+                {
+                    if (skinDeformers[i] != null &&
+                        skinDeformers[i].HasMultipleBoneWeights)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+        public bool SkinBindingsReady => skinBindingsReady;
 
         private void Reset()
         {
@@ -95,8 +138,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             ClearGeneratedLayers();
             bindings.Clear();
             images.Clear();
+            skinDeformers.Clear();
             missingLayers.Clear();
             prepared = false;
+            skinBindingsReady = false;
 
             ResolveReferences();
             if (rigController == null ||
@@ -174,6 +219,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 LayerBinding binding = CreateImage(entry, bone);
                 bindings.Add(binding);
                 images.Add(binding.image);
+                skinDeformers.Add(binding.skinDeformer);
             }
 
             DisableFallbackSpriteRenderers();
@@ -185,6 +231,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (prepared)
             {
                 SyncLayerTransforms();
+                skinBindingsReady = CaptureSkinBindPoses();
+                if (!skinBindingsReady)
+                {
+                    AddMissing("<canvasSkinBindPoses>");
+                    prepared = false;
+                }
+
                 BindFaceLayers();
             }
 
@@ -244,14 +297,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
             gameplayLayoutConfigured = true;
             DisableFallbackSpriteRenderers();
             SyncLayerTransforms();
+            skinBindingsReady = CaptureSkinBindPoses();
             return IsCanvasReady;
         }
 
         public void ClearGeneratedLayers()
         {
             prepared = false;
+            skinBindingsReady = false;
             bindings.Clear();
             images.Clear();
+            skinDeformers.Clear();
 
             Transform searchRoot = visualRoot != null
                 ? visualRoot
@@ -299,7 +355,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 LayerPrefix + generatedName,
                 typeof(RectTransform),
                 typeof(CanvasRenderer),
-                typeof(Image));
+                typeof(Image),
+                typeof(Patch4CanvasSkinDeformer));
             layerObject.layer = gameObject.layer;
 
             RectTransform rect =
@@ -328,6 +385,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
             image.preserveAspect = false;
             image.type = Image.Type.Simple;
             image.useSpriteMesh = true;
+
+            Patch4CanvasSkinDeformer skinDeformer =
+                layerObject.GetComponent<Patch4CanvasSkinDeformer>();
+            SkinProfile skinProfile = ResolveSkinProfile(
+                entry.contractPath,
+                entry.parentBone);
+            skinDeformer.Configure(
+                entry.contractPath,
+                sprite,
+                rigController,
+                skinProfile.boneNames,
+                skinProfile.columns,
+                skinProfile.rows);
+
             layerObject.SetActive(
                 IsInitiallyVisible(
                     entry.contractPath,
@@ -339,8 +410,207 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 bone = bone,
                 followerTransform = follower,
                 imageTransform = rect,
-                image = image
+                image = image,
+                skinDeformer = skinDeformer
             };
+        }
+
+        private bool CaptureSkinBindPoses()
+        {
+            if (skinDeformers.Count != images.Count ||
+                skinDeformers.Count == 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < skinDeformers.Count; i++)
+            {
+                Patch4CanvasSkinDeformer deformer = skinDeformers[i];
+                if (deformer == null || !deformer.CaptureBindPose())
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static SkinProfile ResolveSkinProfile(
+            string contractPath,
+            string parentBone)
+        {
+            switch (contractPath)
+            {
+                case "Body/TorsoBase":
+                    return new SkinProfile(
+                        8,
+                        12,
+                        "SpineLower",
+                        "SpineUpper",
+                        "Pelvis",
+                        "BellyBase");
+                case "Body/BellyFront":
+                    return new SkinProfile(
+                        8,
+                        12,
+                        "BellyBase",
+                        "BellyTip",
+                        "SpineLower");
+                case "Body/ChestSoft":
+                    return new SkinProfile(
+                        8,
+                        12,
+                        "SpineUpper",
+                        "ChestSoftL",
+                        "ChestSoftR",
+                        "BellyBase");
+                case "Body/Neck":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "Neck",
+                        "SpineUpper",
+                        "Head");
+                case "Head/HeadBase":
+                case "Head/EarL":
+                case "Head/EarR":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "Head",
+                        "Neck",
+                        "Jaw");
+                case "Face/CheekL":
+                case "Face/CheekR":
+                    return new SkinProfile(
+                        5,
+                        8,
+                        "Head",
+                        "Jaw");
+                case "ArmL/Upper":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "UpperArmL",
+                        "ClavicleL",
+                        "ForearmL");
+                case "ArmL/Forearm":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "ForearmL",
+                        "UpperArmL",
+                        "HandL");
+                case "ArmL/Hand":
+                    return new SkinProfile(
+                        5,
+                        8,
+                        "HandL",
+                        "ForearmL");
+                case "ArmR/Upper":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "UpperArmR",
+                        "ClavicleR",
+                        "ForearmR");
+                case "ArmR/Forearm":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "ForearmR",
+                        "UpperArmR",
+                        "HandR");
+                case "ArmR/Hand":
+                    return new SkinProfile(
+                        5,
+                        8,
+                        "HandR",
+                        "ForearmR");
+                case "LegL/Thigh":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "ThighL",
+                        "Pelvis",
+                        "ShinL");
+                case "LegL/Shin":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "ShinL",
+                        "ThighL",
+                        "FootL");
+                case "LegL/Foot":
+                    return new SkinProfile(
+                        5,
+                        8,
+                        "FootL",
+                        "ShinL");
+                case "LegR/Thigh":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "ThighR",
+                        "Pelvis",
+                        "ShinR");
+                case "LegR/Shin":
+                    return new SkinProfile(
+                        6,
+                        10,
+                        "ShinR",
+                        "ThighR",
+                        "FootR");
+                case "LegR/Foot":
+                    return new SkinProfile(
+                        5,
+                        8,
+                        "FootR",
+                        "ShinR");
+                case "Clothes/ShirtBase":
+                    return new SkinProfile(
+                        8,
+                        12,
+                        "SpineLower",
+                        "SpineUpper",
+                        "BellyBase",
+                        "BellyTip");
+                case "Clothes/ShirtBellyOverlay":
+                    return new SkinProfile(
+                        8,
+                        12,
+                        "BellyBase",
+                        "BellyTip",
+                        "SpineLower");
+                case "Clothes/Bottoms":
+                    return new SkinProfile(
+                        8,
+                        12,
+                        "Pelvis",
+                        "ThighL",
+                        "ThighR",
+                        "SpineLower");
+                case "Clothes/Shoes":
+                    return new SkinProfile(
+                        6,
+                        8,
+                        "CharacterRoot",
+                        "FootL",
+                        "FootR");
+                case "FX/ImpactFold":
+                    return new SkinProfile(
+                        5,
+                        8,
+                        "BellyTip",
+                        "BellyBase");
+                default:
+                    return new SkinProfile(
+                        1,
+                        1,
+                        string.IsNullOrWhiteSpace(parentBone)
+                            ? Patch4RigContract.CharacterRootName
+                            : parentBone);
+            }
         }
 
         private static bool IsInitiallyVisible(

@@ -34,6 +34,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [SerializeField] private List<SoftBoneChannel> channels = new();
 
         private float phase;
+#if UNITY_EDITOR
+        private bool editorReviewActive;
+#endif
 
         private void Reset()
         {
@@ -49,7 +52,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             RemovePreviousOffsets();
 
-            if (rigController == null || !rigController.Patch4Enabled)
+            bool canAnimate =
+                rigController != null && rigController.Patch4Enabled;
+#if UNITY_EDITOR
+            canAnimate |= editorReviewActive;
+#endif
+            if (!canAnimate)
             {
                 return;
             }
@@ -89,6 +97,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             globalAmplitude = Mathf.Max(0f, amplitude);
         }
+
+#if UNITY_EDITOR
+        public void SetEditorReviewActive(bool active)
+        {
+            editorReviewActive = active;
+            if (!active)
+            {
+                RemovePreviousOffsets();
+            }
+        }
+#endif
 
         private void RemovePreviousOffsets()
         {

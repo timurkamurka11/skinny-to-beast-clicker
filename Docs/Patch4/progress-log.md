@@ -212,7 +212,32 @@ The verification source code is committed, but Unity has not physically compiled
   smoke validation.
 - [x] Advanced automatic continuation to the P4.0-K run id.
 - [x] Kept `productionArtApproved` false and Patch 3.5 visible.
-- [ ] Confirm P4.0-K in Unity `6000.3.19f1` with automatic `4/4` verification
-  and a close-up with no rectangular or elliptical halo.
-- [ ] Complete Sprite Skin weight painting after the candidate art passes
-  visual review.
+- [x] Confirmed P4.0-K in Unity `6000.3.19f1` with automatic EditMode
+  `4 passed`, PlayMode `4 passed`, zero warnings/errors and a close-up with no
+  rectangular or elliptical eye/mouth halo.
+- [x] Accepted the feathered face-transition close-up while keeping production
+  approval locked.
+
+## 2026-07-30 — P4.0-L Canvas weights and actual-room animation review
+
+- [x] Confirmed that standard Sprite Skin would affect only the disabled
+  SpriteRenderer fallbacks, not the actual Screen Space Overlay Canvas.
+- [x] Added a Canvas-compatible weight-painted grid deformer for `UI.Image`.
+- [x] Bound all 40 canonical layers to the Patch 4 skeleton.
+- [x] Added multi-bone grids for torso, belly, chest, neck, head, cheeks,
+  clothes, arms, legs, shoes and impact fold.
+- [x] Added bind-pose recapture after the master is fitted to the real room.
+- [x] Extended Editor smoke and the existing PlayMode integration test to
+  require all 40 bindings and at least 20 multi-bone layers.
+- [x] Added an Editor-only locked driver that creates the actual
+  `LivingGameplayScene`, cycles all ten clips and captures a room contact
+  sheet.
+- [x] Kept the review driver out of player builds and prevented any call to
+  `SetPatch4Enabled(true)`.
+- [x] Made the automatic flow restore Patch 3.5 and exit Play Mode before
+  opening the neutral, face and animation review windows.
+- [x] Kept `productionArtApproved` false.
+- [ ] Confirm P4.0-L in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, all ten actual-room captures present and zero warnings/errors.
+- [ ] Complete human review of joints, stretch, clothing continuity and foot
+  contact across all ten clips.

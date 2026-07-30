@@ -41,6 +41,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private float blinkStartedAt = -100f;
         private float nextBlinkAt;
         private bool blinking;
+#if UNITY_EDITOR
+        private bool editorReviewActive;
+#endif
 
         private float BlinkLength => closeDuration + holdDuration + openDuration;
 
@@ -65,7 +68,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void Update()
         {
-            if (rigController == null || !rigController.Patch4Enabled)
+            bool canAnimate =
+                rigController != null && rigController.Patch4Enabled;
+#if UNITY_EDITOR
+            canAnimate |= editorReviewActive;
+#endif
+            if (!canAnimate)
             {
                 RestoreOpenEyes();
                 return;
@@ -114,6 +122,22 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             BeginBlink();
         }
+
+#if UNITY_EDITOR
+        public void SetEditorReviewActive(bool active)
+        {
+            editorReviewActive = active;
+            if (!active)
+            {
+                blinking = false;
+                RestoreOpenEyes();
+            }
+            else
+            {
+                ScheduleBlink();
+            }
+        }
+#endif
 
         public void SetMouth(MouthPose pose)
         {
