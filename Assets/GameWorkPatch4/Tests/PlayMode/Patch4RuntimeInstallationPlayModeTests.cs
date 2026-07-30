@@ -5,6 +5,7 @@ using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
 {
@@ -137,6 +138,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                         skin =>
                             GetBoolProperty(skin, "IsBound")),
                     "Every Canvas skin deformer must retain a valid bind pose.");
+                Assert.IsTrue(
+                    canvasSkins.All(
+                        skin =>
+                            GetBoolProperty(
+                                skin,
+                                "UsesFullCanvasUv")),
+                    "Every deformer must map the complete transparent sprite " +
+                    "canvas instead of a Tight opaque crop.");
                 Assert.GreaterOrEqual(
                     canvasSkins.Count(
                         skin =>
@@ -144,6 +153,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                                 skin,
                                 "HasMultipleBoneWeights")),
                     20);
+
+                Image[] paintedImages =
+                    patchVisual.GetComponentsInChildren<Image>(true);
+                Assert.AreEqual(
+                    40,
+                    paintedImages.Length);
+                Assert.IsTrue(
+                    paintedImages.All(
+                        image =>
+                            image != null &&
+                            image.sprite != null &&
+                            !image.useSpriteMesh &&
+                            image.sprite.vertices.Length == 4),
+                    "All painted UI Images must use FullRect four-vertex " +
+                    "sprites before the Canvas grid is generated.");
 
                 Vector3 localScale = patchInstance.localScale;
                 Assert.AreEqual(

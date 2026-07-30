@@ -318,31 +318,53 @@ Unity `6000.3.19f1` then confirmed:
 This completes the face-transition correction. It does not approve production
 art.
 
-## Current P4.0-L weighted Canvas animation-review pass
+## P4.0-L real Unity result and visual rejection
 
-The next isolated pass:
+The user ran P4.0-L in Unity `6000.3.19f1`. The automatic room session reached
+all ten clips and restored rollback mode, but the result failed human review:
 
-- adds `Patch4CanvasSkinDeformer`, a Canvas-compatible equivalent of Sprite
-  Skin for the actual `UI.Image` presentation used in the room;
-- gives every one of the 40 layers a deterministic skin binding;
-- replaces rigid four-corner rendering on body, clothing and limb layers with
-  subdivided grids and distance-painted weights across adjacent Patch 4 bones;
-- re-captures bind poses after the character is fitted to the
-  `LivingGameplayScene` Canvas;
-- validates all 40 bindings, at least 20 multi-bone layers and the weighted
-  torso, belly, chest, shirt, arms and legs;
-- keeps ordinary SpriteRenderer fallbacks disabled;
-- starts an Editor-only actual-room review after the passing automatic `4/4`;
-- creates `LivingGameplayScene` through its existing public runtime path,
-  cycles all ten required clips, captures one real-room frame per clip and
-  writes a read-only contact sheet;
-- never calls `SetPatch4Enabled(true)` and never changes readiness;
-- restores Patch 3.5, hides Patch 4 and exits Play Mode before opening the
-  review result.
+- every contact-sheet frame showed stretched/collapsed skin fragments instead
+  of the assembled character;
+- `FatMan_Turn` collapsed almost to a vertical line;
+- the Console repeatedly logged
+  `Character stage 4 was selected but did not produce a visible rig`;
+- the old driver still printed a technical `PASSED` because it checked only
+  that ten screenshots existed.
+
+The root causes were isolated to Patch 4:
+
+- the layer importer left sparse full-canvas PNGs as `SpriteMeshType.Tight`;
+- `DataUtility.GetOuterUV` therefore supplied the small opaque crop while the
+  deformer spread that crop across the complete `1024 × 1536` image rectangle;
+- the review disabled the legacy visual root with `SetActive(false)`, causing
+  the existing stage controller to regard Stage 4 as invisible and retry it.
+
+P4.0-L is rejected. Its technical message is not accepted as evidence of a
+valid character or motion pass. Readiness remains locked.
+
+## Current P4.0-M full-canvas UV and honest room-review correction
+
+The corrective pass:
+
+- forces all regenerated layer sprites to `SpriteMeshType.FullRect`;
+- disables `Image.useSpriteMesh` for the full transparent canvas;
+- maps the deformer grid from `Sprite.rect` and source texture dimensions
+  instead of a Tight opaque outer-UV crop;
+- extends Editor smoke and PlayMode checks to require all 40 FullRect sprites,
+  uncropped UVs and four-vertex source rectangles;
+- keeps the Patch 3.5 visual hierarchy logically active during the temporary
+  review and hides it only with a reversible `CanvasGroup`;
+- captures a clean room background before Patch 4 is shown;
+- compares every animation frame with that background and rejects collapsed,
+  undersized or missing character silhouettes;
+- records and blocks any Console error emitted during the room review;
+- cannot print technical `PASSED` unless ten captures, all silhouette checks,
+  zero review errors, locked readiness and rollback restoration all succeed;
+- never calls `SetPatch4Enabled(true)` and never changes readiness.
 
 ## Exact next action
 
-After the P4.0-L commit is present on `patch-4.0`, run only:
+After the P4.0-M correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -353,15 +375,17 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
 3. preserve the verified hidden continuations and feathered face states;
-4. rebuild the resource-loadable locked prefab with Canvas bone-weight grids;
+4. import every layer as FullRect and rebuild the locked Canvas-weighted
+   prefab;
 5. assemble and compare the locked neutral pose;
 6. write the neutral and four-expression review images;
-7. validate all 40 skin bindings and multi-bone weight maps;
+7. validate all 40 skin bindings, full-canvas UVs and multi-bone weight maps;
 8. run pixel, rig, compilation and Editor smoke validation;
 9. run all EditMode tests;
 10. enter Play Mode and run all PlayMode tests;
 11. after `4/4`, enter Play Mode again and create the actual gameplay room;
-12. play and capture all ten Patch 4 clips in locked Editor review mode;
+12. capture a clean background, then play all ten clips and block any
+    collapsed silhouette or Console error;
 13. restore Patch 3.5, exit Play Mode and open all three read-only review
     windows.
 
@@ -384,7 +408,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-L automatic room review
+## Work after the P4.0-M automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

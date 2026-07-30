@@ -46,6 +46,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
     "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4LayerImportPostprocessor.cs",
     "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
@@ -249,7 +250,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"weighted-canvas-room-animation-review-v4"',
+            '"fullrect-uv-silhouette-room-review-v5"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -344,6 +345,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Patch4CanvasSkinDeformer",
             "CaptureSkinBindPoses()",
             "SkinBindingsReady",
+            "image.useSpriteMesh = false",
             "ResolveSkinProfile(",
             'FindLayerObject("Face/EyeWhiteL")',
             'FindLayerObject("Face/IrisR")',
@@ -371,7 +373,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     if deformer:
         required_snippets = (
             "class Patch4CanvasSkinDeformer : BaseMeshEffect",
-            "DataUtility.GetOuterUV",
+            "ResolveFullCanvasUv(sprite)",
+            "sprite.rect",
+            "sprite.texture.width",
+            "UsesFullCanvasUv",
             "vertexHelper.AddTriangle",
             "bone.worldToLocalMatrix",
             "imageTransform.worldToLocalMatrix",
@@ -383,6 +388,20 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 fail(errors, f"Canvas skin deformer is missing: {snippet}")
         if "SetPatch4Enabled(" in deformer:
             fail(errors, "Canvas skin deformer must never change Patch 4 activation")
+        if "DataUtility.GetOuterUV" in deformer:
+            fail(
+                errors,
+                "Canvas skin deformer must not expand a Tight opaque UV crop "
+                "over the full layer canvas",
+            )
+
+    importer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4LayerImportPostprocessor.cs",
+        errors,
+    )
+    if importer and "spriteMeshType = SpriteMeshType.FullRect" not in importer:
+        fail(errors, "Patch 4 layer imports must force FullRect sprite meshes")
 
     review_driver = read_text(
         root,
@@ -397,13 +416,24 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "ScreenCapture.CaptureScreenshotAsTexture",
             "humanReviewRequired = true",
             "activationAllowed = false",
-            "patch35RollbackRoot.SetActive(false)",
+            "rollbackReviewGroup.alpha = 0f",
             "patch35RollbackRoot.SetActive(true)",
+            "CaptureReviewBackground()",
+            "AnalyzeRoomSilhouette(",
+            "visualSanityPassed",
+            "Application.logMessageReceived",
+            "reviewConsoleErrorCount == 0",
             "SetEditorReviewActive(true)",
             "SetEditorReviewActive(false)",
         ):
             if snippet not in review_driver:
                 fail(errors, f"Locked animation-room driver is missing: {snippet}")
+        if "patch35RollbackRoot.SetActive(false)" in review_driver:
+            fail(
+                errors,
+                "Room review must keep the rollback rig logically active while "
+                "hiding it with CanvasGroup",
+            )
         if "SetPatch4Enabled(true)" in review_driver:
             fail(errors, "Locked room review must never pass the production gate")
 
@@ -613,8 +643,9 @@ def main() -> int:
     print("- exact 1024 x 1536 RGBA repository master and SHA verified")
     print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
-    print("- Canvas multi-bone grid skinning is bound without an activation API")
-    print("- actual-room ten-clip review is Editor-only and restores rollback mode")
+    print("- Canvas grids use uncropped full-canvas UVs and FullRect sprites")
+    print("- actual-room review blocks collapsed silhouettes and Console errors")
+    print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")
     print("- protected menu, video, music and settings paths unchanged")
     return 0

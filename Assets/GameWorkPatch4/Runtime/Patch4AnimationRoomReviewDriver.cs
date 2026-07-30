@@ -23,6 +23,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public float sourceLength;
             public float reviewDuration;
             public bool captured;
+            public bool visualSanityPassed;
+            public int changedPixelCount;
+            public int silhouetteWidth;
+            public int silhouetteHeight;
+            public float widthCoverage;
+            public float heightCoverage;
+            public float areaCoverage;
         }
 
         [Serializable]
@@ -38,10 +45,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public int weightedLayerCount;
             public bool readinessGateRemainedLocked;
             public bool patch35Restored;
+            public bool legacyRigStayedLogicallyActive;
+            public bool visualSanityPassed;
+            public int reviewConsoleErrorCount;
             public bool humanReviewRequired = true;
             public bool activationAllowed;
             public string contactSheetPath = string.Empty;
             public string error = string.Empty;
+            public List<string> reviewConsoleErrors = new();
             public List<ClipReview> clips = new();
         }
 
@@ -54,6 +65,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const int ContactRows = 2;
         private const int ThumbnailWidth = 300;
         private const int ThumbnailHeight = 420;
+        private const int PixelDifferenceThreshold = 42;
+        private const float MinimumSilhouetteWidthCoverage = 0.36f;
+        private const float MinimumSilhouetteHeightCoverage = 0.60f;
+        private const float MinimumSilhouetteAreaCoverage = 0.10f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -65,10 +80,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private GameObject patch35RollbackRoot;
         private string outputDirectory = string.Empty;
         private Texture2D contactSheet;
+        private Color32[] backgroundPixels = Array.Empty<Color32>();
+        private int backgroundWidth;
+        private int backgroundHeight;
+        private CanvasGroup rollbackReviewGroup;
+        private bool rollbackGroupAddedForReview;
+        private float rollbackGroupPreviousAlpha = 1f;
+        private bool rollbackGroupPreviousInteractable;
+        private bool rollbackGroupPreviousBlocksRaycasts;
         private ReviewReport report;
         private string currentClip = string.Empty;
-        private int currentClipIndex = -1;
         private bool started;
+        private bool logCaptureRegistered;
 
         public event Action<bool, string> ReviewFinished;
 
@@ -98,6 +121,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             patch4VisualRoot = visualRoot;
             patch35RollbackRoot = rollbackRoot;
             outputDirectory = reportDirectory ?? string.Empty;
+            Application.logMessageReceived += OnReviewLog;
+            logCaptureRegistered = true;
             StartCoroutine(RunReview());
         }
 
@@ -150,6 +175,21 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             yield return null;
             yield return new WaitForEndOfFrame();
+            patch4VisualRoot.SetActive(false);
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            if (!CaptureReviewBackground())
+            {
+                Finish(
+                    false,
+                    "The clean gameplay-room background could not be captured.");
+                yield break;
+            }
+
+            patch4VisualRoot.SetActive(true);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+            yield return new WaitForEndOfFrame();
 
             for (int i = 0;
                  i < Patch4RigContract.RequiredClipNames.Count;
@@ -170,13 +210,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
             report.allTenClipsReviewed =
                 report.clips.Count ==
                 Patch4RigContract.RequiredClipNames.Count;
+            report.visualSanityPassed =
+                report.allTenClipsReviewed;
             for (int i = 0; i < report.clips.Count; i++)
             {
                 report.allTenClipsReviewed &=
                     report.clips[i].captured;
+                report.visualSanityPassed &=
+                    report.clips[i].visualSanityPassed;
             }
 
-            Finish(report.allTenClipsReviewed, string.Empty);
+            Finish(
+                report.allTenClipsReviewed &&
+                report.visualSanityPassed,
+                report.visualSanityPassed
+                    ? string.Empty
+                    : "One or more animation frames collapsed or failed the " +
+                      "room-silhouette sanity check.");
         }
 
         private IEnumerator ReviewClip(
@@ -185,7 +235,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int clipIndex)
         {
             currentClip = clip.name;
-            currentClipIndex = clipIndex;
             ConfigureFaceForClip(clip.name);
 
             float reviewDuration = Mathf.Clamp(
@@ -221,7 +270,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 if (!captured && elapsed >= captureAt)
                 {
                     yield return new WaitForEndOfFrame();
-                    captured = CaptureCurrentRoomFrame(clipIndex);
+                    captured = CaptureCurrentRoomFrame(
+                        clipIndex,
+                        clipReport);
                 }
 
                 yield return null;
@@ -230,7 +281,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (!captured)
             {
                 yield return new WaitForEndOfFrame();
-                captured = CaptureCurrentRoomFrame(clipIndex);
+                captured = CaptureCurrentRoomFrame(
+                    clipIndex,
+                    clipReport);
             }
 
             clipReport.captured = captured;
@@ -318,12 +371,32 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             rigController.SetPatch4Enabled(false);
             visibilityGuard.enabled = false;
-            patch35RollbackRoot.SetActive(false);
+            patch35RollbackRoot.SetActive(true);
+            rollbackReviewGroup =
+                patch35RollbackRoot.GetComponent<CanvasGroup>();
+            if (rollbackReviewGroup == null)
+            {
+                rollbackReviewGroup =
+                    patch35RollbackRoot.AddComponent<CanvasGroup>();
+                rollbackGroupAddedForReview = true;
+            }
+
+            rollbackGroupPreviousAlpha = rollbackReviewGroup.alpha;
+            rollbackGroupPreviousInteractable =
+                rollbackReviewGroup.interactable;
+            rollbackGroupPreviousBlocksRaycasts =
+                rollbackReviewGroup.blocksRaycasts;
+            rollbackReviewGroup.alpha = 0f;
+            rollbackReviewGroup.interactable = false;
+            rollbackReviewGroup.blocksRaycasts = false;
+            report.legacyRigStayedLogicallyActive =
+                patch35RollbackRoot.activeInHierarchy;
             patch4VisualRoot.SetActive(true);
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            Canvas.ForceUpdateCanvases();
         }
 
         private void ConfigureFaceForClip(string clipName)
@@ -377,7 +450,43 @@ namespace SkinnyToBeast.Gameplay.Patch4
             contactSheet.SetPixels32(background);
         }
 
-        private bool CaptureCurrentRoomFrame(int clipIndex)
+        private bool CaptureReviewBackground()
+        {
+            Texture2D screenshot = null;
+            try
+            {
+                screenshot =
+                    ScreenCapture.CaptureScreenshotAsTexture(1);
+                if (screenshot == null)
+                {
+                    return false;
+                }
+
+                backgroundWidth = screenshot.width;
+                backgroundHeight = screenshot.height;
+                backgroundPixels = screenshot.GetPixels32();
+                return backgroundPixels.Length ==
+                    backgroundWidth * backgroundHeight;
+            }
+            catch (Exception exception)
+            {
+                report.error = AppendError(
+                    report.error,
+                    "Background capture: " + exception.Message);
+                return false;
+            }
+            finally
+            {
+                if (screenshot != null)
+                {
+                    Destroy(screenshot);
+                }
+            }
+        }
+
+        private bool CaptureCurrentRoomFrame(
+            int clipIndex,
+            ClipReview clipReport)
         {
             Texture2D screenshot = null;
             Texture2D thumbnail = null;
@@ -390,6 +499,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     return false;
                 }
 
+                clipReport.visualSanityPassed =
+                    AnalyzeRoomSilhouette(
+                        screenshot,
+                        clipReport);
                 thumbnail = BuildThumbnail(screenshot);
                 if (thumbnail == null)
                 {
@@ -427,6 +540,154 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     Destroy(thumbnail);
                 }
             }
+        }
+
+        private bool AnalyzeRoomSilhouette(
+            Texture2D screenshot,
+            ClipReview clipReport)
+        {
+            if (screenshot == null ||
+                backgroundPixels == null ||
+                backgroundPixels.Length == 0 ||
+                screenshot.width != backgroundWidth ||
+                screenshot.height != backgroundHeight ||
+                canvasPresentation == null ||
+                canvasPresentation.GeneratedRoot == null)
+            {
+                return false;
+            }
+
+            Rect expected = ResolveExpectedScreenRect(
+                screenshot.width,
+                screenshot.height);
+            int xMin = Mathf.Clamp(
+                Mathf.FloorToInt(expected.xMin),
+                0,
+                screenshot.width - 1);
+            int xMax = Mathf.Clamp(
+                Mathf.CeilToInt(expected.xMax),
+                xMin + 1,
+                screenshot.width);
+            int yMin = Mathf.Clamp(
+                Mathf.FloorToInt(expected.yMin),
+                0,
+                screenshot.height - 1);
+            int yMax = Mathf.Clamp(
+                Mathf.CeilToInt(expected.yMax),
+                yMin + 1,
+                screenshot.height);
+            int expectedWidth = Mathf.Max(1, xMax - xMin);
+            int expectedHeight = Mathf.Max(1, yMax - yMin);
+
+            Color32[] current = screenshot.GetPixels32();
+            int changed = 0;
+            int changedXMin = xMax;
+            int changedXMax = xMin;
+            int changedYMin = yMax;
+            int changedYMax = yMin;
+
+            for (int y = yMin; y < yMax; y++)
+            {
+                int row = y * screenshot.width;
+                for (int x = xMin; x < xMax; x++)
+                {
+                    int index = row + x;
+                    Color32 before = backgroundPixels[index];
+                    Color32 after = current[index];
+                    int delta =
+                        Math.Abs(after.r - before.r) +
+                        Math.Abs(after.g - before.g) +
+                        Math.Abs(after.b - before.b);
+                    if (delta < PixelDifferenceThreshold)
+                    {
+                        continue;
+                    }
+
+                    changed++;
+                    changedXMin = Mathf.Min(changedXMin, x);
+                    changedXMax = Mathf.Max(changedXMax, x);
+                    changedYMin = Mathf.Min(changedYMin, y);
+                    changedYMax = Mathf.Max(changedYMax, y);
+                }
+            }
+
+            int silhouetteWidth =
+                changed > 0
+                    ? changedXMax - changedXMin + 1
+                    : 0;
+            int silhouetteHeight =
+                changed > 0
+                    ? changedYMax - changedYMin + 1
+                    : 0;
+            clipReport.changedPixelCount = changed;
+            clipReport.silhouetteWidth = silhouetteWidth;
+            clipReport.silhouetteHeight = silhouetteHeight;
+            clipReport.widthCoverage =
+                silhouetteWidth / (float)expectedWidth;
+            clipReport.heightCoverage =
+                silhouetteHeight / (float)expectedHeight;
+            clipReport.areaCoverage =
+                changed / (float)(expectedWidth * expectedHeight);
+
+            bool sane =
+                clipReport.widthCoverage >=
+                    MinimumSilhouetteWidthCoverage &&
+                clipReport.heightCoverage >=
+                    MinimumSilhouetteHeightCoverage &&
+                clipReport.areaCoverage >=
+                    MinimumSilhouetteAreaCoverage;
+            if (!sane)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": collapsed room silhouette (width " +
+                    clipReport.widthCoverage.ToString("0.000") +
+                    ", height " +
+                    clipReport.heightCoverage.ToString("0.000") +
+                    ", area " +
+                    clipReport.areaCoverage.ToString("0.000") +
+                    ").");
+            }
+
+            return sane;
+        }
+
+        private Rect ResolveExpectedScreenRect(
+            int screenWidth,
+            int screenHeight)
+        {
+            RectTransform root = canvasPresentation.GeneratedRoot;
+            Canvas canvas = canvasPresentation.HostCanvas;
+            Camera camera =
+                canvas != null &&
+                canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                    ? canvas.worldCamera
+                    : null;
+            Vector3[] corners = new Vector3[4];
+            root.GetWorldCorners(corners);
+
+            float xMin = float.PositiveInfinity;
+            float xMax = float.NegativeInfinity;
+            float yMin = float.PositiveInfinity;
+            float yMax = float.NegativeInfinity;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                Vector2 screen =
+                    RectTransformUtility.WorldToScreenPoint(
+                        camera,
+                        corners[i]);
+                xMin = Mathf.Min(xMin, screen.x);
+                xMax = Mathf.Max(xMax, screen.x);
+                yMin = Mathf.Min(yMin, screen.y);
+                yMax = Mathf.Max(yMax, screen.y);
+            }
+
+            xMin = Mathf.Clamp(xMin, 0f, screenWidth);
+            xMax = Mathf.Clamp(xMax, 0f, screenWidth);
+            yMin = Mathf.Clamp(yMin, 0f, screenHeight);
+            yMax = Mathf.Clamp(yMax, 0f, screenHeight);
+            return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
         }
 
         private static Texture2D BuildThumbnail(Texture2D source)
@@ -488,6 +749,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void Finish(bool passed, string failure)
         {
             CleanupLockedReview();
+            StopLogCapture();
             report.completed = true;
             report.passedTechnicalChecks =
                 passed &&
@@ -495,8 +757,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.allTenClipsReviewed &&
                 report.canvasSkinBindingsReady &&
                 report.readinessGateRemainedLocked &&
-                report.patch35Restored;
+                report.patch35Restored &&
+                report.legacyRigStayedLogicallyActive &&
+                report.visualSanityPassed &&
+                report.reviewConsoleErrorCount == 0;
             report.error = AppendError(report.error, failure);
+            if (report.reviewConsoleErrorCount > 0)
+            {
+                report.error = AppendError(
+                    report.error,
+                    "The room review emitted " +
+                    report.reviewConsoleErrorCount +
+                    " Console error(s).");
+            }
 
             Directory.CreateDirectory(outputDirectory);
             string contactPath = Path.Combine(
@@ -570,6 +843,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 patch35RollbackRoot.SetActive(true);
             }
 
+            bool rollbackGroupRestored = true;
+            if (rollbackReviewGroup != null)
+            {
+                rollbackReviewGroup.alpha =
+                    rollbackGroupPreviousAlpha;
+                rollbackReviewGroup.interactable =
+                    rollbackGroupPreviousInteractable;
+                rollbackReviewGroup.blocksRaycasts =
+                    rollbackGroupPreviousBlocksRaycasts;
+                rollbackGroupRestored =
+                    Mathf.Abs(
+                        rollbackReviewGroup.alpha -
+                        rollbackGroupPreviousAlpha) < 0.001f;
+                if (rollbackGroupAddedForReview)
+                {
+                    Destroy(rollbackReviewGroup);
+                }
+            }
+
             if (visibilityGuard != null)
             {
                 visibilityGuard.enabled = true;
@@ -581,33 +873,48 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 patch4VisualRoot != null &&
                 !patch4VisualRoot.activeSelf &&
                 rigController != null &&
-                !rigController.Patch4Enabled;
+                !rigController.Patch4Enabled &&
+                rollbackGroupRestored;
             currentClip = string.Empty;
-            currentClipIndex = -1;
         }
 
-        private void OnGUI()
+        private void OnDestroy()
         {
-            if (!started || currentClipIndex < 0)
+            StopLogCapture();
+        }
+
+        private void OnReviewLog(
+            string condition,
+            string stackTrace,
+            LogType type)
+        {
+            if (report == null ||
+                (type != LogType.Error &&
+                 type != LogType.Exception &&
+                 type != LogType.Assert))
             {
                 return;
             }
 
-            GUIStyle style = new(GUI.skin.box)
+            report.reviewConsoleErrorCount++;
+            if (report.reviewConsoleErrors.Count < 20)
             {
-                alignment = TextAnchor.MiddleLeft,
-                fontSize = 18,
-                fontStyle = FontStyle.Bold,
-                normal =
-                {
-                    textColor = Color.white
-                }
-            };
-            GUI.Box(
-                new Rect(18f, 18f, 620f, 76f),
-                "PATCH 4 — LOCKED ROOM REVIEW\n" +
-                (currentClipIndex + 1) + "/10  " + currentClip,
-                style);
+                report.reviewConsoleErrors.Add(
+                    string.IsNullOrWhiteSpace(condition)
+                        ? type.ToString()
+                        : condition);
+            }
+        }
+
+        private void StopLogCapture()
+        {
+            if (!logCaptureRegistered)
+            {
+                return;
+            }
+
+            Application.logMessageReceived -= OnReviewLog;
+            logCaptureRegistered = false;
         }
 
         private static string AppendError(

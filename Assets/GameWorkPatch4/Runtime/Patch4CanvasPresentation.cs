@@ -384,7 +384,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             image.maskable = false;
             image.preserveAspect = false;
             image.type = Image.Type.Simple;
-            image.useSpriteMesh = true;
+            // The layer PNGs intentionally retain the complete transparent
+            // master canvas. A tight Sprite mesh/UV crop would enlarge the
+            // small opaque fragment to fill this full RectTransform.
+            image.useSpriteMesh = false;
 
             Patch4CanvasSkinDeformer skinDeformer =
                 layerObject.GetComponent<Patch4CanvasSkinDeformer>();

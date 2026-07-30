@@ -526,6 +526,46 @@ The same pass adds a fully automatic locked motion review:
 This is a review mechanism, not production activation. The driver is enclosed
 by `UNITY_EDITOR` and is absent from player builds.
 
+### P4.0-L real Unity rejection
+
+Unity `6000.3.19f1` completed the automatic room cycle, but the 5 × 2 contact
+sheet showed unusable stretched skin rectangles and collapsed body fragments
+in all ten clips. The Console also repeated:
+
+```text
+Character stage 4 was selected but did not produce a visible rig.
+The next Sync will retry it.
+```
+
+The prior `PASSED` line meant only that ten screenshots were written. It did
+not validate their visual contents or Console errors and is rejected.
+
+The failure came from expanding a Tight sprite's opaque outer-UV crop across
+the complete transparent layer rectangle. Separately, the review set the
+legacy visual root inactive, so the existing Stage 4 visibility check retried
+continuously. Production activation stayed locked and Patch 3.5 was restored.
+
+## P4.0-M FullRect UV and room-silhouette correction
+
+The corrective pass remains isolated under Patch 4:
+
+- `Patch4LayerImportPostprocessor` forces `SpriteMeshType.FullRect`;
+- every Canvas `Image` disables `useSpriteMesh`;
+- `Patch4CanvasSkinDeformer` derives its UV range from the full `Sprite.rect`
+  and source texture dimensions rather than `DataUtility.GetOuterUV`;
+- Editor smoke and the fourth PlayMode test require 40 FullRect source sprites,
+  40 full-canvas UV mappings and no Tight image meshes;
+- the review leaves the Patch 3.5 hierarchy active and temporarily hides only
+  its rendering through a reversible `CanvasGroup`;
+- a clean gameplay-room background is captured before Patch 4 appears;
+- each of the ten captured frames must contain a sufficiently wide, tall and
+  filled silhouette inside the expected character canvas;
+- any Error, Exception or Assert logged during the room review blocks the
+  technical result;
+- the driver restores the previous CanvasGroup state and Patch 3.5 before
+  leaving Play Mode;
+- human review and the production-art gate remain mandatory.
+
 ## Production dashboard
 
 Open in Unity:
@@ -585,15 +625,17 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-L weighted Canvas animation-review commit into Unity
+1. Pull the P4.0-M FullRect UV and room-silhouette correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
-3. Let `Patch4AutoContinuation` restore/rebake, rebuild the locked weighted
-   prefab, validate and complete EditMode `4 passed`, PlayMode `4 passed`.
+3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, rebuild
+   the locked weighted prefab, validate and complete EditMode `4 passed`,
+   PlayMode `4 passed`.
 4. Let the Editor-only continuation enter Play Mode again, create the real
    room, cycle all ten clips, capture the review sheet, restore Patch 3.5 and
    return to Edit Mode.
-5. Inspect the automatically focused 5 × 2 room-animation contact sheet.
+5. Confirm that the Console has zero errors and inspect the automatically
+   focused 5 × 2 room-animation contact sheet.
 6. Revise any exposed joint, detached paint, extreme stretch, foot slide or
    collapsing body/clothing region while the readiness gate stays locked.
 7. Only after successful technical and human motion review, consider approving
@@ -617,8 +659,11 @@ Detailed verification instructions:
   review because neutral feature copies and cheek exclusions left smaller
   rectangular seams.
 - P4.0-K passed its local Unity `4/4` run and face close-up review.
-- P4.0-L Canvas weight maps have not yet been compiled or exercised by the
-  user's Unity `6000.3.19f1`.
+- P4.0-L compiled and ran in Unity `6000.3.19f1`, but failed visual review
+  because Tight opaque UV crops were stretched across full-canvas meshes; its
+  screenshot-only technical `PASSED` is rejected.
+- P4.0-M FullRect UV mapping and blocking silhouette/Console validation have
+  not yet been exercised by the user's Unity `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

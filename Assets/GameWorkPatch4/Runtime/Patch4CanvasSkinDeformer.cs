@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Sprites;
 using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay.Patch4
@@ -46,9 +45,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Array.Empty<Matrix4x4>();
 
         public string ContractPath => contractPath;
+        public Sprite SourceSprite => ResolveSprite();
         public int BoneCount => boneBindings.Count;
         public bool HasMultipleBoneWeights => boneBindings.Count > 1;
         public bool IsBound => bindPoseCaptured && boneBindings.Count > 0;
+        public bool UsesFullCanvasUv => HasFullCanvasUv(ResolveSprite());
         public int ExpectedVertexCount
         {
             get
@@ -176,7 +177,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int columns = HasMultipleBoneWeights ? gridColumns : 1;
             int rows = HasMultipleBoneWeights ? gridRows : 1;
             Rect rect = imageTransform.rect;
-            Vector4 outerUv = DataUtility.GetOuterUV(sprite);
+            Vector4 outerUv = ResolveFullCanvasUv(sprite);
             Color32 color = graphic.color;
 
             if (skinMatrices == null ||
@@ -316,6 +317,41 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             return sourceSprite;
+        }
+
+        private static Vector4 ResolveFullCanvasUv(Sprite sprite)
+        {
+            if (sprite == null || sprite.texture == null)
+            {
+                return Vector4.zero;
+            }
+
+            Rect spriteRect = sprite.rect;
+            float textureWidth = Mathf.Max(1f, sprite.texture.width);
+            float textureHeight = Mathf.Max(1f, sprite.texture.height);
+            return new Vector4(
+                spriteRect.xMin / textureWidth,
+                spriteRect.yMin / textureHeight,
+                spriteRect.xMax / textureWidth,
+                spriteRect.yMax / textureHeight);
+        }
+
+        private static bool HasFullCanvasUv(Sprite sprite)
+        {
+            if (sprite == null || sprite.texture == null)
+            {
+                return false;
+            }
+
+            Rect spriteRect = sprite.rect;
+            return Mathf.Abs(spriteRect.xMin) < 0.5f &&
+                   Mathf.Abs(spriteRect.yMin) < 0.5f &&
+                   Mathf.Abs(
+                       spriteRect.width -
+                       sprite.texture.width) < 0.5f &&
+                   Mathf.Abs(
+                       spriteRect.height -
+                       sprite.texture.height) < 0.5f;
         }
 
         private static Vector2 LocalToSpritePixel(

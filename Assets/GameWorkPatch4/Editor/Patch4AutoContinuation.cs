@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "weighted-canvas-room-animation-review-v4";
+            "fullrect-uv-silhouette-room-review-v5";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -58,11 +58,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic weighted-animation pass started: restoring " +
-                    "the repository master, rebaking all 40 layers, rebuilding " +
-                    "the locked runtime prefab with Canvas bone-weight grids and " +
-                    "running the full verification. After 4/4, Unity will open " +
-                    "the real LivingGameplayScene, review all ten clips, restore " +
+                    "Patch 4 automatic full-canvas animation correction started: " +
+                    "restoring the repository master, rebaking all 40 layers as " +
+                    "FullRect sprites, rebuilding the locked runtime prefab with " +
+                    "uncropped Canvas UVs and running the full verification. " +
+                    "After 4/4, Unity will review all ten clips in the real room, " +
+                    "block collapsed silhouettes or Console errors, restore " +
                     "Patch 3.5 and open the three read-only review windows.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {

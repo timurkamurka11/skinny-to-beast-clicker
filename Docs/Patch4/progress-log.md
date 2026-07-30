@@ -237,7 +237,28 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Made the automatic flow restore Patch 3.5 and exit Play Mode before
   opening the neutral, face and animation review windows.
 - [x] Kept `productionArtApproved` false.
-- [ ] Confirm P4.0-L in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
-  `4 passed`, all ten actual-room captures present and zero warnings/errors.
+- [x] Ran P4.0-L in Unity `6000.3.19f1` and produced all ten room captures.
+- [x] Rejected the result: every capture contained stretched/collapsed skin
+  fragments instead of an assembled character.
+- [x] Rejected the old technical `PASSED`: the review also emitted repeated
+  Stage 4 invisible-rig Console errors.
+- [x] Identified Tight outer-UV crop expansion and deactivation of the legacy
+  visual root as the two isolated causes.
+
+## 2026-07-30 — P4.0-M FullRect UV and honest room validation
+
+- [x] Forced every regenerated layer import to `SpriteMeshType.FullRect`.
+- [x] Disabled tight sprite meshes on the 40 Canvas Images.
+- [x] Replaced cropped outer-UV mapping with full `Sprite.rect` texture UVs.
+- [x] Extended Editor smoke and PlayMode checks for 40 FullRect sources and
+  full-canvas mappings.
+- [x] Replaced legacy-root deactivation with reversible CanvasGroup hiding so
+  Stage 4 remains logically visible.
+- [x] Added a clean-background comparison and per-frame character silhouette
+  thresholds.
+- [x] Made any Console Error, Exception or Assert block the room-review result.
+- [x] Kept the readiness asset locked and Patch 3.5 restoration mandatory.
+- [ ] Confirm P4.0-M in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, ten valid silhouettes and zero room-review errors.
 - [ ] Complete human review of joints, stretch, clothing continuity and foot
-  contact across all ten clips.
+  contact only after the corrected contact sheet is visually coherent.

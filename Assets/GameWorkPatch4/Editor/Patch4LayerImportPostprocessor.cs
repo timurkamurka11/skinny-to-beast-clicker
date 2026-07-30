@@ -51,6 +51,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             spriteSettings.spritePixelsPerUnit = 100f;
             spriteSettings.spriteAlignment = (int)SpriteAlignment.Custom;
             spriteSettings.spritePivot = pivot;
+            // Every Patch 4 PNG keeps the full 1024 x 1536 canvas. A Tight
+            // sprite mesh changes its outer UV rectangle to the opaque crop;
+            // feeding that crop to the subdivided Canvas grid stretches one
+            // body fragment over the whole character rectangle.
+            spriteSettings.spriteMeshType = SpriteMeshType.FullRect;
             importer.SetTextureSettings(spriteSettings);
         }
     }

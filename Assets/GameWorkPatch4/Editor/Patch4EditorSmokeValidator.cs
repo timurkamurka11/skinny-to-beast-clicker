@@ -56,6 +56,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public int canvasSkinDeformerCount;
             public int weightedCanvasLayerCount;
             public int canvasSkinVertexCount;
+            public int fullRectLayerSpriteCount;
+            public int fullCanvasUvLayerCount;
+            public bool canvasImagesAvoidTightMesh;
             public int fallbackSpriteRendererCount;
             public bool fallbackSpriteRenderersDisabled;
             public bool neutralPoseTechnicalChecksPassed;
@@ -438,6 +441,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     deformer != null
                         ? deformer.ExpectedVertexCount
                         : 0);
+            report.fullCanvasUvLayerCount = skinDeformers.Count(
+                deformer =>
+                    deformer != null &&
+                    deformer.UsesFullCanvasUv);
+            report.fullRectLayerSpriteCount = skinDeformers.Count(
+                deformer =>
+                    deformer != null &&
+                    IsFullRectSprite(deformer.SourceSprite));
             bool allSkinBindingsReady =
                 skinDeformers.All(
                     deformer =>
@@ -478,6 +489,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Patch4RigContract.RequiredLayerPaths.Count ||
                 skinDeformers.Length !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
+                report.fullCanvasUvLayerCount !=
+                Patch4RigContract.RequiredLayerPaths.Count ||
+                report.fullRectLayerSpriteCount !=
+                Patch4RigContract.RequiredLayerPaths.Count ||
                 report.weightedCanvasLayerCount < 20 ||
                 report.canvasSkinVertexCount < 1800 ||
                 !coreSoftLayersWeighted)
@@ -486,12 +501,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report,
                     "CANVAS_SKINNING_INCOMPLETE",
                     "All 40 Canvas layers must have captured skin bindings; " +
+                    "every source must retain FullRect import and full-canvas " +
+                    "UVs; " +
                     "at least 20 body, clothing and limb layers must use " +
                     "multi-bone weight-painted grids.");
             }
 
             Image[] canvasImages =
                 contents.GetComponentsInChildren<Image>(true);
+            report.canvasImagesAvoidTightMesh =
+                canvasImages.All(
+                    image =>
+                        image != null &&
+                        !image.useSpriteMesh);
             if (canvasImages.Length != report.canvasLayerCount)
             {
                 AddError(
@@ -499,6 +521,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "CANVAS_IMAGE_COUNT_MISMATCH",
                     "Generated Canvas Image hierarchy does not match the " +
                     "presentation binding count.");
+            }
+
+            if (!report.canvasImagesAvoidTightMesh)
+            {
+                AddError(
+                    report,
+                    "CANVAS_TIGHT_SPRITE_MESH_ENABLED",
+                    "Patch 4 full-canvas Images must not use a Tight sprite " +
+                    "mesh or cropped outer UVs.");
             }
 
             SpriteRenderer[] fallbackRenderers =
@@ -541,6 +572,27 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         StringComparison.Ordinal) &&
                     deformer.HasMultipleBoneWeights &&
                     deformer.ExpectedVertexCount > 4);
+        }
+
+        private static bool IsFullRectSprite(Sprite sprite)
+        {
+            if (sprite == null)
+            {
+                return false;
+            }
+
+            string path = AssetDatabase.GetAssetPath(sprite);
+            TextureImporter importer =
+                AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+            {
+                return false;
+            }
+
+            TextureImporterSettings settings =
+                new TextureImporterSettings();
+            importer.ReadTextureSettings(settings);
+            return settings.spriteMeshType == SpriteMeshType.FullRect;
         }
 
         private static int CountTransforms(Transform root)
