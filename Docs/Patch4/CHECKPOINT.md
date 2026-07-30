@@ -361,6 +361,47 @@ bilinearly enlarging it to `1024 × 1536`.
   locked rebuild, safety validation and all tests after one pull.
 - Production activation remains locked and still requires later human review.
 
+Unity `6000.3.19f1` then verified this exact quality pass:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- sharp master and assembled-neutral panels;
+- only a thin silhouette contour in the difference panel;
+- no false ground-shadow difference;
+- the user confirmed the visual quality was many times better;
+- Patch 4 remained hidden and Patch 3.5 remained visible.
+
+## P4.0-I hidden-continuation and independent-face candidates
+
+The next isolated candidate pass replaces the remaining technical stand-ins:
+
+- the former radius-five solid joint disks are removed;
+- neck, shoulders, elbows, wrists, hips, knees, ankles, belly and shirt hem now
+  receive texture-preserving elliptical overlaps copied from the exact master;
+- each overlap may feather only three pixels outside the master silhouette;
+- ordinary joint overlap validation rises from 24 to 180 pixels;
+- belly/shirt overlap validation rises to 360 pixels;
+- the head base receives a deterministic skin underlay beneath both eyes and
+  the mouth;
+- exact master patches restore neutral eyes and the closed mouth;
+- closed lids, open mouth and smile are independently painted candidate
+  layers;
+- closed lids start hidden and the blink controller now grows them from open
+  to fully closed before retracting and hiding them;
+- neutral comparison excludes both alternate lids as well as alternate mouths
+  and FX, leaving 33 comparison layers;
+- neutral / blink / open-mouth / smile close-ups are written to
+  `Library/GameWorkPatch4Reports/patch4-face-pose-review.png`;
+- `Patch4FacePoseReviewWindow` opens automatically after the existing neutral
+  review window;
+- Editor smoke validation requires the new face preview;
+- static checks require the new joint and facial painting paths and reject the
+  former scaffold method.
+
+This pass is still a human-review candidate. It does not approve art, enable
+Patch 4 or change the exact master SHA.
+
 ## Production dashboard
 
 Open in Unity:
@@ -420,21 +461,19 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the repository quality-master commit into Unity `6000.3.19f1`.
+1. Pull the P4.0-I candidate commit into Unity `6000.3.19f1`.
 2. Let `Patch4AutoContinuation` verify/restore the exact source, regenerate
-   masks and all 40 layers, assemble the neutral pose, write the comparison
-   previews and run all validations without manual clicks.
+   masks and all 40 layers, paint the joint/face candidates, assemble the
+   neutral pose, write both review previews and run all validations without
+   manual clicks.
 3. Confirm `EditMode: 4 passed; PlayMode: 4 passed`.
-4. Inspect the automatically opened master / assembled / difference panels and
-   confirm the improved detail and removal of the false shadow difference while
-   the readiness gate remains locked.
-5. Refine hidden artwork beneath neck, shoulders, elbows, wrists, hips, knees,
-   ankles, belly and shirt hem.
-6. Replace geometric face fallbacks with final eye whites, irises, eyelids,
-   cheeks, open mouth and smile.
-7. Complete Sprite Skin weight painting.
-8. Review all ten animations in the actual room.
-9. Only after successful technical and human review, approve the readiness
+4. Inspect the automatically focused neutral / blink / open-mouth / smile
+   close-ups and the neutral comparison behind them.
+5. Revise any visible facial seam or moving-joint exposure while keeping the
+   readiness gate locked.
+6. Complete Sprite Skin weight painting.
+7. Review all ten animations in the actual room.
+8. Only after successful technical and human review, approve the readiness
     asset for the exact master SHA.
 
 Detailed art instructions:
@@ -447,12 +486,12 @@ Detailed verification instructions:
 
 ## Known limitations
 
-- The new repository quality master has not yet received its local Unity `4/4`
-  confirmation or screenshot review.
 - Generated PNG layers and generated runtime assets exist locally in Unity and
   are not committed as binary repository assets.
-- Hidden joint artwork still requires manual painting.
-- Final face poses still require manual painting.
+- The new P4.0-I joint and facial candidates have not yet received their local
+  Unity `4/4` run or close-up screenshot review.
 - Sprite Skin weight painting has not yet been completed.
+- The ten clips have not yet received final visual review with the production
+  character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.
 - Figma Starter MCP limit currently prevents additional write calls.

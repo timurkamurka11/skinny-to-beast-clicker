@@ -354,6 +354,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             return !string.Equals(
                        contractPath,
+                       "Face/LidL",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
+                       "Face/LidR",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
                        "Face/MouthOpen",
                        StringComparison.Ordinal) &&
                    !string.Equals(

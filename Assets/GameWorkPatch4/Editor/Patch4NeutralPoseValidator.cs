@@ -9,7 +9,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     /// <summary>
     /// Reassembles the neutral painted pose from the canonical full-canvas
-    /// layers and compares it with the approved master. The report is
+    /// layers and compares it with the locked quality master. The report is
     /// diagnostic only: it always requires human review and can never approve
     /// or activate Patch 4.
     /// </summary>
@@ -28,9 +28,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public string compositePath = string.Empty;
             public string differencePath = string.Empty;
             public string contactSheetPath = string.Empty;
+            public string facePoseContactSheetPath = string.Empty;
             public int requiredLayerCount;
             public int neutralLayerCount;
             public int loadedNeutralLayerCount;
+            public int independentFacePoseCount;
             public int masterVisiblePixelCount;
             public int compositeVisiblePixelCount;
             public float masterCoverage;
@@ -38,6 +40,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public float silhouetteIntersectionOverUnion;
             public float meanColorError;
             public float closeColorMatchRatio;
+            public bool facePosePreviewCreated;
             public string[] neutralLayers = Array.Empty<string>();
             public string[] errors = Array.Empty<string>();
             public string[] warnings = Array.Empty<string>();
@@ -54,7 +57,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const int ExpectedHeight = 1536;
         private const byte VisibleThreshold = 8;
         private const int CloseColorThreshold = 12;
-        private const int ExcludedComparisonLayerCount = 5;
+        private const int ExcludedComparisonLayerCount = 7;
+        private const int FaceCropX = 352;
+        private const int FaceCropTop = 112;
+        private const int FaceCropWidth = 320;
+        private const int FaceCropHeight = 360;
+        private const int FacePoseCount = 4;
 
         public static string ReportPath => Path.Combine(
             Patch4CompilationMonitor.ReportDirectory,
@@ -72,6 +80,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4CompilationMonitor.ReportDirectory,
             "patch4-neutral-pose-review.png");
 
+        public static string FacePoseContactSheetPath => Path.Combine(
+            Patch4CompilationMonitor.ReportDirectory,
+            "patch4-face-pose-review.png");
+
         [MenuItem(
             "Tools/GameWork/Patch 4.0/Validation/Rebuild Neutral Pose QA")]
         public static bool ValidateAndWriteReport()
@@ -86,9 +98,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 compositePath = NormalizePath(CompositePath),
                 differencePath = NormalizePath(DifferencePath),
                 contactSheetPath = NormalizePath(ContactSheetPath),
+                facePoseContactSheetPath =
+                    NormalizePath(FacePoseContactSheetPath),
                 requiredLayerCount =
                     Patch4RigContract.RequiredLayerPaths.Count,
                 neutralLayerCount = neutralPaths.Count,
+                independentFacePoseCount = FacePoseCount,
                 neutralLayers = neutralPaths.ToArray()
             };
 
@@ -105,6 +120,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             DeletePreviousPreview(CompositePath, errors);
             DeletePreviousPreview(DifferencePath, errors);
             DeletePreviousPreview(ContactSheetPath, errors);
+            DeletePreviousPreview(FacePoseContactSheetPath, errors);
 
             ImageData master = LoadImage(
                 Patch4MaskDrivenLayerBaker.MasterPath,
@@ -170,6 +186,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     master.pixels,
                     composite,
                     difference);
+                Color32[] facePoseContactSheet =
+                    BuildFacePoseContactSheet(
+                        composite,
+                        errors);
 
                 MeasureComparison(
                     master.pixels,
@@ -195,6 +215,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         ExpectedWidth * 3,
                         ExpectedHeight,
                         contactSheet);
+                    if (facePoseContactSheet != null)
+                    {
+                        SavePng(
+                            FacePoseContactSheetPath,
+                            FaceCropWidth * FacePoseCount,
+                            FaceCropHeight,
+                            facePoseContactSheet);
+                        report.facePosePreviewCreated = true;
+                    }
                     report.technicalCompositeCreated = true;
                 }
                 catch (Exception exception)
@@ -214,6 +243,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             report.passedTechnicalChecks =
                 errors.Count == 0 &&
                 report.technicalCompositeCreated &&
+                report.facePosePreviewCreated &&
                 report.loadedNeutralLayerCount == report.neutralLayerCount;
             report.activationAllowed = false;
             report.errors = errors.ToArray();
@@ -230,7 +260,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "; silhouette IoU: " +
                     FormatPercent(
                         report.silhouetteIntersectionOverUnion) +
-                    ". Production activation remains locked. Report: " +
+                    "; four independent face poses prepared. Production " +
+                    "activation remains locked. Report: " +
                     ReportPath);
             }
             else
@@ -279,6 +310,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static bool IsNeutralLayer(string contractPath)
         {
             return !string.Equals(
+                       contractPath,
+                       "Face/LidL",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
+                       contractPath,
+                       "Face/LidR",
+                       StringComparison.Ordinal) &&
+                   !string.Equals(
                        contractPath,
                        "Face/MouthOpen",
                        StringComparison.Ordinal) &&
@@ -504,6 +543,115 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 x] = color;
         }
 
+        private static Color32[] BuildFacePoseContactSheet(
+            Color32[] neutral,
+            ICollection<string> errors)
+        {
+            Color32[][] poses =
+            {
+                (Color32[])neutral.Clone(),
+                (Color32[])neutral.Clone(),
+                (Color32[])neutral.Clone(),
+                (Color32[])neutral.Clone()
+            };
+
+            bool complete = true;
+            complete &= CompositePoseLayer(
+                poses[1],
+                "Face/LidL",
+                errors);
+            complete &= CompositePoseLayer(
+                poses[1],
+                "Face/LidR",
+                errors);
+            complete &= CompositePoseLayer(
+                poses[2],
+                "Face/MouthOpen",
+                errors);
+            complete &= CompositePoseLayer(
+                poses[3],
+                "Face/MouthSmile",
+                errors);
+            if (!complete)
+            {
+                return null;
+            }
+
+            int sheetWidth = FaceCropWidth * FacePoseCount;
+            Color32[] result =
+                new Color32[sheetWidth * FaceCropHeight];
+            int sourceBottom =
+                ExpectedHeight - FaceCropTop - FaceCropHeight;
+
+            Color32[] accents =
+            {
+                new(65, 210, 120, 255),
+                new(113, 168, 255, 255),
+                new(255, 174, 75, 255),
+                new(238, 105, 163, 255)
+            };
+
+            for (int pose = 0; pose < FacePoseCount; pose++)
+            {
+                for (int y = 0; y < FaceCropHeight; y++)
+                {
+                    int sourceY = sourceBottom + y;
+                    for (int x = 0; x < FaceCropWidth; x++)
+                    {
+                        int sourceX = FaceCropX + x;
+                        int sourceIndex =
+                            sourceY * ExpectedWidth + sourceX;
+                        Color32 checker =
+                            ((x / 16 + y / 16) & 1) == 0
+                                ? new Color32(42, 45, 52, 255)
+                                : new Color32(62, 66, 75, 255);
+                        Color32 color = BlendOver(
+                            checker,
+                            poses[pose][sourceIndex]);
+                        if (y >= FaceCropHeight - 5)
+                        {
+                            color = accents[pose];
+                        }
+
+                        result[
+                            y * sheetWidth +
+                            pose * FaceCropWidth +
+                            x] = color;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private static bool CompositePoseLayer(
+            Color32[] destination,
+            string contractPath,
+            ICollection<string> errors)
+        {
+            ImageData layer = LoadImage(
+                LayerPath(contractPath),
+                errors);
+            if (layer == null)
+            {
+                return false;
+            }
+
+            if (layer.width != ExpectedWidth ||
+                layer.height != ExpectedHeight)
+            {
+                errors.Add(
+                    contractPath + " pose layer is " +
+                    layer.width + "x" + layer.height +
+                    "; expected " + ExpectedWidth + "x" +
+                    ExpectedHeight + ".");
+                return false;
+            }
+
+            CompositeLayer(destination, layer.pixels);
+            return true;
+        }
+
         private static void MeasureComparison(
             Color32[] master,
             Color32[] composite,
@@ -609,7 +757,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 warnings.Add(
                     "Neutral composite covers only " +
                     FormatPercent(report.masterCoverage) +
-                    " of the approved master silhouette.");
+                    " of the locked quality-master silhouette.");
             }
 
             if (report.alphaLeakage > 0.0025f)

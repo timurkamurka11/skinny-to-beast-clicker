@@ -26,6 +26,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private sealed class NeutralPoseGateReport
         {
             public bool passedTechnicalChecks;
+            public bool facePosePreviewCreated;
             public bool humanReviewRequired;
             public bool activationAllowed;
         }
@@ -51,6 +52,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public int fallbackSpriteRendererCount;
             public bool fallbackSpriteRenderersDisabled;
             public bool neutralPoseTechnicalChecksPassed;
+            public bool facePosePreviewCreated;
             public bool neutralPoseHumanReviewRequired;
             public bool neutralPoseActivationBlocked;
             public List<Finding> findings = new();
@@ -182,12 +184,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             report.neutralPoseTechnicalChecksPassed =
                 gate.passedTechnicalChecks;
+            report.facePosePreviewCreated =
+                gate.facePosePreviewCreated;
             report.neutralPoseHumanReviewRequired =
                 gate.humanReviewRequired;
             report.neutralPoseActivationBlocked =
                 !gate.activationAllowed;
 
             if (!report.neutralPoseTechnicalChecksPassed ||
+                !report.facePosePreviewCreated ||
                 !report.neutralPoseHumanReviewRequired ||
                 !report.neutralPoseActivationBlocked)
             {
@@ -195,8 +200,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report,
                     "NEUTRAL_POSE_GATE_INVALID",
                     "Neutral-pose QA must produce a complete technical " +
-                    "composite while explicitly requiring human review and " +
-                    "blocking activation.");
+                    "composite and independent face-pose preview while " +
+                    "explicitly requiring human review and blocking activation.");
             }
         }
 

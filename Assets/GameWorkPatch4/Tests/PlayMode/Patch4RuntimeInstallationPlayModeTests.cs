@@ -128,6 +128,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     true);
                 AssertLayerActive(
                     patchVisual,
+                    "Layer.Face.LidL",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Face.LidR",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
                     "Layer.Face.MouthOpen",
                     false);
                 AssertLayerActive(

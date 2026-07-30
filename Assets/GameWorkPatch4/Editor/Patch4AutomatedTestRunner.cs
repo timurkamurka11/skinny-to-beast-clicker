@@ -473,6 +473,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorApplication.delayCall -= OpenResults;
             EditorApplication.ExecuteMenuItem("Window/General/Console");
             Patch4NeutralPoseReviewWindow.Open();
+            Patch4FacePoseReviewWindow.Open();
         }
     }
 }

@@ -151,5 +151,24 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Excluded the runtime-only ground shadow from master pixel comparison while
   preserving it in the runtime layer pack.
 - [x] Kept `productionArtApproved` false and Patch 3.5 visible.
-- [ ] Confirm the new quality pass in Unity `6000.3.19f1` with the automatic
-  `4/4` run and three-panel screenshot.
+- [x] Confirmed the new quality pass in Unity `6000.3.19f1` with the automatic
+  `4/4` run, zero warnings/errors and three-panel screenshot.
+- [x] User confirmed the master and assembled pose were many times sharper.
+
+## 2026-07-30 — P4.0-I joint and face candidates
+
+- [x] Replaced radius-five joint disks with texture-preserving elliptical
+  continuations for every required moving seam.
+- [x] Raised ordinary overlap validation to 180 pixels and belly/shirt overlap
+  to 360 pixels.
+- [x] Added deterministic skin underlay beneath independent eyes and mouth.
+- [x] Restored exact neutral eye and closed-mouth patches from the quality
+  master.
+- [x] Added painted closed-lid, open-mouth and smile candidate layers.
+- [x] Corrected blink direction and hid lids in the neutral runtime state.
+- [x] Added an automatic four-panel neutral / blink / open-mouth / smile review.
+- [x] Kept `productionArtApproved` false and Patch 3.5 visible.
+- [ ] Confirm the candidate pass in Unity `6000.3.19f1` with automatic `4/4`
+  verification and the face close-up window.
+- [ ] Complete Sprite Skin weight painting after the candidate art passes
+  visual review.

@@ -6,7 +6,7 @@ using UnityEngine;
 namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     /// <summary>
-    /// Read-only review surface for the approved master, assembled neutral pose
+    /// Read-only review surface for the locked quality master, assembled pose
     /// and pixel difference. Opening this window does not alter readiness or
     /// runtime visibility.
     /// </summary>
@@ -46,7 +46,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "GameWork Patch 4.0 — Locked Neutral Pose Review",
                 EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "Blue: approved master  •  Green: assembled neutral pose  •  " +
+                "Blue: locked quality master  •  Green: assembled neutral pose  •  " +
                 "Red: pixel difference. This window is read-only. Human art " +
                 "review is still required and production activation remains " +
                 "locked.",
@@ -101,7 +101,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     top,
                     panelWidth,
                     imageHeight),
-                "APPROVED MASTER",
+                "LOCKED QUALITY MASTER",
                 master,
                 new Color(0.28f, 0.60f, 1f));
             DrawPanel(

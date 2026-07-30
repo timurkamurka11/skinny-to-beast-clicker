@@ -47,6 +47,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4DraftLayerValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
     REPOSITORY_MASTER,
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
@@ -244,7 +245,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            'RunId = "quality-master-v1"',
+            'RunId = "joint-face-candidates-v1"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -285,6 +286,7 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
         "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseValidator.cs",
         "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
     )
     dangerous = re.compile(r"productionArtApproved[^\n]{0,100}(?:=|boolValue\s*=)\s*true", re.IGNORECASE)
     for relative in automatic_files:
@@ -359,12 +361,16 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         required_snippets = (
             "humanReviewRequired = true",
             "report.activationAllowed = false",
+            '"Face/LidL"',
+            '"Face/LidR"',
             '"Face/MouthOpen"',
             '"Face/MouthSmile"',
             '"FX/Sweat"',
             '"FX/ImpactFold"',
             '"FX/Shadow"',
             "patch4-neutral-pose-review.png",
+            "patch4-face-pose-review.png",
+            "report.facePosePreviewCreated = true",
         )
         for snippet in required_snippets:
             if snippet not in validator:
@@ -380,6 +386,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
     )
     if presentation:
         for hidden_layer in (
+            '"Face/LidL"',
+            '"Face/LidR"',
             '"Face/MouthOpen"',
             '"Face/MouthSmile"',
             '"FX/Sweat"',
@@ -398,6 +406,38 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
     )
     if pipeline and "Patch4NeutralPoseValidator.ValidateAndWriteReport();" not in pipeline:
         fail(errors, "Safety pipeline does not run neutral-pose QA")
+
+    baker = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4MaskDrivenLayerBaker.cs",
+        errors,
+    )
+    if baker:
+        for required in (
+            "PaintJointContinuation(",
+            "PaintSkinUnderlay(",
+            "PaintClosedLid(",
+            "PaintOpenMouth(",
+            "PaintSmile(",
+        ):
+            if required not in baker:
+                fail(errors, f"Joint/face candidate baker is missing: {required}")
+        if "PaintJointScaffold(" in baker:
+            fail(errors, "Legacy five-pixel joint scaffolding is still present")
+
+    face = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4FaceController.cs",
+        errors,
+    )
+    if face:
+        for required in (
+            "ApplyLidClosure(",
+            "SetLidsActive(false)",
+            "openScaleY",
+        ):
+            if required not in face:
+                fail(errors, f"Independent blink controller is missing: {required}")
 
 
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:
@@ -460,10 +500,10 @@ def main() -> int:
     print("Patch 4 static guard PASSED")
     print("- contract counts and uniqueness verified")
     print("- exact 1024 x 1536 RGBA repository master and SHA verified")
-    print("- automatic quality restore and full rebake order verified")
+    print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
     print("- Canvas runtime installation remains locked to rollback mode")
-    print("- neutral-pose QA remains read-only and human-gated")
+    print("- neutral and independent face-pose QA remain read-only and human-gated")
     print("- protected menu, video, music and settings paths unchanged")
     return 0
 

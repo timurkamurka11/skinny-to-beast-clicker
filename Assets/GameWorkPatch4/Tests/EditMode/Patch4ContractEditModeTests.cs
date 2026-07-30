@@ -88,6 +88,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.NotNull(
                 neutralReportPath,
                 "Neutral-pose QA report path is missing.");
+
+            PropertyInfo facePoseContactSheetPath =
+                neutralPoseValidator.GetProperty(
+                    "FacePoseContactSheetPath",
+                    BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(
+                facePoseContactSheetPath,
+                "Independent face-pose review path is missing.");
+
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4FacePoseReviewWindow");
         }
 
         [Test]

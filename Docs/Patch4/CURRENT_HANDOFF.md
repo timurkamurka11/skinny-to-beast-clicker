@@ -63,9 +63,13 @@ Patch 4 work remains isolated under:
   checking SHA-256, dimensions and RGBA format; no Adobe/network access is
   required in Unity.
 - Ten deterministic masks restore locally from that quality master.
-- The draft baker produces all 40 canonical layers.
-- Hidden joint scaffolds and the synthetic shadow satisfy the pixel/joint
-  validator.
+- The baker produces all 40 canonical layers.
+- The former five-pixel joint scaffolds have been replaced by wide,
+  texture-preserving hidden continuations sized independently for neck,
+  shoulders, elbows, wrists, hips, knees, ankles, belly and shirt hem.
+- The face baker now creates neutral eye/mouth restoration patches, painted
+  closed lids, a real open mouth and a smile over a deterministic skin
+  underlay; these remain human-review candidates, not approved production art.
 - The Animator Controller contains all ten required clips, including
   `FatMan_Blink_Random`.
 - Rig contract validation passes.
@@ -83,7 +87,8 @@ Important commits in that path include:
 - `83eabc1` — automatic EditMode and PlayMode test runner;
 - `c596512` — locked runtime installation in `LivingGameplayScene`;
 - `0386784` — Canvas-compatible 40-layer room presentation;
-- `5ea24ef` — locked neutral-pose review and automatic `4/4` verification.
+- `5ea24ef` — locked neutral-pose review and automatic `4/4` verification;
+- `e25763d` — exact 1024 × 1536 repository quality master.
 
 ## Real Unity test result
 
@@ -197,18 +202,29 @@ also revealed that the old source itself was visibly low-resolution. Repository
 inspection found the exact cause: a `96 × 144` indexed preview was being
 bilinearly enlarged to `1024 × 1536`.
 
-## Current quality-master pass awaiting local verification
+## Quality-master pass verified in real Unity
 
-The replacement pass remains isolated and read-only:
+The user verified the replacement pass in Unity `6000.3.19f1`:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console warnings and errors;
+- the quality master and assembled neutral pose were both sharp;
+- the user explicitly confirmed the result was “many times better”;
+- the difference panel showed only the expected thin silhouette contour and no
+  false ground-shadow block;
+- Patch 4 stayed locked and Patch 3.5 stayed visible.
+
+The verified pass remains isolated and read-only:
 
 - the committed exact source is `1024 × 1536`, 8-bit RGBA;
 - SHA-256 is
   `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`;
 - the former embedded preview class was removed;
 - local restoration refuses a mismatched checksum, size or PNG format;
-- `Patch4NeutralPoseValidator` composites 35 comparison layers;
-- alternate open/smile mouths, sweat, impact FX and the runtime-only ground
-  shadow are excluded from the master comparison;
+- `Patch4NeutralPoseValidator` now composites 33 neutral comparison layers;
+- alternate lids, open/smile mouths, sweat, impact FX and the runtime-only
+  ground shadow are excluded from the neutral master comparison;
 - the ground shadow still exists in the runtime layer pack, but no longer
   creates a false magenta difference beneath the shoes;
 - it compares the assembled pose pixel-by-pixel with the current master;
@@ -219,13 +235,33 @@ The replacement pass remains isolated and read-only:
 - Editor smoke validation requires a complete neutral composite and confirms
   that activation remains blocked.
 - After automatic EditMode/PlayMode verification,
-  `Patch4NeutralPoseReviewWindow` opens by itself with approved master,
+  `Patch4NeutralPoseReviewWindow` opens with the locked quality master,
   assembled neutral pose and pixel difference.
 - No review button, Dashboard command or Test Runner click is required.
 
+## Current P4.0-I joint and face candidate pass
+
+The next automatic pass:
+
+- replaces every legacy five-pixel joint disk with an elliptical continuation
+  that copies the real master texture through the moving joint and adds only a
+  three-pixel feather outside the silhouette;
+- raises the ordinary joint overlap requirement from 24 to 180 pixels and the
+  belly/shirt requirement to 360 pixels;
+- removes open eyes and the closed mouth from the head base underlay so
+  alternate expressions can fully replace them;
+- restores exact neutral eye/mouth patches from the master;
+- paints independent closed lids, open mouth and smile layers;
+- keeps both lids hidden in the neutral runtime state;
+- fixes blink direction so the lid grows from open to closed, then retracts and
+  hides;
+- writes a four-panel neutral / blink / open-mouth / smile close-up;
+- opens that face review automatically after the existing neutral review;
+- still writes `humanReviewRequired: true` and `activationAllowed: false`.
+
 ## Exact next action
 
-After the quality-master commit is present on `patch-4.0`, run only:
+After the P4.0-I commit is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -234,14 +270,15 @@ git pull origin patch-4.0
 Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
-2. regenerate all ten masks and all 40 draft layers;
-3. rebuild the resource-loadable locked prefab;
-4. assemble and compare the locked neutral pose;
-5. write the neutral-pose preview and diagnostic report;
-6. run pixel, rig, compilation and Editor smoke validation;
-7. run all EditMode tests;
-8. enter Play Mode and run all PlayMode tests;
-9. exit Play Mode and open the three-panel review window.
+2. regenerate all ten masks and all 40 candidate layers;
+3. paint the hidden continuations and four independent face states;
+4. rebuild the resource-loadable locked prefab;
+5. assemble and compare the locked neutral pose;
+6. write the neutral and four-expression review images;
+7. run pixel, rig, compilation and Editor smoke validation;
+8. run all EditMode tests;
+9. enter Play Mode and run all PlayMode tests;
+10. exit Play Mode and open both read-only review windows.
 
 Expected final count:
 
@@ -249,10 +286,10 @@ Expected final count:
 EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
-No Dashboard, Test Runner or review-window click is required. The new left and
-middle panels should be substantially sharper than the previously reviewed
-pixelated source. The right panel should no longer show the deliberate ground
-shadow as a foot-area mismatch.
+No Dashboard, Test Runner or review-window click is required. Inspect the
+automatically focused face window: neutral, blink, open mouth and smile must
+look like the same character without rectangular seams. The neutral comparison
+window remains open behind it.
 
 ## Do not do yet
 
@@ -262,11 +299,12 @@ shadow as a foot-area mismatch.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the quality-master 4/4 test
+## Work after the P4.0-I 4/4 test
 
-- Inspect the automatically opened master / assembled / difference panels and
-  confirm the sharper source while keeping production activation locked.
-- Complete/review hidden joint artwork and final facial poses.
+- Inspect the automatically opened face close-ups and neutral comparison while
+  keeping production activation locked.
+- If the facial paint or joint deformation needs revision, keep the gate
+  locked and revise the candidate pass.
 - Complete Sprite Skin weight painting.
 - Review all ten animations in the actual room.
 - Approve readiness only after technical and human visual review.

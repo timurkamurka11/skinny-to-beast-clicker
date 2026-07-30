@@ -28,10 +28,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [SerializeField, Min(0.02f)] private float holdDuration = 0.04f;
         [SerializeField, Min(0.02f)] private float openDuration = 0.09f;
         [SerializeField] private Vector2 blinkInterval = new(2.2f, 5.5f);
-        [SerializeField, Range(0.01f, 0.25f)] private float closedScaleY = 0.04f;
+        [SerializeField, Range(0.01f, 0.25f)] private float openScaleY = 0.04f;
 
-        private Vector3 leftOpenScale = Vector3.one;
-        private Vector3 rightOpenScale = Vector3.one;
+        private Vector3 leftClosedScale = Vector3.one;
+        private Vector3 rightClosedScale = Vector3.one;
         private float blinkStartedAt = -100f;
         private float nextBlinkAt;
         private bool blinking;
@@ -45,7 +45,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void Awake()
         {
-            CacheOpenEyeScales();
+            CacheClosedLidScales();
+            RestoreOpenEyes();
             SetMouth(MouthPose.Closed);
             ScheduleBlink();
         }
@@ -66,8 +67,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             if (!blinking && Time.time >= nextBlinkAt)
             {
-                blinking = true;
-                blinkStartedAt = Time.time;
+                BeginBlink();
             }
 
             if (!blinking)
@@ -76,26 +76,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             float elapsed = Time.time - blinkStartedAt;
-            float scale;
+            float closure;
 
             if (elapsed < closeDuration)
             {
-                scale = Mathf.Lerp(1f, closedScaleY, elapsed / closeDuration);
+                closure = Mathf.Clamp01(elapsed / closeDuration);
             }
             else if (elapsed < closeDuration + holdDuration)
             {
-                scale = closedScaleY;
+                closure = 1f;
             }
             else
             {
                 float openElapsed = elapsed - closeDuration - holdDuration;
-                scale = Mathf.Lerp(
-                    closedScaleY,
-                    1f,
-                    Mathf.Clamp01(openElapsed / openDuration));
+                closure =
+                    1f -
+                    Mathf.Clamp01(openElapsed / openDuration);
             }
 
-            ApplyLidScale(scale);
+            ApplyLidClosure(closure);
 
             if (elapsed >= BlinkLength)
             {
@@ -107,8 +106,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         public void BlinkNow()
         {
-            blinking = true;
-            blinkStartedAt = Time.time;
+            BeginBlink();
         }
 
         public void SetMouth(MouthPose pose)
@@ -130,9 +128,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
             mouthClosed = closedMouth;
             mouthOpen = openMouth;
             mouthSmile = smileMouth;
-            CacheOpenEyeScales();
+            CacheClosedLidScales();
             RestoreOpenEyes();
             SetMouth(MouthPose.Closed);
+        }
+
+        private void BeginBlink()
+        {
+            blinking = true;
+            blinkStartedAt = Time.time;
+            SetLidsActive(true);
+            ApplyLidClosure(0f);
         }
 
         private void ScheduleBlink()
@@ -142,19 +148,26 @@ namespace SkinnyToBeast.Gameplay.Patch4
             nextBlinkAt = Time.time + Random.Range(min, max);
         }
 
-        private void ApplyLidScale(float yFactor)
+        private void ApplyLidClosure(float closure)
         {
+            closure = Mathf.Clamp01(closure);
             if (lidLeft != null)
             {
-                Vector3 scale = leftOpenScale;
-                scale.y *= yFactor;
+                Vector3 scale = leftClosedScale;
+                scale.y *= Mathf.Lerp(
+                    openScaleY,
+                    1f,
+                    closure);
                 lidLeft.localScale = scale;
             }
 
             if (lidRight != null)
             {
-                Vector3 scale = rightOpenScale;
-                scale.y *= yFactor * 0.96f;
+                Vector3 scale = rightClosedScale;
+                scale.y *= Mathf.Lerp(
+                    openScaleY,
+                    1f,
+                    closure * 0.98f);
                 lidRight.localScale = scale;
             }
         }
@@ -163,26 +176,38 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             if (lidLeft != null)
             {
-                lidLeft.localScale = leftOpenScale;
+                lidLeft.localScale = leftClosedScale;
             }
 
             if (lidRight != null)
             {
-                lidRight.localScale = rightOpenScale;
+                lidRight.localScale = rightClosedScale;
             }
+
+            SetLidsActive(false);
         }
 
-        private void CacheOpenEyeScales()
+        private void CacheClosedLidScales()
         {
             if (lidLeft != null)
             {
-                leftOpenScale = lidLeft.localScale;
+                leftClosedScale = lidLeft.localScale;
             }
 
             if (lidRight != null)
             {
-                rightOpenScale = lidRight.localScale;
+                rightClosedScale = lidRight.localScale;
             }
+        }
+
+        private void SetLidsActive(bool active)
+        {
+            SetActive(
+                lidLeft != null ? lidLeft.gameObject : null,
+                active);
+            SetActive(
+                lidRight != null ? lidRight.gameObject : null,
+                active);
         }
 
         private static void SetActive(GameObject target, bool active)

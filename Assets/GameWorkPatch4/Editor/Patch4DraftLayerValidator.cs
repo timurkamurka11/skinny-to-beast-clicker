@@ -8,7 +8,7 @@ using UnityEngine;
 namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     /// <summary>
-    /// Pixel-level validation for the full-canvas Patch 4 draft layer pack.
+    /// Pixel-level validation for the full-canvas Patch 4 candidate layer pack.
     /// Existence alone is not enough: the validator checks dimensions, alpha
     /// coverage, leakage, meaningful content and local overlap at moving joints.
     /// </summary>
@@ -44,7 +44,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 float x,
                 float y,
                 float radiusPixels = 46f,
-                int minimumOverlapPixels = 24)
+                int minimumOverlapPixels = 180)
             {
                 this.name = name;
                 this.first = first;
@@ -65,7 +65,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             ImageData master = LoadImage(Patch4MaskDrivenLayerBaker.MasterPath);
             if (master == null)
             {
-                errors.Add("Approved master is missing or unreadable.");
+                errors.Add("Locked quality master is missing or unreadable.");
                 WriteReport(false, 0f, 0f, errors, warnings, Array.Empty<string>());
                 AssetDatabase.Refresh();
                 return;
@@ -102,7 +102,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 {
                     errors.Add(
                         $"Layer {contractPath} contains only {visiblePixels} " +
-                        $"visible pixels; minimum draft threshold is {minimum}.");
+                        $"visible pixels; minimum candidate threshold is {minimum}.");
                 }
 
                 layers[contractPath] = layer;
@@ -131,7 +131,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     errors.Add(
                         "Character layer union covers only " +
                         FormatPercent(coverage) +
-                        " of the approved master alpha. Minimum is 96.5%." );
+                        " of the locked quality-master alpha. Minimum is 96.5%." );
                 }
 
                 if (leakage > 0.0025f)
@@ -139,7 +139,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     errors.Add(
                         "Character layer union leaks " +
                         FormatPercent(leakage) +
-                        " outside the approved master alpha. Maximum is 0.25%." );
+                        " outside the locked quality-master alpha. Maximum is 0.25%." );
                 }
             }
 
@@ -162,7 +162,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     errors.Add(
                         $"Joint {check.name} has only {overlap} overlapping " +
                         $"pixels near its pivot; minimum is " +
-                        $"{check.minimumOverlapPixels}. Hidden artwork must be redrawn.");
+                        $"{check.minimumOverlapPixels}. The hidden continuation " +
+                        "is not production-review ready.");
                 }
             }
 
@@ -189,20 +190,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (passed)
             {
                 Debug.Log(
-                    "Patch 4 draft layer validation passed technical checks. " +
-                    "Human art approval is still required before activation.");
+                    "Patch 4 candidate layer validation passed technical checks. " +
+                    "Human joint, face and motion review is still required " +
+                    "before activation.");
             }
             else
             {
                 for (int i = 0; i < errors.Count; i++)
                 {
                     Debug.LogWarning(
-                        "Patch 4 draft blocker " + (i + 1) + "/" + errors.Count +
+                    "Patch 4 candidate blocker " + (i + 1) + "/" + errors.Count +
                         ": " + errors[i]);
                 }
 
                 Debug.LogWarning(
-                    "Patch 4 draft layer validation found " + errors.Count +
+                    "Patch 4 candidate layer validation found " + errors.Count +
                     " blocking issue(s). See " + ReportPath + ".");
             }
         }
@@ -224,7 +226,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 new JointCheck("right-knee", "LegR/Thigh", "LegR/Shin", 0.60f, 0.625f),
                 new JointCheck("left-ankle", "LegL/Shin", "LegL/Foot", 0.385f, 0.735f),
                 new JointCheck("right-ankle", "LegR/Shin", "LegR/Foot", 0.615f, 0.735f),
-                new JointCheck("belly-shirt-hem", "Body/BellyFront", "Clothes/ShirtBellyOverlay", 0.5f, 0.48f, 58f, 48)
+                new JointCheck("belly-shirt-hem", "Body/BellyFront", "Clothes/ShirtBellyOverlay", 0.5f, 0.48f, 58f, 360)
             };
         }
 
