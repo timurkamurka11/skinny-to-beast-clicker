@@ -10,10 +10,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
     /// the Screen Space Overlay canvas used by LivingGameplayScene.
     ///
     /// Images stay in one flat hierarchy so their canonical sorting order is
-    /// deterministic. Their transforms follow the independent rig bones in
-    /// LateUpdate, while a Canvas mesh effect blends weighted vertices across
-    /// adjacent bones. This component never changes the art-readiness gate and
-    /// never enables Patch 4.
+    /// deterministic. Their anchors are aligned once at bind time and then
+    /// remain frozen while a Canvas mesh effect applies the live bone matrices.
+    /// Following the bones again after binding would cancel the primary bone
+    /// motion. This component never changes the art-readiness gate and never
+    /// enables Patch 4.
     /// </summary>
     [DefaultExecutionOrder(1200)]
     [DisallowMultipleComponent]
@@ -77,6 +78,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Canvas hostCanvas;
         private bool prepared;
         private bool skinBindingsReady;
+        private bool bindAnchorsFrozen;
         private bool gameplayLayoutConfigured;
         private float roomScale;
 
@@ -84,6 +86,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         public bool IsCanvasReady =>
             prepared &&
             skinBindingsReady &&
+            bindAnchorsFrozen &&
             gameplayLayoutConfigured &&
             hostCanvas != null;
         public int ImageCount => images.Count;
@@ -110,6 +113,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
         }
         public bool SkinBindingsReady => skinBindingsReady;
+        public bool BindAnchorsFrozen => bindAnchorsFrozen;
 
         private void Reset()
         {
@@ -125,14 +129,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
         }
 
-        private void LateUpdate()
-        {
-            if (prepared)
-            {
-                SyncLayerTransforms();
-            }
-        }
-
         public bool RebuildCanvasLayers()
         {
             ClearGeneratedLayers();
@@ -142,6 +138,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             missingLayers.Clear();
             prepared = false;
             skinBindingsReady = false;
+            bindAnchorsFrozen = false;
 
             ResolveReferences();
             if (rigController == null ||
@@ -230,8 +227,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             if (prepared)
             {
-                SyncLayerTransforms();
+                AlignLayerAnchorsToBindPose();
                 skinBindingsReady = CaptureSkinBindPoses();
+                bindAnchorsFrozen = skinBindingsReady;
                 if (!skinBindingsReady)
                 {
                     AddMissing("<canvasSkinBindPoses>");
@@ -250,6 +248,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             gameplayLayoutConfigured = false;
             hostCanvas = null;
             roomScale = 0f;
+            bindAnchorsFrozen = false;
 
             if (legacyCharacterRoot == null)
             {
@@ -296,8 +295,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             gameplayLayoutConfigured = true;
             DisableFallbackSpriteRenderers();
-            SyncLayerTransforms();
+            AlignLayerAnchorsToBindPose();
             skinBindingsReady = CaptureSkinBindPoses();
+            bindAnchorsFrozen = skinBindingsReady;
             return IsCanvasReady;
         }
 
@@ -305,6 +305,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             prepared = false;
             skinBindingsReady = false;
+            bindAnchorsFrozen = false;
             bindings.Clear();
             images.Clear();
             skinDeformers.Clear();
@@ -706,7 +707,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             return result != null ? result.gameObject : null;
         }
 
-        private void SyncLayerTransforms()
+        private void AlignLayerAnchorsToBindPose()
         {
             if (generatedRoot == null)
             {

@@ -250,7 +250,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"fullrect-runtime-contract-room-review-v6"',
+            '"frozen-bind-visible-motion-silent-review-v7"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -345,6 +345,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Patch4CanvasSkinDeformer",
             "CaptureSkinBindPoses()",
             "SkinBindingsReady",
+            "BindAnchorsFrozen",
+            "AlignLayerAnchorsToBindPose()",
             "image.useSpriteMesh = false",
             "ResolveSkinProfile(",
             'FindLayerObject("Face/EyeWhiteL")',
@@ -356,6 +358,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
 
         if "SetPatch4Enabled(" in presentation:
             fail(errors, "Canvas presentation must never change Patch 4 activation")
+        if "SyncLayerTransforms" in presentation:
+            fail(
+                errors,
+                "Canvas layer anchors must not chase live bones after their "
+                "bind poses are captured",
+            )
 
     builder = read_text(
         root,
@@ -420,7 +428,14 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "patch35RollbackRoot.SetActive(true)",
             "CaptureReviewBackground()",
             "AnalyzeRoomSilhouette(",
+            "AnalyzeVisibleMotion(",
+            "minimumMotionCoverage",
+            "neutralWidthRetention",
             "visualSanityPassed",
+            "visibleMotionPassed",
+            "legacyRoutine.enabled = false",
+            "legacySignalBridge.enabled = false",
+            "source.Stop()",
             "Application.logMessageReceived",
             "reviewConsoleErrorCount == 0",
             "SetEditorReviewActive(true)",
@@ -436,6 +451,40 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             )
         if "SetPatch4Enabled(true)" in review_driver:
             fail(errors, "Locked room review must never pass the production gate")
+
+    animation_builder = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AnimationLibraryBuilder.cs",
+        errors,
+    )
+    if animation_builder:
+        for snippet in (
+            "SetAlternatingRotation(",
+            "SetReactionRotation(",
+            "SetCyclePosition(",
+            "AddFloatTransition(",
+            '"FatMan_Turn"',
+            "new Keyframe(0.2f, 0.94f)",
+        ):
+            if snippet not in animation_builder:
+                fail(
+                    errors,
+                    "Patch 4 animation library is missing the corrected " +
+                    "visible-motion contract: " +
+                    snippet,
+                )
+        if "new Keyframe(0.18f, 0.12f)" in animation_builder:
+            fail(
+                errors,
+                "FatMan_Turn must never collapse the character to a near-zero "
+                "horizontal scale",
+            )
+        if 'AddBoolTransition(idle, walk, "Speed"' in animation_builder:
+            fail(
+                errors,
+                "The float Speed parameter must use a float transition, not a "
+                "bool transition",
+            )
 
     room_review = read_text(
         root,
@@ -665,8 +714,9 @@ def main() -> int:
     print("- exact 1024 x 1536 RGBA repository master and SHA verified")
     print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
-    print("- Canvas grids use uncropped full-canvas UVs and FullRect sprites")
-    print("- actual-room review blocks collapsed silhouettes and Console errors")
+    print("- Canvas grids use frozen bind anchors, full-canvas UVs and FullRect sprites")
+    print("- actual-room review blocks weak motion, collapsed silhouettes and Console errors")
+    print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")
     print("- protected menu, video, music and settings paths unchanged")

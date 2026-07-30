@@ -109,6 +109,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                         canvasPresentation,
                         "SkinBindingsReady"),
                     "Canvas bone-weight bind poses were not captured.");
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        canvasPresentation,
+                        "BindAnchorsFrozen"),
+                    "Canvas bind anchors must remain fixed after capture. " +
+                    "Following the animated bones again would cancel the " +
+                    "visible motion.");
                 Assert.AreEqual(
                     40,
                     GetIntProperty(

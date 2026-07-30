@@ -275,7 +275,32 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Added the first child test name and assertion text to the Console failure.
 - [x] Advanced the automatic continuation to a new run id.
 - [x] Kept the readiness gate locked and Patch 3.5 active.
-- [ ] Confirm P4.0-N in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
-  `4 passed`, ten valid silhouettes and zero room-review errors.
+- [x] Confirmed P4.0-N in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, ten captures and zero room-review errors.
+- [x] Rejected P4.0-N after human review: most clips were nearly static,
+  `FatMan_Turn` collapsed to a vertical line and the old robot-like footstep
+  remained audible.
+- [x] Isolated live follower updates as the primary-motion cancellation and
+  the authored `0.12` turn scale as the collapse source.
+
+## 2026-07-30 — P4.0-O visible motion and silent locked review
+
+- [x] Freeze Canvas layer anchors after bind-pose capture.
+- [x] Require frozen anchors in readiness, Editor smoke and PlayMode.
+- [x] Expand all ten clips with readable body, head, arm and leg motion.
+- [x] Replace the near-zero turn squash with a safe pivot/counter-motion pose.
+- [x] Capture each clip at an authored action peak.
+- [x] Compare every peak with its own start pose and block weak visible motion.
+- [x] Compare every silhouette with a fixed neutral reference and block width,
+  height or area collapse.
+- [x] Pause and restore the legacy walk routine and signal bridge during the
+  isolated review.
+- [x] Stop only the legacy non-loop one-shot source so the robot-like footstep
+  cannot contaminate Patch 4 motion review.
+- [x] Keep ambient audio, menu, video, music and settings unchanged.
+- [x] Keep readiness locked and Patch 3.5 active outside review.
+- [ ] Confirm P4.0-O in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, ten visibly distinct peaks, zero collapse and no legacy walk
+  sound.
 - [ ] Complete human review of joints, stretch, clothing continuity and foot
   contact only after the corrected contact sheet is visually coherent.

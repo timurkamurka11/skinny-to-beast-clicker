@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using SkinnyToBeast.Gameplay;
 using UnityEngine;
 
 namespace SkinnyToBeast.Gameplay.Patch4
@@ -30,6 +31,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public float widthCoverage;
             public float heightCoverage;
             public float areaCoverage;
+            public float neutralWidthRetention;
+            public float neutralHeightRetention;
+            public float neutralAreaRetention;
+            public int motionChangedPixelCount;
+            public float motionCoverage;
+            public float minimumMotionCoverage;
+            public bool visibleMotionPassed;
         }
 
         [Serializable]
@@ -41,12 +49,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool actualLivingGameplayRoom;
             public bool allTenClipsReviewed;
             public bool canvasSkinBindingsReady;
+            public bool canvasBindAnchorsFrozen;
             public int canvasSkinDeformerCount;
             public int weightedLayerCount;
             public bool readinessGateRemainedLocked;
             public bool patch35Restored;
             public bool legacyRigStayedLogicallyActive;
             public bool visualSanityPassed;
+            public bool visibleMotionPassed;
+            public bool legacyRoutinePausedForReview;
+            public bool legacyRoutineRestored;
+            public bool legacySignalBridgePausedForReview;
+            public bool legacySignalBridgeRestored;
+            public bool legacyOneShotAudioStopped;
             public int reviewConsoleErrorCount;
             public bool humanReviewRequired = true;
             public bool activationAllowed;
@@ -66,9 +81,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const int ThumbnailWidth = 300;
         private const int ThumbnailHeight = 420;
         private const int PixelDifferenceThreshold = 42;
+        private const int MotionPixelDifferenceThreshold = 34;
         private const float MinimumSilhouetteWidthCoverage = 0.36f;
         private const float MinimumSilhouetteHeightCoverage = 0.60f;
         private const float MinimumSilhouetteAreaCoverage = 0.10f;
+        private const float MinimumNeutralWidthRetention = 0.72f;
+        private const float MinimumNeutralHeightRetention = 0.78f;
+        private const float MinimumNeutralAreaRetention = 0.58f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -84,11 +103,21 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private int backgroundWidth;
         private int backgroundHeight;
         private CanvasGroup rollbackReviewGroup;
+        private CharacterRoutineController legacyRoutine;
+        private Patch4LegacySignalBridge legacySignalBridge;
+        private bool legacyRoutineWasEnabled;
+        private bool legacySignalBridgeWasEnabled;
         private bool rollbackGroupAddedForReview;
         private float rollbackGroupPreviousAlpha = 1f;
         private bool rollbackGroupPreviousInteractable;
         private bool rollbackGroupPreviousBlocksRaycasts;
         private ReviewReport report;
+        private Color32[] clipStartPixels = Array.Empty<Color32>();
+        private Rect neutralExpectedScreenRect;
+        private int neutralSilhouetteWidth;
+        private int neutralSilhouetteHeight;
+        private int neutralSilhouetteArea;
+        private bool neutralReferenceCaptured;
         private string currentClip = string.Empty;
         private bool started;
         private bool logCaptureRegistered;
@@ -139,6 +168,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 canvasSkinBindingsReady =
                     canvasPresentation != null &&
                     canvasPresentation.SkinBindingsReady,
+                canvasBindAnchorsFrozen =
+                    canvasPresentation != null &&
+                    canvasPresentation.BindAnchorsFrozen,
                 canvasSkinDeformerCount =
                     canvasPresentation != null
                         ? canvasPresentation.SkinDeformerCount
@@ -212,21 +244,27 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Patch4RigContract.RequiredClipNames.Count;
             report.visualSanityPassed =
                 report.allTenClipsReviewed;
+            report.visibleMotionPassed =
+                report.allTenClipsReviewed;
             for (int i = 0; i < report.clips.Count; i++)
             {
                 report.allTenClipsReviewed &=
                     report.clips[i].captured;
                 report.visualSanityPassed &=
                     report.clips[i].visualSanityPassed;
+                report.visibleMotionPassed &=
+                    report.clips[i].visibleMotionPassed;
             }
 
             Finish(
                 report.allTenClipsReviewed &&
-                report.visualSanityPassed,
-                report.visualSanityPassed
+                report.visualSanityPassed &&
+                report.visibleMotionPassed,
+                report.visualSanityPassed &&
+                report.visibleMotionPassed
                     ? string.Empty
-                    : "One or more animation frames collapsed or failed the " +
-                      "room-silhouette sanity check.");
+                    : "One or more animation clips collapsed or failed the " +
+                      "visible start-to-peak motion check.");
         }
 
         private IEnumerator ReviewClip(
@@ -241,7 +279,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clip.length,
                 0.55f,
                 2.4f);
-            float captureAt = reviewDuration * 0.5f;
+            float captureAt =
+                reviewDuration *
+                ResolveCaptureNormalizedTime(clip.name);
             if (string.Equals(
                     clip.name,
                     "FatMan_Blink_Random",
@@ -249,16 +289,39 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 reviewDuration = 0.55f;
                 captureAt = 0.09f;
-                faceController.BlinkNow();
             }
 
             clipReport.reviewDuration = reviewDuration;
+            clipReport.minimumMotionCoverage =
+                ResolveMinimumMotionCoverage(clip.name);
             animator.speed =
                 clip.length > 0.001f
                     ? clip.length / reviewDuration
                     : 1f;
             animator.Play(clip.name, 0, 0f);
             animator.Update(0f);
+            Canvas.ForceUpdateCanvases();
+
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            if (!CaptureClipStartPose(clipIndex))
+            {
+                clipReport.captured = false;
+                report.error = AppendError(
+                    report.error,
+                    clip.name +
+                    ": start-pose capture failed.");
+                animator.speed = 1f;
+                yield break;
+            }
+
+            if (string.Equals(
+                    clip.name,
+                    "FatMan_Blink_Random",
+                    StringComparison.Ordinal))
+            {
+                faceController.BlinkNow();
+            }
 
             float elapsed = 0f;
             bool captured = false;
@@ -292,6 +355,124 @@ namespace SkinnyToBeast.Gameplay.Patch4
             animator.speed = 1f;
         }
 
+        private bool CaptureClipStartPose(int clipIndex)
+        {
+            Texture2D screenshot = null;
+            try
+            {
+                screenshot =
+                    ScreenCapture.CaptureScreenshotAsTexture(1);
+                if (screenshot == null ||
+                    screenshot.width != backgroundWidth ||
+                    screenshot.height != backgroundHeight)
+                {
+                    return false;
+                }
+
+                clipStartPixels = screenshot.GetPixels32();
+                if (clipStartPixels.Length !=
+                    screenshot.width * screenshot.height)
+                {
+                    return false;
+                }
+
+                if (clipIndex != 0)
+                {
+                    return neutralReferenceCaptured;
+                }
+
+                neutralExpectedScreenRect = ResolveExpectedScreenRect(
+                    screenshot.width,
+                    screenshot.height);
+                if (!MeasureSilhouette(
+                        clipStartPixels,
+                        screenshot.width,
+                        screenshot.height,
+                        neutralExpectedScreenRect,
+                        out int changed,
+                        out int width,
+                        out int height))
+                {
+                    return false;
+                }
+
+                neutralSilhouetteArea = changed;
+                neutralSilhouetteWidth = width;
+                neutralSilhouetteHeight = height;
+                neutralReferenceCaptured =
+                    neutralSilhouetteArea > 0 &&
+                    neutralSilhouetteWidth > 0 &&
+                    neutralSilhouetteHeight > 0;
+                return neutralReferenceCaptured;
+            }
+            catch (Exception exception)
+            {
+                report.error = AppendError(
+                    report.error,
+                    currentClip +
+                    " start pose: " +
+                    exception.Message);
+                return false;
+            }
+            finally
+            {
+                if (screenshot != null)
+                {
+                    Destroy(screenshot);
+                }
+            }
+        }
+
+        private static float ResolveCaptureNormalizedTime(
+            string clipName)
+        {
+            switch (clipName)
+            {
+                case "FatMan_Idle_ShiftWeight":
+                case "FatMan_LookAround":
+                case "FatMan_Walk_InRoom":
+                    return 0.25f;
+                case "FatMan_TapReact_01":
+                case "FatMan_TapReact_02":
+                    return 0.22f;
+                case "FatMan_Turn":
+                    return 0.58f;
+                case "FatMan_SitOrLean":
+                    return 0.56f;
+                case "FatMan_UpgradeReact":
+                    return 0.2f;
+                default:
+                    return 0.5f;
+            }
+        }
+
+        private static float ResolveMinimumMotionCoverage(
+            string clipName)
+        {
+            switch (clipName)
+            {
+                case "FatMan_Idle_Breathe":
+                    return 0.004f;
+                case "FatMan_Blink_Random":
+                    return 0.003f;
+                case "FatMan_LookAround":
+                    return 0.008f;
+                case "FatMan_Idle_ShiftWeight":
+                    return 0.015f;
+                case "FatMan_TapReact_01":
+                case "FatMan_TapReact_02":
+                case "FatMan_SitOrLean":
+                    return 0.02f;
+                case "FatMan_Walk_InRoom":
+                case "FatMan_Turn":
+                    return 0.025f;
+                case "FatMan_UpgradeReact":
+                    return 0.03f;
+                default:
+                    return 0.01f;
+            }
+        }
+
         private string ValidateSetup()
         {
             if (rigController == null ||
@@ -314,11 +495,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             if (!canvasPresentation.IsCanvasReady ||
                 !canvasPresentation.SkinBindingsReady ||
+                !canvasPresentation.BindAnchorsFrozen ||
                 canvasPresentation.SkinDeformerCount !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
                 canvasPresentation.WeightedLayerCount < 20)
             {
-                return "The Canvas skinning presentation is incomplete.";
+                return "The Canvas skinning presentation is incomplete or " +
+                    "its bind anchors are not frozen.";
             }
 
             if (rigController.Patch4Enabled ||
@@ -391,12 +574,88 @@ namespace SkinnyToBeast.Gameplay.Patch4
             rollbackReviewGroup.blocksRaycasts = false;
             report.legacyRigStayedLogicallyActive =
                 patch35RollbackRoot.activeInHierarchy;
+            PauseLegacyMotionAndFootsteps();
             patch4VisualRoot.SetActive(true);
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             Canvas.ForceUpdateCanvases();
+        }
+
+        private void PauseLegacyMotionAndFootsteps()
+        {
+            Transform legacyRoot =
+                rigController != null
+                    ? rigController.transform.parent
+                    : null;
+            legacyRoutine =
+                legacyRoot != null
+                    ? legacyRoot.GetComponent<CharacterRoutineController>()
+                    : null;
+            legacyRoutineWasEnabled =
+                legacyRoutine != null &&
+                legacyRoutine.enabled;
+            if (legacyRoutineWasEnabled)
+            {
+                legacyRoutine.enabled = false;
+            }
+
+            report.legacyRoutinePausedForReview =
+                legacyRoutine == null ||
+                !legacyRoutine.enabled;
+
+            legacySignalBridge =
+                rigController != null
+                    ? rigController.GetComponent<
+                        Patch4LegacySignalBridge>()
+                    : null;
+            legacySignalBridgeWasEnabled =
+                legacySignalBridge != null &&
+                legacySignalBridge.enabled;
+            if (legacySignalBridgeWasEnabled)
+            {
+                legacySignalBridge.enabled = false;
+            }
+
+            report.legacySignalBridgePausedForReview =
+                legacySignalBridge == null ||
+                !legacySignalBridge.enabled;
+
+            GameplayAudioController gameplayAudio =
+                legacyRoot != null
+                    ? legacyRoot.GetComponentInParent<
+                        GameplayAudioController>()
+                    : null;
+            if (gameplayAudio == null)
+            {
+                report.legacyOneShotAudioStopped = true;
+                return;
+            }
+
+            AudioSource[] sources =
+                gameplayAudio.GetComponents<AudioSource>();
+            bool foundOneShot = false;
+            for (int i = 0; i < sources.Length; i++)
+            {
+                AudioSource source = sources[i];
+                if (source == null || source.loop)
+                {
+                    continue;
+                }
+
+                foundOneShot = true;
+                source.Stop();
+            }
+
+            report.legacyOneShotAudioStopped =
+                !foundOneShot ||
+                Array.TrueForAll(
+                    sources,
+                    source =>
+                        source == null ||
+                        source.loop ||
+                        !source.isPlaying);
         }
 
         private void ConfigureFaceForClip(string clipName)
@@ -503,6 +762,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     AnalyzeRoomSilhouette(
                         screenshot,
                         clipReport);
+                clipReport.visibleMotionPassed =
+                    AnalyzeVisibleMotion(
+                        screenshot,
+                        clipReport);
                 thumbnail = BuildThumbnail(screenshot);
                 if (thumbnail == null)
                 {
@@ -557,30 +820,127 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 return false;
             }
 
-            Rect expected = ResolveExpectedScreenRect(
-                screenshot.width,
-                screenshot.height);
+            Color32[] current = screenshot.GetPixels32();
+            Rect expected = neutralReferenceCaptured
+                ? neutralExpectedScreenRect
+                : ResolveExpectedScreenRect(
+                    screenshot.width,
+                    screenshot.height);
+            if (!MeasureSilhouette(
+                    current,
+                    screenshot.width,
+                    screenshot.height,
+                    expected,
+                    out int changed,
+                    out int silhouetteWidth,
+                    out int silhouetteHeight))
+            {
+                return false;
+            }
+
+            int expectedWidth = Mathf.Max(
+                1,
+                Mathf.CeilToInt(expected.width));
+            int expectedHeight = Mathf.Max(
+                1,
+                Mathf.CeilToInt(expected.height));
+            clipReport.changedPixelCount = changed;
+            clipReport.silhouetteWidth = silhouetteWidth;
+            clipReport.silhouetteHeight = silhouetteHeight;
+            clipReport.widthCoverage =
+                silhouetteWidth / (float)expectedWidth;
+            clipReport.heightCoverage =
+                silhouetteHeight / (float)expectedHeight;
+            clipReport.areaCoverage =
+                changed / (float)(expectedWidth * expectedHeight);
+            clipReport.neutralWidthRetention =
+                neutralSilhouetteWidth > 0
+                    ? silhouetteWidth /
+                      (float)neutralSilhouetteWidth
+                    : 0f;
+            clipReport.neutralHeightRetention =
+                neutralSilhouetteHeight > 0
+                    ? silhouetteHeight /
+                      (float)neutralSilhouetteHeight
+                    : 0f;
+            clipReport.neutralAreaRetention =
+                neutralSilhouetteArea > 0
+                    ? changed /
+                      (float)neutralSilhouetteArea
+                    : 0f;
+
+            bool sane =
+                clipReport.widthCoverage >=
+                    MinimumSilhouetteWidthCoverage &&
+                clipReport.heightCoverage >=
+                    MinimumSilhouetteHeightCoverage &&
+                clipReport.areaCoverage >=
+                    MinimumSilhouetteAreaCoverage &&
+                clipReport.neutralWidthRetention >=
+                    MinimumNeutralWidthRetention &&
+                clipReport.neutralHeightRetention >=
+                    MinimumNeutralHeightRetention &&
+                clipReport.neutralAreaRetention >=
+                    MinimumNeutralAreaRetention;
+            if (!sane)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": collapsed room silhouette (width " +
+                    clipReport.widthCoverage.ToString("0.000") +
+                    ", height " +
+                    clipReport.heightCoverage.ToString("0.000") +
+                    ", area " +
+                    clipReport.areaCoverage.ToString("0.000") +
+                    "; neutral retention " +
+                    clipReport.neutralWidthRetention.ToString("0.000") +
+                    " × " +
+                    clipReport.neutralHeightRetention.ToString("0.000") +
+                    ", area " +
+                    clipReport.neutralAreaRetention.ToString("0.000") +
+                    ").");
+            }
+
+            return sane;
+        }
+
+        private bool MeasureSilhouette(
+            IReadOnlyList<Color32> current,
+            int screenWidth,
+            int screenHeight,
+            Rect expected,
+            out int changed,
+            out int silhouetteWidth,
+            out int silhouetteHeight)
+        {
+            changed = 0;
+            silhouetteWidth = 0;
+            silhouetteHeight = 0;
+            if (current == null ||
+                current.Count != screenWidth * screenHeight ||
+                backgroundPixels == null ||
+                backgroundPixels.Length != current.Count)
+            {
+                return false;
+            }
+
             int xMin = Mathf.Clamp(
                 Mathf.FloorToInt(expected.xMin),
                 0,
-                screenshot.width - 1);
+                screenWidth - 1);
             int xMax = Mathf.Clamp(
                 Mathf.CeilToInt(expected.xMax),
                 xMin + 1,
-                screenshot.width);
+                screenWidth);
             int yMin = Mathf.Clamp(
                 Mathf.FloorToInt(expected.yMin),
                 0,
-                screenshot.height - 1);
+                screenHeight - 1);
             int yMax = Mathf.Clamp(
                 Mathf.CeilToInt(expected.yMax),
                 yMin + 1,
-                screenshot.height);
-            int expectedWidth = Mathf.Max(1, xMax - xMin);
-            int expectedHeight = Mathf.Max(1, yMax - yMin);
-
-            Color32[] current = screenshot.GetPixels32();
-            int changed = 0;
+                screenHeight);
             int changedXMin = xMax;
             int changedXMax = xMin;
             int changedYMin = yMax;
@@ -588,7 +948,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             for (int y = yMin; y < yMax; y++)
             {
-                int row = y * screenshot.width;
+                int row = y * screenWidth;
                 for (int x = xMin; x < xMax; x++)
                 {
                     int index = row + x;
@@ -611,46 +971,88 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 }
             }
 
-            int silhouetteWidth =
+            silhouetteWidth =
                 changed > 0
                     ? changedXMax - changedXMin + 1
                     : 0;
-            int silhouetteHeight =
+            silhouetteHeight =
                 changed > 0
                     ? changedYMax - changedYMin + 1
                     : 0;
-            clipReport.changedPixelCount = changed;
-            clipReport.silhouetteWidth = silhouetteWidth;
-            clipReport.silhouetteHeight = silhouetteHeight;
-            clipReport.widthCoverage =
-                silhouetteWidth / (float)expectedWidth;
-            clipReport.heightCoverage =
-                silhouetteHeight / (float)expectedHeight;
-            clipReport.areaCoverage =
-                changed / (float)(expectedWidth * expectedHeight);
+            return changed > 0;
+        }
 
-            bool sane =
-                clipReport.widthCoverage >=
-                    MinimumSilhouetteWidthCoverage &&
-                clipReport.heightCoverage >=
-                    MinimumSilhouetteHeightCoverage &&
-                clipReport.areaCoverage >=
-                    MinimumSilhouetteAreaCoverage;
-            if (!sane)
+        private bool AnalyzeVisibleMotion(
+            Texture2D screenshot,
+            ClipReview clipReport)
+        {
+            if (screenshot == null ||
+                clipStartPixels == null ||
+                clipStartPixels.Length !=
+                    screenshot.width * screenshot.height ||
+                !neutralReferenceCaptured ||
+                neutralSilhouetteArea <= 0)
+            {
+                return false;
+            }
+
+            Color32[] current = screenshot.GetPixels32();
+            int xMin = Mathf.Clamp(
+                Mathf.FloorToInt(neutralExpectedScreenRect.xMin),
+                0,
+                screenshot.width - 1);
+            int xMax = Mathf.Clamp(
+                Mathf.CeilToInt(neutralExpectedScreenRect.xMax),
+                xMin + 1,
+                screenshot.width);
+            int yMin = Mathf.Clamp(
+                Mathf.FloorToInt(neutralExpectedScreenRect.yMin),
+                0,
+                screenshot.height - 1);
+            int yMax = Mathf.Clamp(
+                Mathf.CeilToInt(neutralExpectedScreenRect.yMax),
+                yMin + 1,
+                screenshot.height);
+            int changed = 0;
+
+            for (int y = yMin; y < yMax; y++)
+            {
+                int row = y * screenshot.width;
+                for (int x = xMin; x < xMax; x++)
+                {
+                    int index = row + x;
+                    Color32 before = clipStartPixels[index];
+                    Color32 after = current[index];
+                    int delta =
+                        Math.Abs(after.r - before.r) +
+                        Math.Abs(after.g - before.g) +
+                        Math.Abs(after.b - before.b);
+                    if (delta >= MotionPixelDifferenceThreshold)
+                    {
+                        changed++;
+                    }
+                }
+            }
+
+            clipReport.motionChangedPixelCount = changed;
+            clipReport.motionCoverage =
+                changed / (float)neutralSilhouetteArea;
+            bool passed =
+                clipReport.motionCoverage >=
+                clipReport.minimumMotionCoverage;
+            if (!passed)
             {
                 report.error = AppendError(
                     report.error,
                     clipReport.clipName +
-                    ": collapsed room silhouette (width " +
-                    clipReport.widthCoverage.ToString("0.000") +
-                    ", height " +
-                    clipReport.heightCoverage.ToString("0.000") +
-                    ", area " +
-                    clipReport.areaCoverage.ToString("0.000") +
+                    ": visible motion is too small (" +
+                    clipReport.motionCoverage.ToString("0.000") +
+                    ", minimum " +
+                    clipReport.minimumMotionCoverage.ToString("0.000") +
                     ").");
             }
 
-            return sane;
+            return passed;
         }
 
         private Rect ResolveExpectedScreenRect(
@@ -756,10 +1158,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.actualLivingGameplayRoom &&
                 report.allTenClipsReviewed &&
                 report.canvasSkinBindingsReady &&
+                report.canvasBindAnchorsFrozen &&
                 report.readinessGateRemainedLocked &&
                 report.patch35Restored &&
                 report.legacyRigStayedLogicallyActive &&
                 report.visualSanityPassed &&
+                report.visibleMotionPassed &&
+                report.legacyRoutinePausedForReview &&
+                report.legacyRoutineRestored &&
+                report.legacySignalBridgePausedForReview &&
+                report.legacySignalBridgeRestored &&
+                report.legacyOneShotAudioStopped &&
                 report.reviewConsoleErrorCount == 0;
             report.error = AppendError(report.error, failure);
             if (report.reviewConsoleErrorCount > 0)
@@ -867,6 +1276,28 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 visibilityGuard.enabled = true;
             }
 
+            if (legacySignalBridge != null)
+            {
+                legacySignalBridge.enabled =
+                    legacySignalBridgeWasEnabled;
+            }
+
+            report.legacySignalBridgeRestored =
+                legacySignalBridge == null ||
+                legacySignalBridge.enabled ==
+                    legacySignalBridgeWasEnabled;
+
+            if (legacyRoutine != null)
+            {
+                legacyRoutine.enabled =
+                    legacyRoutineWasEnabled;
+            }
+
+            report.legacyRoutineRestored =
+                legacyRoutine == null ||
+                legacyRoutine.enabled ==
+                    legacyRoutineWasEnabled;
+
             report.patch35Restored =
                 patch35RollbackRoot != null &&
                 patch35RollbackRoot.activeSelf &&
@@ -874,7 +1305,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 !patch4VisualRoot.activeSelf &&
                 rigController != null &&
                 !rigController.Patch4Enabled &&
-                rollbackGroupRestored;
+                rollbackGroupRestored &&
+                report.legacyRoutineRestored &&
+                report.legacySignalBridgeRestored;
             currentClip = string.Empty;
         }
 

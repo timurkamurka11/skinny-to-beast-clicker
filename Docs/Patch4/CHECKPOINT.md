@@ -595,6 +595,51 @@ runtime safety contract.
 - Readiness remains false and the room review still cannot pass a collapsed
   silhouette or any Console error.
 
+### P4.0-N real Unity motion rejection
+
+Unity `6000.3.19f1` completed the corrected run with:
+
+- EditMode: `4 passed`;
+- PlayMode: `4 passed`;
+- zero Console errors;
+- all ten actual-room captures written.
+
+Human review rejected the motion despite the technical `PASSED`. Most captures
+were nearly static, `FatMan_Turn` collapsed to a vertical line and the old
+synthetic/robot-like walking footstep was audible.
+
+The principal motion bug was double transform cancellation. Each Canvas layer
+follower copied its live bone transform every `LateUpdate`, while the custom
+skin deformer applied the same bone matrix relative to that moving follower.
+The primary influence therefore cancelled. Separately, the authored turn clip
+explicitly reduced `CharacterRoot` horizontal scale to `0.12`. The prior
+silhouette gate compared against an expected rectangle that collapsed along
+with the character, so it could not reject that frame.
+
+## P4.0-O frozen bind anchors and measurable visible motion
+
+- Canvas followers align once before bind-pose capture and stay frozen after
+  capture; the live bones now deform the real UI mesh instead of being
+  cancelled.
+- `BindAnchorsFrozen` is required by Canvas readiness, Editor smoke, PlayMode
+  and the room-review setup.
+- All ten clips now contain readable body motion with neutral start poses and
+  intentionally selected action-peak review times.
+- `FatMan_Turn` uses pelvis/spine/head/arm counter-motion and only mild
+  `0.94–1.02` scale change; the near-zero squash is forbidden.
+- The review stores a neutral silhouette before the clips and requires every
+  peak to retain its width, height and filled area against that fixed
+  reference.
+- Each peak is also compared with that clip's captured start pose and must pass
+  a clip-specific minimum visible changed-pixel ratio.
+- The legacy `CharacterRoutineController` and Patch 3.5 signal bridge pause
+  only during the isolated Patch 4 review. Existing non-loop one-shot audio is
+  stopped, preventing the old robot-like footstep from contaminating the
+  review. Both controllers are restored afterward.
+- Ambient audio and all protected menu/video/music/settings code remain
+  unchanged.
+- Readiness and activation remain locked.
+
 ## Production dashboard
 
 Open in Unity:
@@ -654,20 +699,22 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-N runtime-contract and child-diagnostic correction into Unity
+1. Pull the P4.0-O visible-motion and silent-review correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, rebuild
    the locked weighted prefab, validate and complete EditMode `4 passed`,
    PlayMode `4 passed`.
 4. Let the Editor-only continuation enter Play Mode again, create the real
-   room, cycle all ten clips, capture the review sheet, restore Patch 3.5 and
-   return to Edit Mode.
-5. Confirm that the Console has zero errors and inspect the automatically
+   room, freeze the Canvas bind anchors, pause the old walk routine and cycle
+   all ten corrected clips.
+5. Let the driver reject weak motion or silhouette loss, capture the review
+   sheet, restore Patch 3.5 and its routine, then return to Edit Mode.
+6. Confirm that the Console has zero errors and inspect the automatically
    focused 5 × 2 room-animation contact sheet.
-6. Revise any exposed joint, detached paint, extreme stretch, foot slide or
+7. Revise any exposed joint, detached paint, extreme stretch, foot slide or
    collapsing body/clothing region while the readiness gate stays locked.
-7. Only after successful technical and human motion review, consider approving
+8. Only after successful technical and human motion review, consider approving
    the readiness asset for the exact master SHA.
 
 Detailed art instructions:
@@ -694,8 +741,10 @@ Detailed verification instructions:
 - P4.0-M FullRect rebuild and EditMode checks passed in Unity `6000.3.19f1`,
   but an irrelevant exact source-vertex-array assertion stopped PlayMode with
   `Failed(Child)` before the room review.
-- P4.0-N corrected PlayMode contract and detailed child reporting have not yet
-  been exercised by the user's Unity `6000.3.19f1`.
+- P4.0-N passed Unity `4/4` and wrote all ten frames, but human review rejected
+  nearly static motion, the collapsed turn and the audible old footstep.
+- P4.0-O frozen anchors, expanded motion and visible-motion measurements have
+  not yet been exercised by the user's Unity `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

@@ -375,7 +375,7 @@ source geometry and constructs its own weighted full-canvas grid. Exact source
 vertex-array cardinality was therefore an implementation-detail assertion, not
 a safety or visual contract.
 
-## Current P4.0-N runtime-contract and failure-reporting correction
+## P4.0-N runtime-contract correction — Unity result
 
 The corrective pass:
 
@@ -394,9 +394,49 @@ The corrective pass:
   room review start without a manual click;
 - keeps production readiness locked and Patch 3.5 as the active character.
 
+Unity `6000.3.19f1` completed P4.0-N with EditMode `4 passed`, PlayMode
+`4 passed`, zero Console errors and a generated actual-room contact sheet.
+Technical validation printed `PASSED`, but human motion review rejected it:
+
+- most clips showed almost no visible movement;
+- `FatMan_Turn` still collapsed to a near-vertical line;
+- the old synthetic/robot-like walking footstep was audible during the Patch 4
+  review.
+
+The static appearance was not an art problem. `Patch4CanvasPresentation`
+updated every layer follower to the current bone transform in `LateUpdate`,
+while `Patch4CanvasSkinDeformer` applied that same bone transform relative to
+the moving follower. The primary transform therefore cancelled itself.
+`FatMan_Turn` separately authored a horizontal scale of `0.12`, directly
+creating the line. P4.0-N is technically complete but fails human motion
+review and remains locked.
+
+## Current P4.0-O visible-motion and silent-review correction
+
+The corrective pass:
+
+- aligns every Canvas follower once for bind-pose capture and freezes it
+  afterward, allowing live bone matrices to produce visible deformation;
+- exposes and validates `BindAnchorsFrozen` in Editor smoke and PlayMode;
+- replaces the `0.12` turn squash with a safe body pivot using pelvis, spine,
+  head, arm, position and mild `0.94–1.02` scale motion;
+- expands breathing, weight shift, looking, two tap reactions, walking,
+  sitting/leaning and upgrade motion across the body, arms, legs and head;
+- captures each clip at its authored action peak instead of sampling several
+  clips at a neutral crossing;
+- compares each peak against that clip's start pose and requires a
+  clip-specific minimum changed-pixel ratio;
+- compares every animated silhouette against the frozen neutral silhouette, so
+  a moving expected rectangle cannot hide another collapse;
+- pauses the legacy room routine and Patch 3.5 signal bridge only during the
+  isolated review, stops the old one-shot footstep, then restores both;
+- keeps ambient room audio, protected audio code, menu, video, music and
+  settings untouched;
+- keeps readiness false and Patch 3.5 active outside the temporary review.
+
 ## Exact next action
 
-After the P4.0-N correction is present on `patch-4.0`, run only:
+After the P4.0-O correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -411,13 +451,15 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
    prefab;
 5. assemble and compare the locked neutral pose;
 6. write the neutral and four-expression review images;
-7. validate all 40 skin bindings, full-canvas UVs and multi-bone weight maps;
+7. validate all 40 skin bindings, frozen bind anchors, full-canvas UVs and
+   multi-bone weight maps;
 8. run pixel, rig, compilation and Editor smoke validation;
 9. run all EditMode tests;
 10. enter Play Mode and run all PlayMode tests;
 11. after `4/4`, enter Play Mode again and create the actual gameplay room;
-12. capture a clean background, then play all ten clips and block any
-    collapsed silhouette or Console error;
+12. capture a clean background and neutral reference, then play all ten clips
+    and block weak start-to-peak motion, a collapsed silhouette or any Console
+    error while the legacy robot-like footstep stays paused;
 13. restore Patch 3.5, exit Play Mode and open all three read-only review
     windows.
 
@@ -440,7 +482,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-N automatic room review
+## Work after the P4.0-O automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

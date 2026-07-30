@@ -53,6 +53,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool canvasPresentationPrepared;
             public int canvasLayerCount;
             public bool canvasSkinBindingsReady;
+            public bool canvasBindAnchorsFrozen;
             public int canvasSkinDeformerCount;
             public int weightedCanvasLayerCount;
             public int canvasSkinVertexCount;
@@ -414,6 +415,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             report.canvasLayerCount = presentation.ImageCount;
             report.canvasSkinBindingsReady =
                 presentation.SkinBindingsReady;
+            report.canvasBindAnchorsFrozen =
+                presentation.BindAnchorsFrozen;
             report.canvasSkinDeformerCount =
                 presentation.SkinDeformerCount;
             report.weightedCanvasLayerCount =
@@ -484,6 +487,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "LegR/Thigh");
 
             if (!report.canvasSkinBindingsReady ||
+                !report.canvasBindAnchorsFrozen ||
                 !allSkinBindingsReady ||
                 report.canvasSkinDeformerCount !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
@@ -501,6 +505,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report,
                     "CANVAS_SKINNING_INCOMPLETE",
                     "All 40 Canvas layers must have captured skin bindings; " +
+                    "their bind anchors must stay frozen so live bone motion " +
+                    "is not cancelled; " +
                     "every source must retain FullRect import and full-canvas " +
                     "UVs; " +
                     "at least 20 body, clothing and limb layers must use " +

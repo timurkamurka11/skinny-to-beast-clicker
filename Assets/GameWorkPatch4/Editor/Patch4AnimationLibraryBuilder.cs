@@ -28,8 +28,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const string ForearmR = UpperArmR + "/ForearmR";
         private const string ThighL = Pelvis + "/ThighL";
         private const string ShinL = ThighL + "/ShinL";
+        private const string FootL = ShinL + "/FootL";
         private const string ThighR = Pelvis + "/ThighR";
         private const string ShinR = ThighR + "/ShinR";
+        private const string FootR = ShinR + "/FootR";
         private const string EyeL = Head + "/EyeL";
         private const string EyeR = Head + "/EyeR";
 
@@ -61,20 +63,83 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static AnimationClip BuildIdleBreathe()
         {
             AnimationClip clip = Prepare("FatMan_Idle_Breathe", true, 3.2f);
-            SetScale(clip, SpineUpper, 'y', 3.2f, 1f, 1.018f, 1f);
-            SetScale(clip, BellyTip, 'x', 3.2f, 1f, 1.025f, 1f);
-            SetScale(clip, BellyTip, 'y', 3.2f, 1f, 1.018f, 1f);
-            SetRotation(clip, Head, 3.2f, -0.6f, 0.8f, -0.6f);
+            SetScale(clip, SpineUpper, 'y', 3.2f, 1f, 1.035f, 1f);
+            SetScale(clip, BellyTip, 'x', 3.2f, 1f, 1.05f, 1f);
+            SetScale(clip, BellyTip, 'y', 3.2f, 1f, 1.028f, 1f);
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.y",
+                new Keyframe(0f, 0f),
+                new Keyframe(1.6f, 0.035f),
+                new Keyframe(3.2f, 0f));
+            SetRotation(clip, Head, 3.2f, 0f, 1.5f, 0f);
+            SetRotation(clip, ClavicleL, 3.2f, 0f, -1.8f, 0f);
+            SetRotation(clip, ClavicleR, 3.2f, 0f, 1.8f, 0f);
             return clip;
         }
 
         private static AnimationClip BuildShiftWeight()
         {
-            AnimationClip clip = Prepare("FatMan_Idle_ShiftWeight", true, 4f);
-            SetRotation(clip, Pelvis, 4f, -2.4f, 2.4f, -2.4f);
-            SetRotation(clip, SpineLower, 4f, 1.6f, -1.6f, 1.6f);
-            SetRotation(clip, ThighL, 4f, 1.2f, -1.2f, 1.2f);
-            SetRotation(clip, ThighR, 4f, -1.2f, 1.2f, -1.2f);
+            const float duration = 3.2f;
+            AnimationClip clip = Prepare(
+                "FatMan_Idle_ShiftWeight",
+                true,
+                duration);
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.x",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.8f, -0.12f),
+                new Keyframe(1.6f, 0f),
+                new Keyframe(2.4f, 0.12f),
+                new Keyframe(duration, 0f));
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.y",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.8f, -0.025f),
+                new Keyframe(1.6f, 0f),
+                new Keyframe(2.4f, -0.025f),
+                new Keyframe(duration, 0f));
+            SetAlternatingRotation(
+                clip,
+                Pelvis,
+                duration,
+                -5.5f,
+                5.5f);
+            SetAlternatingRotation(
+                clip,
+                SpineLower,
+                duration,
+                3.8f,
+                -3.8f);
+            SetAlternatingRotation(
+                clip,
+                ThighL,
+                duration,
+                3.5f,
+                -3.5f);
+            SetAlternatingRotation(
+                clip,
+                ThighR,
+                duration,
+                -3.5f,
+                3.5f);
+            SetAlternatingRotation(
+                clip,
+                UpperArmL,
+                duration,
+                -4f,
+                4f);
+            SetAlternatingRotation(
+                clip,
+                UpperArmR,
+                duration,
+                4f,
+                -4f);
             return clip;
         }
 
@@ -102,129 +167,469 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static AnimationClip BuildLookAround()
         {
-            AnimationClip clip = Prepare("FatMan_LookAround", true, 2.4f);
-            SetRotation(clip, Head, 2.4f, -5f, 5f, -5f);
-            SetRotation(clip, EyeL, 2.4f, -3f, 3f, -3f);
-            SetRotation(clip, EyeR, 2.4f, -3f, 3f, -3f);
+            const float duration = 3f;
+            AnimationClip clip = Prepare(
+                "FatMan_LookAround",
+                true,
+                duration);
+            SetAlternatingRotation(
+                clip,
+                Head,
+                duration,
+                -10f,
+                10f);
+            SetAlternatingRotation(
+                clip,
+                SpineUpper,
+                duration,
+                3f,
+                -3f);
+            SetCurve(
+                clip,
+                Head,
+                "m_LocalPosition.x",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.75f, -0.08f),
+                new Keyframe(1.5f, 0f),
+                new Keyframe(2.25f, 0.08f),
+                new Keyframe(duration, 0f));
+            SetCurve(
+                clip,
+                EyeL,
+                "m_LocalPosition.x",
+                new Keyframe(0f, -0.4f),
+                new Keyframe(0.75f, -0.47f),
+                new Keyframe(1.5f, -0.4f),
+                new Keyframe(2.25f, -0.33f),
+                new Keyframe(duration, -0.4f));
+            SetCurve(
+                clip,
+                EyeR,
+                "m_LocalPosition.x",
+                new Keyframe(0f, 0.4f),
+                new Keyframe(0.75f, 0.33f),
+                new Keyframe(1.5f, 0.4f),
+                new Keyframe(2.25f, 0.47f),
+                new Keyframe(duration, 0.4f));
             return clip;
         }
 
         private static AnimationClip BuildTapReact01()
         {
-            AnimationClip clip = Prepare("FatMan_TapReact_01", false, 0.54f);
+            const float duration = 0.65f;
+            AnimationClip clip = Prepare(
+                "FatMan_TapReact_01",
+                false,
+                duration);
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.y",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.14f, -0.1f),
+                new Keyframe(0.34f, 0.04f),
+                new Keyframe(duration, 0f));
             SetCurve(
                 clip,
                 SpineLower,
                 "localEulerAnglesRaw.z",
                 new Keyframe(0f, 0f),
-                new Keyframe(0.12f, -5.5f),
-                new Keyframe(0.3f, 2.2f),
-                new Keyframe(0.54f, 0f));
+                new Keyframe(0.14f, -9f),
+                new Keyframe(0.34f, 4f),
+                new Keyframe(duration, 0f));
             SetCurve(
                 clip,
                 BellyTip,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.1f, 1.09f),
-                new Keyframe(0.28f, 0.98f),
-                new Keyframe(0.54f, 1f));
+                new Keyframe(0.12f, 1.13f),
+                new Keyframe(0.32f, 0.97f),
+                new Keyframe(duration, 1f));
             SetCurve(
                 clip,
                 BellyTip,
                 "m_LocalScale.y",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.1f, 0.94f),
-                new Keyframe(0.28f, 1.03f),
-                new Keyframe(0.54f, 1f));
+                new Keyframe(0.12f, 0.91f),
+                new Keyframe(0.32f, 1.05f),
+                new Keyframe(duration, 1f));
+            SetReactionRotation(
+                clip,
+                UpperArmL,
+                duration,
+                -14f,
+                5f);
+            SetReactionRotation(
+                clip,
+                UpperArmR,
+                duration,
+                14f,
+                -5f);
+            SetReactionRotation(
+                clip,
+                Head,
+                duration,
+                5f,
+                -2f);
             return clip;
         }
 
         private static AnimationClip BuildTapReact02()
         {
-            AnimationClip clip = Prepare("FatMan_TapReact_02", false, 0.62f);
+            const float duration = 0.72f;
+            AnimationClip clip = Prepare(
+                "FatMan_TapReact_02",
+                false,
+                duration);
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.x",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.16f, 0.07f),
+                new Keyframe(0.38f, -0.03f),
+                new Keyframe(duration, 0f));
             SetCurve(
                 clip,
                 Head,
                 "localEulerAnglesRaw.z",
                 new Keyframe(0f, 0f),
-                new Keyframe(0.12f, 7f),
-                new Keyframe(0.34f, -3f),
-                new Keyframe(0.62f, 0f));
-            SetCurve(
+                new Keyframe(0.16f, 12f),
+                new Keyframe(0.38f, -5f),
+                new Keyframe(duration, 0f));
+            SetReactionRotation(
                 clip,
                 UpperArmL,
-                "localEulerAnglesRaw.z",
-                new Keyframe(0f, 0f),
-                new Keyframe(0.14f, -10f),
-                new Keyframe(0.62f, 0f));
-            SetCurve(
+                duration,
+                -22f,
+                7f);
+            SetReactionRotation(
                 clip,
                 UpperArmR,
-                "localEulerAnglesRaw.z",
-                new Keyframe(0f, 0f),
-                new Keyframe(0.14f, 10f),
-                new Keyframe(0.62f, 0f));
+                duration,
+                22f,
+                -7f);
+            SetReactionRotation(
+                clip,
+                SpineUpper,
+                duration,
+                -7f,
+                3f);
+            SetReactionRotation(
+                clip,
+                ForearmL,
+                duration,
+                10f,
+                -3f);
+            SetReactionRotation(
+                clip,
+                ForearmR,
+                duration,
+                -10f,
+                3f);
             return clip;
         }
 
         private static AnimationClip BuildWalk()
         {
-            AnimationClip clip = Prepare("FatMan_Walk_InRoom", true, 0.9f);
-            SetRotation(clip, ThighL, 0.9f, -14f, 14f, -14f);
-            SetRotation(clip, ThighR, 0.9f, 14f, -14f, 14f);
-            SetRotation(clip, ShinL, 0.9f, 8f, -12f, 8f);
-            SetRotation(clip, ShinR, 0.9f, -12f, 8f, -12f);
-            SetRotation(clip, UpperArmL, 0.9f, 8f, -8f, 8f);
-            SetRotation(clip, UpperArmR, 0.9f, -8f, 8f, -8f);
-            SetRotation(clip, SpineUpper, 0.9f, -1.5f, 1.5f, -1.5f);
+            const float duration = 0.96f;
+            AnimationClip clip = Prepare(
+                "FatMan_Walk_InRoom",
+                true,
+                duration);
+            SetCyclePosition(
+                clip,
+                Visual,
+                "m_LocalPosition.x",
+                duration,
+                0.045f,
+                -0.045f);
+            SetCyclePosition(
+                clip,
+                Visual,
+                "m_LocalPosition.y",
+                duration,
+                0.085f,
+                0.085f);
+            SetAlternatingRotation(
+                clip,
+                Pelvis,
+                duration,
+                -4.5f,
+                4.5f);
+            SetAlternatingRotation(
+                clip,
+                ThighL,
+                duration,
+                -22f,
+                22f);
+            SetAlternatingRotation(
+                clip,
+                ThighR,
+                duration,
+                22f,
+                -22f);
+            SetAlternatingRotation(
+                clip,
+                ShinL,
+                duration,
+                14f,
+                -17f);
+            SetAlternatingRotation(
+                clip,
+                ShinR,
+                duration,
+                -17f,
+                14f);
+            SetAlternatingRotation(
+                clip,
+                FootL,
+                duration,
+                -8f,
+                9f);
+            SetAlternatingRotation(
+                clip,
+                FootR,
+                duration,
+                9f,
+                -8f);
+            SetAlternatingRotation(
+                clip,
+                UpperArmL,
+                duration,
+                15f,
+                -15f);
+            SetAlternatingRotation(
+                clip,
+                UpperArmR,
+                duration,
+                -15f,
+                15f);
+            SetAlternatingRotation(
+                clip,
+                ForearmL,
+                duration,
+                -6f,
+                8f);
+            SetAlternatingRotation(
+                clip,
+                ForearmR,
+                duration,
+                8f,
+                -6f);
+            SetAlternatingRotation(
+                clip,
+                SpineUpper,
+                duration,
+                2.5f,
+                -2.5f);
+            SetAlternatingRotation(
+                clip,
+                Head,
+                duration,
+                -2f,
+                2f);
             return clip;
         }
 
         private static AnimationClip BuildTurn()
         {
-            AnimationClip clip = Prepare("FatMan_Turn", false, 0.38f);
+            const float duration = 0.72f;
+            AnimationClip clip = Prepare(
+                "FatMan_Turn",
+                false,
+                duration);
             SetCurve(
                 clip,
                 Visual,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.18f, 0.12f),
-                new Keyframe(0.38f, 1f));
-            SetRotation(clip, Head, 0.38f, 0f, 6f, 0f);
-            return clip;
-        }
-
-        private static AnimationClip BuildSitOrLean()
-        {
-            AnimationClip clip = Prepare("FatMan_SitOrLean", true, 1.6f);
-            SetRotation(clip, Pelvis, 1.6f, -5f, -7f, -5f);
-            SetRotation(clip, SpineLower, 1.6f, 7f, 10f, 7f);
-            SetRotation(clip, ThighL, 1.6f, -18f, -21f, -18f);
-            SetRotation(clip, ThighR, 1.6f, 18f, 21f, 18f);
-            return clip;
-        }
-
-        private static AnimationClip BuildUpgrade()
-        {
-            AnimationClip clip = Prepare("FatMan_UpgradeReact", false, 0.95f);
-            SetCurve(
-                clip,
-                Visual,
-                "m_LocalScale.x",
-                new Keyframe(0f, 1f),
-                new Keyframe(0.18f, 1.1f),
-                new Keyframe(0.4f, 0.97f),
-                new Keyframe(0.95f, 1f));
+                new Keyframe(0.2f, 0.94f),
+                new Keyframe(0.42f, 1.02f),
+                new Keyframe(duration, 1f));
             SetCurve(
                 clip,
                 Visual,
                 "m_LocalScale.y",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.18f, 1.1f),
-                new Keyframe(0.4f, 0.97f),
-                new Keyframe(0.95f, 1f));
-            SetRotation(clip, UpperArmL, 0.95f, 0f, -28f, 0f);
-            SetRotation(clip, UpperArmR, 0.95f, 0f, 28f, 0f);
+                new Keyframe(0.2f, 1.015f),
+                new Keyframe(0.42f, 0.99f),
+                new Keyframe(duration, 1f));
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.x",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.2f, -0.08f),
+                new Keyframe(0.42f, 0.12f),
+                new Keyframe(duration, 0f));
+            SetReactionRotation(
+                clip,
+                Pelvis,
+                duration,
+                -9f,
+                8f);
+            SetReactionRotation(
+                clip,
+                SpineUpper,
+                duration,
+                7f,
+                -6f);
+            SetReactionRotation(
+                clip,
+                Head,
+                duration,
+                14f,
+                -10f);
+            SetReactionRotation(
+                clip,
+                UpperArmL,
+                duration,
+                -10f,
+                7f);
+            SetReactionRotation(
+                clip,
+                UpperArmR,
+                duration,
+                10f,
+                -7f);
+            return clip;
+        }
+
+        private static AnimationClip BuildSitOrLean()
+        {
+            const float duration = 1.15f;
+            AnimationClip clip = Prepare(
+                "FatMan_SitOrLean",
+                false,
+                duration);
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.y",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, -0.32f),
+                new Keyframe(duration, -0.32f));
+            SetCurve(
+                clip,
+                Pelvis,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, -10f),
+                new Keyframe(duration, -10f));
+            SetCurve(
+                clip,
+                SpineLower,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, 14f),
+                new Keyframe(duration, 14f));
+            SetCurve(
+                clip,
+                ThighL,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, -25f),
+                new Keyframe(duration, -25f));
+            SetCurve(
+                clip,
+                ThighR,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, 25f),
+                new Keyframe(duration, 25f));
+            SetCurve(
+                clip,
+                ShinL,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, 17f),
+                new Keyframe(duration, 17f));
+            SetCurve(
+                clip,
+                ShinR,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.58f, -17f),
+                new Keyframe(duration, -17f));
+            return clip;
+        }
+
+        private static AnimationClip BuildUpgrade()
+        {
+            const float duration = 1.05f;
+            AnimationClip clip = Prepare(
+                "FatMan_UpgradeReact",
+                false,
+                duration);
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalPosition.y",
+                new Keyframe(0f, 0f),
+                new Keyframe(0.2f, 0.18f),
+                new Keyframe(0.48f, -0.06f),
+                new Keyframe(duration, 0f));
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalScale.x",
+                new Keyframe(0f, 1f),
+                new Keyframe(0.2f, 1.065f),
+                new Keyframe(0.48f, 0.98f),
+                new Keyframe(duration, 1f));
+            SetCurve(
+                clip,
+                Visual,
+                "m_LocalScale.y",
+                new Keyframe(0f, 1f),
+                new Keyframe(0.2f, 1.065f),
+                new Keyframe(0.48f, 0.98f),
+                new Keyframe(duration, 1f));
+            SetReactionRotation(
+                clip,
+                UpperArmL,
+                duration,
+                -42f,
+                10f);
+            SetReactionRotation(
+                clip,
+                UpperArmR,
+                duration,
+                42f,
+                -10f);
+            SetReactionRotation(
+                clip,
+                ForearmL,
+                duration,
+                -18f,
+                6f);
+            SetReactionRotation(
+                clip,
+                ForearmR,
+                duration,
+                18f,
+                -6f);
+            SetReactionRotation(
+                clip,
+                SpineUpper,
+                duration,
+                -7f,
+                3f);
+            SetReactionRotation(
+                clip,
+                Head,
+                duration,
+                -8f,
+                4f);
+            SetCurve(
+                clip,
+                BellyTip,
+                "m_LocalScale.x",
+                new Keyframe(0f, 1f),
+                new Keyframe(0.2f, 1.1f),
+                new Keyframe(0.48f, 0.97f),
+                new Keyframe(duration, 1f));
             return clip;
         }
 
@@ -259,7 +664,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             AnimatorState upgrade = AddState(machine, clips["FatMan_UpgradeReact"]);
             machine.defaultState = idle;
 
-            AddBoolTransition(idle, walk, "Speed", true, 0.15f);
+            AddFloatTransition(
+                idle,
+                walk,
+                "Speed",
+                0.1f,
+                AnimatorConditionMode.Greater,
+                0.15f);
             AddFloatReturn(walk, idle, "Speed", 0.1f);
             AddBoolTransition(idle, look, "Look", true, 0.12f);
             AddBoolTransition(look, idle, "Look", false, 0.12f);
@@ -324,6 +735,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             transition.duration = 0.15f;
             transition.AddCondition(
                 AnimatorConditionMode.Less,
+                threshold,
+                parameter);
+        }
+
+        private static void AddFloatTransition(
+            AnimatorState from,
+            AnimatorState to,
+            string parameter,
+            float threshold,
+            AnimatorConditionMode condition,
+            float duration)
+        {
+            AnimatorStateTransition transition = from.AddTransition(to);
+            transition.hasExitTime = false;
+            transition.duration = duration;
+            transition.AddCondition(
+                condition,
                 threshold,
                 parameter);
         }
@@ -442,6 +870,60 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 new Keyframe(0f, start),
                 new Keyframe(duration * 0.5f, middle),
                 new Keyframe(duration, end));
+        }
+
+        private static void SetAlternatingRotation(
+            AnimationClip clip,
+            string path,
+            float duration,
+            float first,
+            float second)
+        {
+            SetCurve(
+                clip,
+                path,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(duration * 0.25f, first),
+                new Keyframe(duration * 0.5f, 0f),
+                new Keyframe(duration * 0.75f, second),
+                new Keyframe(duration, 0f));
+        }
+
+        private static void SetCyclePosition(
+            AnimationClip clip,
+            string path,
+            string property,
+            float duration,
+            float first,
+            float second)
+        {
+            SetCurve(
+                clip,
+                path,
+                property,
+                new Keyframe(0f, 0f),
+                new Keyframe(duration * 0.25f, first),
+                new Keyframe(duration * 0.5f, 0f),
+                new Keyframe(duration * 0.75f, second),
+                new Keyframe(duration, 0f));
+        }
+
+        private static void SetReactionRotation(
+            AnimationClip clip,
+            string path,
+            float duration,
+            float impact,
+            float rebound)
+        {
+            SetCurve(
+                clip,
+                path,
+                "localEulerAnglesRaw.z",
+                new Keyframe(0f, 0f),
+                new Keyframe(duration * 0.22f, impact),
+                new Keyframe(duration * 0.52f, rebound),
+                new Keyframe(duration, 0f));
         }
 
         private static void SetCurve(

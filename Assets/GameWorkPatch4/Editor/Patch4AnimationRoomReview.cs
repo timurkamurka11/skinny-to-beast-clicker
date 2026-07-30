@@ -312,7 +312,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 locked animation-room technical review PASSED: " +
                     "all ten clips were sampled in LivingGameplayScene with " +
-                    "valid full-canvas silhouettes and zero review errors. " +
+                    "frozen Canvas bind anchors, retained full silhouettes, " +
+                    "measurable start-to-peak motion, no legacy robot " +
+                    "footsteps and zero review errors. " +
                     "Human motion review is still required and activation " +
                     "remains locked.");
             }

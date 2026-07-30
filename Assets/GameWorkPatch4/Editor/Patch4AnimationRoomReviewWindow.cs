@@ -63,11 +63,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorGUILayout.HelpBox(
                 "These ten frames were captured while the generated character " +
                 "played every required clip inside the real LivingGameplayScene " +
-                "with full-canvas UVs and Canvas bone weights active. Each frame " +
-                "also passed a background-difference silhouette check and the " +
-                "review emitted no Console errors. Patch 3.5 was restored before " +
-                "Play Mode ended. This surface is read-only: human motion review " +
-                "is still required and production activation remains locked.",
+                "with frozen bind anchors, full-canvas UVs and Canvas bone " +
+                "weights active. Every peak frame retained the neutral " +
+                "silhouette and had measurable pixel motion from its start " +
+                "pose. The legacy routine and its robot-like footstep were " +
+                "paused only for this Patch 4 review and restored afterward. " +
+                "The review emitted no Console errors. This surface is " +
+                "read-only: human motion review is still required and " +
+                "production activation remains locked.",
                 MessageType.Info);
 
             if (contactSheet == null)

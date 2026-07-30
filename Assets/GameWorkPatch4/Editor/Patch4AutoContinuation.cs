@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "fullrect-runtime-contract-room-review-v6";
+            "frozen-bind-visible-motion-silent-review-v7";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -58,15 +58,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic FullRect runtime verification started: " +
+                    "Patch 4 automatic motion-correction review started: " +
                     "restoring the repository master, rebaking all 40 layers as " +
                     "FullRect sprites, rebuilding the locked runtime prefab with " +
-                    "uncropped Canvas UVs and running the corrected runtime " +
-                    "contract without relying on Unity's internal Sprite vertex " +
-                    "array size. " +
+                    "uncropped Canvas UVs and frozen skin bind anchors, then " +
+                    "running the corrected ten-clip library. " +
                     "After 4/4, Unity will review all ten clips in the real room, " +
-                    "block collapsed silhouettes or Console errors, restore " +
-                    "Patch 3.5 and open the three read-only review windows.");
+                    "block weak motion, collapsed silhouettes or Console " +
+                    "errors, suppress the legacy robot footstep only during " +
+                    "review, restore Patch 3.5 and open the three read-only " +
+                    "review windows.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(
