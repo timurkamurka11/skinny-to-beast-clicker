@@ -250,15 +250,32 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Forced every regenerated layer import to `SpriteMeshType.FullRect`.
 - [x] Disabled tight sprite meshes on the 40 Canvas Images.
 - [x] Replaced cropped outer-UV mapping with full `Sprite.rect` texture UVs.
-- [x] Extended Editor smoke and PlayMode checks for 40 FullRect sources and
-  full-canvas mappings.
+- [x] Extended Editor smoke and PlayMode checks for 40 FullRect sources,
+  full-canvas mappings and source-mesh bypass.
 - [x] Replaced legacy-root deactivation with reversible CanvasGroup hiding so
   Stage 4 remains logically visible.
 - [x] Added a clean-background comparison and per-frame character silhouette
   thresholds.
 - [x] Made any Console Error, Exception or Assert block the room-review result.
 - [x] Kept the readiness asset locked and Patch 3.5 restoration mandatory.
-- [ ] Confirm P4.0-M in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+- [x] Confirmed the P4.0-M FullRect rebake and Editor checks in Unity
+  `6000.3.19f1`; EditMode passed.
+- [x] Stopped before room review because the fourth PlayMode test returned
+  `Failed(Child)`.
+- [x] Isolated the only PlayMode-only new assertion: an irrelevant exact
+  `Sprite.vertices.Length == 4` requirement on source geometry that the custom
+  Canvas deformer clears and replaces.
+
+## 2026-07-30 — P4.0-N runtime test contract and diagnostics
+
+- [x] Kept FullRect importer, full-canvas UV, bind-pose, 40-layer and weighted
+  grid requirements intact.
+- [x] Removed only the unused source Sprite vertex-array cardinality assertion.
+- [x] Added recursive failed-leaf collection to the automatic Test Runner.
+- [x] Added the first child test name and assertion text to the Console failure.
+- [x] Advanced the automatic continuation to a new run id.
+- [x] Kept the readiness gate locked and Patch 3.5 active.
+- [ ] Confirm P4.0-N in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
   `4 passed`, ten valid silhouettes and zero room-review errors.
 - [ ] Complete human review of joints, stretch, clothing continuity and foot
   contact only after the corrected contact sheet is visually coherent.

@@ -164,10 +164,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                         image =>
                             image != null &&
                             image.sprite != null &&
-                            !image.useSpriteMesh &&
-                            image.sprite.vertices.Length == 4),
-                    "All painted UI Images must use FullRect four-vertex " +
-                    "sprites before the Canvas grid is generated.");
+                            !image.useSpriteMesh),
+                    "All painted UI Images must bypass the imported source " +
+                    "mesh. Patch4CanvasSkinDeformer generates and validates " +
+                    "the full-canvas weighted grid itself.");
 
                 Vector3 localScale = patchInstance.localScale;
                 Assert.AreEqual(

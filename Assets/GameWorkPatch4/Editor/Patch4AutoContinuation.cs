@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "fullrect-uv-silhouette-room-review-v5";
+            "fullrect-runtime-contract-room-review-v6";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -58,10 +58,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic full-canvas animation correction started: " +
+                    "Patch 4 automatic FullRect runtime verification started: " +
                     "restoring the repository master, rebaking all 40 layers as " +
                     "FullRect sprites, rebuilding the locked runtime prefab with " +
-                    "uncropped Canvas UVs and running the full verification. " +
+                    "uncropped Canvas UVs and running the corrected runtime " +
+                    "contract without relying on Unity's internal Sprite vertex " +
+                    "array size. " +
                     "After 4/4, Unity will review all ten clips in the real room, " +
                     "block collapsed silhouettes or Console errors, restore " +
                     "Patch 3.5 and open the three read-only review windows.");

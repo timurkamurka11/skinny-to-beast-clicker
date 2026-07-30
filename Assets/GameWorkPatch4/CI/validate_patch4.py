@@ -250,7 +250,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"fullrect-uv-silhouette-room-review-v5"',
+            '"fullrect-runtime-contract-room-review-v6"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -460,11 +460,33 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4AutomatedTestRunner.cs",
         errors,
     )
-    if (
-        automated_tests
-        and "Patch4AnimationRoomReview.StartAfterTests()" not in automated_tests
-    ):
-        fail(errors, "Passing 4/4 tests do not start the locked room review")
+    if automated_tests:
+        if "Patch4AnimationRoomReview.StartAfterTests()" not in automated_tests:
+            fail(errors, "Passing 4/4 tests do not start the locked room review")
+        for snippet in (
+            "CollectFailedLeafResults(",
+            "failedTests",
+            "First failure:",
+        ):
+            if snippet not in automated_tests:
+                fail(
+                    errors,
+                    "Automated test reporting still hides child failures: "
+                    + snippet,
+                )
+
+    playmode_tests = read_text(
+        root,
+        "Assets/GameWorkPatch4/Tests/PlayMode/"
+        "Patch4RuntimeInstallationPlayModeTests.cs",
+        errors,
+    )
+    if playmode_tests and "sprite.vertices.Length" in playmode_tests:
+        fail(
+            errors,
+            "PlayMode must validate the custom Canvas grid contract, not "
+            "Unity's internal source Sprite vertex-array cardinality",
+        )
 
 
 def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
@@ -27,6 +28,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public string message = string.Empty;
             public string stackTrace = string.Empty;
             public string xmlPath = string.Empty;
+            public List<string> failedTests = new();
         }
 
         [Serializable]
@@ -283,11 +285,25 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     resultState = "Failed:Error",
                     failCount = 1,
                     message = "Unity Test Framework returned no result.",
-                    xmlPath = GetAbsoluteReportPath(xmlRelativePath)
+                    xmlPath = GetAbsoluteReportPath(xmlRelativePath),
+                    failedTests = new List<string>
+                    {
+                        "Unknown test: Unity Test Framework returned no result."
+                    }
                 };
             }
 
             string resultState = result.ResultState ?? string.Empty;
+            List<string> failedTests = new();
+            CollectFailedLeafResults(result, failedTests);
+            string message = result.Message ?? string.Empty;
+            if (failedTests.Count > 0)
+            {
+                message = AppendMessage(
+                    message,
+                    string.Join(Environment.NewLine, failedTests));
+            }
+
             return new ModeReport
             {
                 completed = true,
@@ -302,10 +318,59 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 failCount = result.FailCount,
                 skipCount = result.SkipCount,
                 inconclusiveCount = result.InconclusiveCount,
-                message = result.Message ?? string.Empty,
+                message = message,
                 stackTrace = result.StackTrace ?? string.Empty,
-                xmlPath = GetAbsoluteReportPath(xmlRelativePath)
+                xmlPath = GetAbsoluteReportPath(xmlRelativePath),
+                failedTests = failedTests
             };
+        }
+
+        private static void CollectFailedLeafResults(
+            ITestResultAdaptor result,
+            ICollection<string> failedTests)
+        {
+            if (result == null || failedTests == null)
+            {
+                return;
+            }
+
+            if (result.HasChildren)
+            {
+                foreach (ITestResultAdaptor child in result.Children)
+                {
+                    CollectFailedLeafResults(child, failedTests);
+                }
+
+                return;
+            }
+
+            string resultState = result.ResultState ?? string.Empty;
+            if (resultState.StartsWith(
+                    "Passed",
+                    StringComparison.OrdinalIgnoreCase) ||
+                resultState.StartsWith(
+                    "Skipped",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            string testName = string.IsNullOrWhiteSpace(result.FullName)
+                ? result.Name ?? "Unknown test"
+                : result.FullName;
+            string detail = testName + ": " +
+                (string.IsNullOrWhiteSpace(resultState)
+                    ? "Failed"
+                    : resultState);
+            if (!string.IsNullOrWhiteSpace(result.Message))
+            {
+                detail += " — " +
+                    result.Message.Replace(
+                        Environment.NewLine,
+                        " ");
+            }
+
+            failedTests.Add(detail);
         }
 
         private static void RecordStartFailure(
@@ -326,7 +391,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         EditModeStage,
                         StringComparison.Ordinal)
                         ? EditModeXmlRelativePath
-                        : PlayModeXmlRelativePath)
+                        : PlayModeXmlRelativePath),
+                failedTests = new List<string>
+                {
+                    stage + ": " + exception.Message
+                }
             };
 
             TestReport report = ReadReport();
@@ -371,10 +440,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
             else
             {
+                string failure = FirstFailure(report);
                 Debug.LogError(
                     "Patch 4 automated verification FAILED. EditMode state: " +
                     report.editMode.resultState + "; PlayMode state: " +
-                    report.playMode.resultState + ". Report: " + ReportPath);
+                    report.playMode.resultState +
+                    (string.IsNullOrWhiteSpace(failure)
+                        ? string.Empty
+                        : ". First failure: " + failure) +
+                    ". Report: " + ReportPath);
             }
 
             if (report.passed)
@@ -400,6 +474,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     {
                         report.editMode ??= new ModeReport();
                         report.playMode ??= new ModeReport();
+                        report.editMode.failedTests ??= new List<string>();
+                        report.playMode.failedTests ??= new List<string>();
                         return report;
                     }
                 }
@@ -412,6 +488,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             return new TestReport();
+        }
+
+        private static string FirstFailure(TestReport report)
+        {
+            if (report?.editMode?.failedTests != null &&
+                report.editMode.failedTests.Count > 0)
+            {
+                return report.editMode.failedTests[0];
+            }
+
+            if (report?.playMode?.failedTests != null &&
+                report.playMode.failedTests.Count > 0)
+            {
+                return report.playMode.failedTests[0];
+            }
+
+            return string.Empty;
         }
 
         private static void WriteReport(TestReport report)

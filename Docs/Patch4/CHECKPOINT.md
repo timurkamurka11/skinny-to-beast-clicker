@@ -566,6 +566,35 @@ The corrective pass remains isolated under Patch 4:
   leaving Play Mode;
 - human review and the production-art gate remain mandatory.
 
+### P4.0-M real Unity test stop
+
+Unity `6000.3.19f1` completed the FullRect rebake and Editor validations. The
+FullRect importer state, all 40 full-canvas UV mappings and disabled
+`Image.useSpriteMesh` contract passed before testing. EditMode passed, but the
+fourth PlayMode test returned `Failed(Child)`, so the actual-room review
+correctly did not begin.
+
+The PlayMode test had one extra assertion that was not part of Editor smoke:
+it required every imported source Sprite to expose exactly four entries through
+`Sprite.vertices`. The visible presentation does not consume those source
+vertices: `Patch4CanvasSkinDeformer` clears the mesh and generates its own
+weighted grid. Exact internal source-array cardinality is therefore not the
+runtime safety contract.
+
+## P4.0-N corrected runtime contract and child diagnostics
+
+- FullRect import, full-canvas UVs and source-mesh bypass remain mandatory.
+- All 40 deformers must still be bound and at least 20 must remain multi-bone.
+- The PlayMode test no longer assumes an exact internal `Sprite.vertices`
+  array length that the custom deformer does not use.
+- The automated runner now traverses failed test leaves and writes their names,
+  states and messages to its JSON report.
+- Console now includes the first actual assertion failure instead of only the
+  parent state `Failed(Child)`.
+- A new continuation run id restarts the complete locked pipeline after pull.
+- Readiness remains false and the room review still cannot pass a collapsed
+  silhouette or any Console error.
+
 ## Production dashboard
 
 Open in Unity:
@@ -625,7 +654,7 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-M FullRect UV and room-silhouette correction into Unity
+1. Pull the P4.0-N runtime-contract and child-diagnostic correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, rebuild
@@ -662,8 +691,11 @@ Detailed verification instructions:
 - P4.0-L compiled and ran in Unity `6000.3.19f1`, but failed visual review
   because Tight opaque UV crops were stretched across full-canvas meshes; its
   screenshot-only technical `PASSED` is rejected.
-- P4.0-M FullRect UV mapping and blocking silhouette/Console validation have
-  not yet been exercised by the user's Unity `6000.3.19f1`.
+- P4.0-M FullRect rebuild and EditMode checks passed in Unity `6000.3.19f1`,
+  but an irrelevant exact source-vertex-array assertion stopped PlayMode with
+  `Failed(Child)` before the room review.
+- P4.0-N corrected PlayMode contract and detailed child reporting have not yet
+  been exercised by the user's Unity `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

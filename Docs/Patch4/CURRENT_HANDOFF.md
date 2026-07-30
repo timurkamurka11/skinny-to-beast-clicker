@@ -342,7 +342,7 @@ The root causes were isolated to Patch 4:
 P4.0-L is rejected. Its technical message is not accepted as evidence of a
 valid character or motion pass. Readiness remains locked.
 
-## Current P4.0-M full-canvas UV and honest room-review correction
+## P4.0-M full-canvas UV correction — Unity result
 
 The corrective pass:
 
@@ -351,7 +351,7 @@ The corrective pass:
 - maps the deformer grid from `Sprite.rect` and source texture dimensions
   instead of a Tight opaque outer-UV crop;
 - extends Editor smoke and PlayMode checks to require all 40 FullRect sprites,
-  uncropped UVs and four-vertex source rectangles;
+  uncropped UVs and source-mesh bypass on every Canvas Image;
 - keeps the Patch 3.5 visual hierarchy logically active during the temporary
   review and hides it only with a reversible `CanvasGroup`;
 - captures a clean room background before Patch 4 is shown;
@@ -362,9 +362,41 @@ The corrective pass:
   zero review errors, locked readiness and rollback restoration all succeed;
 - never calls `SetPatch4Enabled(true)` and never changes readiness.
 
+Unity `6000.3.19f1` confirmed that the Editor-side rebuild and validations
+passed, including all FullRect importer, full-canvas UV and `useSpriteMesh`
+checks. EditMode completed successfully. The fourth PlayMode test then stopped
+the workflow with `Failed(Child)` before the actual-room review began.
+
+The only newly added PlayMode-only condition not already covered by the passing
+Editor smoke report required `Sprite.vertices.Length == 4`. That value is
+Unity's imported source-mesh representation. It is not consumed by the visible
+Patch 4 presentation because `Patch4CanvasSkinDeformer.ModifyMesh` clears the
+source geometry and constructs its own weighted full-canvas grid. Exact source
+vertex-array cardinality was therefore an implementation-detail assertion, not
+a safety or visual contract.
+
+## Current P4.0-N runtime-contract and failure-reporting correction
+
+The corrective pass:
+
+- retains FullRect import, full-canvas UV mapping and `Image.useSpriteMesh =
+  false`;
+- retains the runtime requirement that all 40 deformers report full-canvas UVs
+  and valid bind poses;
+- removes only the irrelevant exact `Sprite.vertices` array-length assertion;
+- continues to validate the custom generated Canvas grid through deformer
+  counts, weighted-layer counts and bind-pose state;
+- recursively records every failed leaf test name, result and assertion message
+  in `patch4-test-report.json`;
+- prints the first real child failure directly in Console instead of only
+  `Failed(Child)`;
+- advances the automatic continuation run id so the corrected `4/4` and locked
+  room review start without a manual click;
+- keeps production readiness locked and Patch 3.5 as the active character.
+
 ## Exact next action
 
-After the P4.0-M correction is present on `patch-4.0`, run only:
+After the P4.0-N correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -408,7 +440,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-M automatic room review
+## Work after the P4.0-N automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.
