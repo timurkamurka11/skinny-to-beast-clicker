@@ -34,8 +34,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         [SerializeField] private string contractPath = string.Empty;
         [SerializeField] private Sprite sourceSprite;
-        [SerializeField, Range(1, 16)] private int gridColumns = 8;
-        [SerializeField, Range(1, 24)] private int gridRows = 12;
+        [SerializeField, Range(1, 32)] private int gridColumns = 8;
+        [SerializeField, Range(1, 48)] private int gridRows = 12;
         [SerializeField, Range(1.25f, 4f)]
         private float weightFalloff = 2.35f;
         [SerializeField] private List<BoneBinding> boneBindings = new();
@@ -53,6 +53,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 : string.Empty;
         public bool IsRigidlyBound => boneBindings.Count == 1;
         public bool HasMultipleBoneWeights => boneBindings.Count > 1;
+        public bool UsesContinuousBodyWeights =>
+            Patch4RigContract.IsRuntimeContinuousBodyLayer(contractPath) &&
+            HasMultipleBoneWeights;
         public bool IsBound => bindPoseCaptured && boneBindings.Count > 0;
         public bool UsesFullCanvasUv => HasFullCanvasUv(ResolveSprite());
         public int ExpectedVertexCount
@@ -75,8 +78,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             contractPath = layerContractPath ?? string.Empty;
             sourceSprite = sprite;
-            gridColumns = Mathf.Clamp(columns, 1, 16);
-            gridRows = Mathf.Clamp(rows, 1, 24);
+            gridColumns = Mathf.Clamp(columns, 1, 32);
+            gridRows = Mathf.Clamp(rows, 1, 48);
             boneBindings.Clear();
             bindPoseCaptured = false;
             skinMatrices = Array.Empty<Matrix4x4>();
@@ -270,11 +273,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 graphic != null &&
                 graphic.gameObject.activeInHierarchy)
             {
-                // Rigid one-bone cutouts still deform through this mesh
-                // effect. They therefore need the same per-frame vertex
-                // refresh as the soft multi-bone shirt; otherwise the bones
-                // animate while the visible head and limbs remain frozen at
-                // their captured bind pose.
+                // Both the intact full-body grid and sparse one-bone face/FX
+                // replacements deform through this mesh effect. Every active
+                // layer therefore needs a per-frame refresh while bones move.
                 graphic.SetVerticesDirty();
             }
         }
@@ -287,6 +288,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (boneBindings.Count == 1)
             {
                 return skinMatrices[0].MultiplyPoint3x4(original);
+            }
+
+            if (UsesContinuousBodyWeights)
+            {
+                return DeformContinuousBody(
+                    original,
+                    spritePixel,
+                    skinMatrices);
             }
 
             float totalWeight = 0f;
@@ -308,6 +317,311 @@ namespace SkinnyToBeast.Gameplay.Patch4
             return totalWeight > MinimumWeight
                 ? result / totalWeight
                 : original;
+        }
+
+        /// <summary>
+        /// Deforms the one intact painted body with smoothly blended anatomical
+        /// zones. This avoids exposing rectangular shoulder/elbow/knee cutouts
+        /// while still letting the authored Patch 4 skeleton drive the visible
+        /// head, arms, legs, torso and soft belly. Face replacements use the
+        /// exact same Head matrix as the head region below.
+        /// </summary>
+        private Vector3 DeformContinuousBody(
+            Vector3 original,
+            Vector2 spritePixel,
+            IReadOnlyList<Matrix4x4> matrices)
+        {
+            Sprite sprite = ResolveSprite();
+            if (sprite == null)
+            {
+                return original;
+            }
+
+            float normalizedX = spritePixel.x /
+                Mathf.Max(1f, sprite.rect.width);
+            float topY = 1f - spritePixel.y /
+                Mathf.Max(1f, sprite.rect.height);
+            Vector3 torso = DeformTorso(
+                original,
+                normalizedX,
+                topY,
+                matrices);
+
+            // The complete face-replacement region and the underlying painted
+            // head share one matrix. The neck then blends back into the upper
+            // torso instead of opening a seam below the chin.
+            if (normalizedX >= .34f &&
+                normalizedX <= .66f &&
+                topY <= .335f)
+            {
+                Vector3 head = BonePoint(
+                    "Head",
+                    original,
+                    matrices);
+                if (topY <= .255f)
+                {
+                    return head;
+                }
+
+                Vector3 neck = BonePoint(
+                    "Neck",
+                    original,
+                    matrices);
+                if (topY <= .300f)
+                {
+                    return Vector3.Lerp(
+                        head,
+                        neck,
+                        SmoothRange(.255f, .300f, topY));
+                }
+
+                return Vector3.Lerp(
+                    neck,
+                    torso,
+                    SmoothRange(.300f, .335f, topY));
+            }
+
+            Vector3 result = torso;
+            if (topY >= .225f && topY <= .585f)
+            {
+                bool left = normalizedX < .5f;
+                float horizontalInfluence = left
+                    ? 1f - SmoothRange(.345f, .415f, normalizedX)
+                    : SmoothRange(.585f, .655f, normalizedX);
+                float verticalInfluence =
+                    SmoothRange(.225f, .275f, topY) *
+                    (1f - SmoothRange(.545f, .585f, topY));
+                float armInfluence =
+                    horizontalInfluence * verticalInfluence;
+                if (armInfluence > .0001f)
+                {
+                    Vector3 arm = DeformArm(
+                        left,
+                        original,
+                        topY,
+                        matrices);
+                    result = Vector3.Lerp(
+                        result,
+                        arm,
+                        armInfluence);
+                }
+            }
+
+            if (topY >= .48f)
+            {
+                bool left = normalizedX < .5f;
+                float centerDistance = Mathf.Abs(normalizedX - .5f);
+                float horizontalInfluence =
+                    SmoothRange(.012f, .065f, centerDistance);
+                float verticalInfluence =
+                    SmoothRange(.48f, .545f, topY);
+                float legInfluence =
+                    horizontalInfluence * verticalInfluence;
+                if (legInfluence > .0001f)
+                {
+                    Vector3 leg = DeformLeg(
+                        left,
+                        original,
+                        topY,
+                        matrices);
+                    result = Vector3.Lerp(
+                        result,
+                        leg,
+                        legInfluence);
+                }
+            }
+
+            return result;
+        }
+
+        private Vector3 DeformTorso(
+            Vector3 original,
+            float normalizedX,
+            float topY,
+            IReadOnlyList<Matrix4x4> matrices)
+        {
+            Vector3 upper = BonePoint(
+                "SpineUpper",
+                original,
+                matrices);
+            Vector3 lower = BonePoint(
+                "SpineLower",
+                original,
+                matrices);
+            Vector3 pelvis = BonePoint(
+                "Pelvis",
+                original,
+                matrices);
+            Vector3 torso = topY <= .36f
+                ? upper
+                : topY <= .47f
+                    ? Vector3.Lerp(
+                        upper,
+                        lower,
+                        SmoothRange(.36f, .47f, topY))
+                    : Vector3.Lerp(
+                        lower,
+                        pelvis,
+                        SmoothRange(.47f, .56f, topY));
+
+            float centerDistance = Mathf.Abs(normalizedX - .5f);
+            float bellyInfluence =
+                (1f - SmoothRange(.16f, .29f, centerDistance)) *
+                SmoothRange(.33f, .385f, topY) *
+                (1f - SmoothRange(.505f, .565f, topY)) *
+                .48f;
+            if (bellyInfluence > .0001f)
+            {
+                Vector3 bellyBase = BonePoint(
+                    "BellyBase",
+                    original,
+                    matrices);
+                Vector3 bellyTip = BonePoint(
+                    "BellyTip",
+                    original,
+                    matrices);
+                Vector3 belly = Vector3.Lerp(
+                    bellyBase,
+                    bellyTip,
+                    SmoothRange(.37f, .52f, topY));
+                torso = Vector3.Lerp(
+                    torso,
+                    belly,
+                    bellyInfluence);
+            }
+
+            float chestInfluence =
+                SmoothRange(.27f, .315f, topY) *
+                (1f - SmoothRange(.37f, .415f, topY)) *
+                (1f - SmoothRange(.22f, .31f, centerDistance)) *
+                .22f;
+            if (chestInfluence > .0001f)
+            {
+                Vector3 chest = BonePoint(
+                    normalizedX < .5f
+                        ? "ChestSoftL"
+                        : "ChestSoftR",
+                    original,
+                    matrices);
+                torso = Vector3.Lerp(
+                    torso,
+                    chest,
+                    chestInfluence);
+            }
+
+            return torso;
+        }
+
+        private Vector3 DeformArm(
+            bool left,
+            Vector3 original,
+            float topY,
+            IReadOnlyList<Matrix4x4> matrices)
+        {
+            string upperName = left ? "UpperArmL" : "UpperArmR";
+            string forearmName = left ? "ForearmL" : "ForearmR";
+            string handName = left ? "HandL" : "HandR";
+            Vector3 upper = BonePoint(upperName, original, matrices);
+            Vector3 forearm = BonePoint(forearmName, original, matrices);
+            Vector3 hand = BonePoint(handName, original, matrices);
+
+            if (topY <= .38f)
+            {
+                return upper;
+            }
+
+            if (topY <= .43f)
+            {
+                return Vector3.Lerp(
+                    upper,
+                    forearm,
+                    SmoothRange(.38f, .43f, topY));
+            }
+
+            if (topY <= .47f)
+            {
+                return forearm;
+            }
+
+            return topY <= .52f
+                ? Vector3.Lerp(
+                    forearm,
+                    hand,
+                    SmoothRange(.47f, .52f, topY))
+                : hand;
+        }
+
+        private Vector3 DeformLeg(
+            bool left,
+            Vector3 original,
+            float topY,
+            IReadOnlyList<Matrix4x4> matrices)
+        {
+            string thighName = left ? "ThighL" : "ThighR";
+            string shinName = left ? "ShinL" : "ShinR";
+            string footName = left ? "FootL" : "FootR";
+            Vector3 thigh = BonePoint(thighName, original, matrices);
+            Vector3 shin = BonePoint(shinName, original, matrices);
+            Vector3 foot = BonePoint(footName, original, matrices);
+
+            if (topY <= .60f)
+            {
+                return thigh;
+            }
+
+            if (topY <= .65f)
+            {
+                return Vector3.Lerp(
+                    thigh,
+                    shin,
+                    SmoothRange(.60f, .65f, topY));
+            }
+
+            if (topY <= .71f)
+            {
+                return shin;
+            }
+
+            return topY <= .76f
+                ? Vector3.Lerp(
+                    shin,
+                    foot,
+                    SmoothRange(.71f, .76f, topY))
+                : foot;
+        }
+
+        private Vector3 BonePoint(
+            string boneName,
+            Vector3 original,
+            IReadOnlyList<Matrix4x4> matrices)
+        {
+            for (int i = 0; i < boneBindings.Count; i++)
+            {
+                BoneBinding binding = boneBindings[i];
+                if (binding != null &&
+                    string.Equals(
+                        binding.boneName,
+                        boneName,
+                        StringComparison.Ordinal))
+                {
+                    return matrices[i].MultiplyPoint3x4(original);
+                }
+            }
+
+            return matrices.Count > 0
+                ? matrices[0].MultiplyPoint3x4(original)
+                : original;
+        }
+
+        private static float SmoothRange(
+            float start,
+            float end,
+            float value)
+        {
+            return Mathf.SmoothStep(
+                0f,
+                1f,
+                Mathf.InverseLerp(start, end, value));
         }
 
         private Sprite ResolveSprite()

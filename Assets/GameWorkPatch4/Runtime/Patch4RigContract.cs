@@ -11,6 +11,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
     {
         public const string PatchName = "GameWork Patch 4.0";
         public const string CharacterRootName = "CharacterRoot";
+        public const string RuntimeContinuousBodyLayerPath =
+            "Body/TorsoBase";
 
         public static IReadOnlyList<string> RequiredBoneNames { get; } =
             Array.AsReadOnly(new[]
@@ -94,69 +96,28 @@ namespace SkinnyToBeast.Gameplay.Patch4
             });
 
         /// <summary>
-        /// The one neutral visual stack that is allowed to render at runtime.
-        /// The remaining required layers are alternate poses, transient FX or
-        /// review/reference artwork; rendering those reference copies together
-        /// is what previously produced doubled limbs and a detached face.
+        /// The neutral runtime stack is one continuous painted body plus sparse
+        /// mutually exclusive face replacements. The remaining required layers
+        /// stay available only as hidden review/reference artwork. Rendering the
+        /// old anatomical cutouts produced visibly chopped shoulders and limbs.
         /// </summary>
         public static IReadOnlyList<string> RuntimeNeutralLayerPaths { get; } =
             Array.AsReadOnly(new[]
             {
-                "Body/Neck",
-                "Head/HeadBase",
+                "Body/TorsoBase",
                 "Face/EyeWhiteL",
                 "Face/EyeWhiteR",
-                "Face/MouthClosed",
-                "ArmL/Upper",
-                "ArmL/Forearm",
-                "ArmL/Hand",
-                "ArmR/Upper",
-                "ArmR/Forearm",
-                "ArmR/Hand",
-                "LegL/Thigh",
-                "LegL/Shin",
-                "LegL/Foot",
-                "LegR/Thigh",
-                "LegR/Shin",
-                "LegR/Foot",
-                "Clothes/ShirtBase"
+                "Face/MouthClosed"
             });
 
         /// <summary>
-        /// Source-art layers that divide the neutral master into one exclusive
-        /// owner per pixel. Face replacements are intentionally excluded: the
-        /// head contains a painted skin underlay beneath those features.
-        /// </summary>
-        public static IReadOnlyList<string>
-            RuntimeExclusiveArtworkLayerPaths { get; } =
-            Array.AsReadOnly(new[]
-            {
-                "Body/Neck",
-                "Head/HeadBase",
-                "ArmL/Upper",
-                "ArmL/Forearm",
-                "ArmL/Hand",
-                "ArmR/Upper",
-                "ArmR/Forearm",
-                "ArmR/Hand",
-                "LegL/Thigh",
-                "LegL/Shin",
-                "LegL/Foot",
-                "LegR/Thigh",
-                "LegR/Shin",
-                "LegR/Foot",
-                "Clothes/ShirtBase"
-            });
-
-        /// <summary>
-        /// Cutout pieces that must follow exactly one bone. Only the central
-        /// shirt is allowed to use a soft multi-bone Canvas grid.
+        /// Sparse replacement/FX layers that must follow exactly one bone. The
+        /// painted body itself uses one dense continuous Canvas deformation
+        /// surface instead of separately transformed anatomical cutouts.
         /// </summary>
         public static IReadOnlyList<string> RuntimeRigidLayerPaths { get; } =
             Array.AsReadOnly(new[]
             {
-                "Body/Neck",
-                "Head/HeadBase",
                 "Face/EyeWhiteL",
                 "Face/EyeWhiteR",
                 "Face/LidL",
@@ -164,18 +125,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 "Face/MouthClosed",
                 "Face/MouthOpen",
                 "Face/MouthSmile",
-                "ArmL/Upper",
-                "ArmL/Forearm",
-                "ArmL/Hand",
-                "ArmR/Upper",
-                "ArmR/Forearm",
-                "ArmR/Hand",
-                "LegL/Thigh",
-                "LegL/Shin",
-                "LegL/Foot",
-                "LegR/Thigh",
-                "LegR/Shin",
-                "LegR/Foot",
                 "FX/Sweat",
                 "FX/Shadow"
             });
@@ -224,6 +173,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
         public static bool RequiresRigidCanvasBinding(string contractPath)
         {
             return Contains(RuntimeRigidLayerPaths, contractPath);
+        }
+
+        public static bool IsRuntimeContinuousBodyLayer(
+            string contractPath)
+        {
+            return string.Equals(
+                contractPath,
+                RuntimeContinuousBodyLayerPath,
+                StringComparison.Ordinal);
         }
 
         private static bool Contains(

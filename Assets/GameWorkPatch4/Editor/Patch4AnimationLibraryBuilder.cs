@@ -167,15 +167,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 duration,
                 3f,
                 -3f);
-            SetCurve(
-                clip,
-                Head,
-                "m_LocalPosition.x",
-                new Keyframe(0f, 0f),
-                new Keyframe(0.75f, -0.08f),
-                new Keyframe(1.5f, 0f),
-                new Keyframe(2.25f, 0.08f),
-                new Keyframe(duration, 0f));
             return clip;
         }
 
@@ -307,69 +298,75 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalPosition.x",
                 duration,
-                0.045f,
-                -0.045f);
+                0.075f,
+                -0.075f);
             SetCyclePosition(
                 clip,
                 Visual,
                 "m_LocalPosition.y",
                 duration,
-                0.085f,
-                0.085f);
+                0.11f,
+                0.11f);
             SetAlternatingRotation(
                 clip,
                 Pelvis,
                 duration,
-                -4.5f,
-                4.5f);
+                -6.5f,
+                6.5f);
+            SetAlternatingRotation(
+                clip,
+                SpineLower,
+                duration,
+                3.5f,
+                -3.5f);
             SetAlternatingRotation(
                 clip,
                 ThighL,
                 duration,
-                -22f,
-                22f);
+                -28f,
+                28f);
             SetAlternatingRotation(
                 clip,
                 ThighR,
                 duration,
-                22f,
-                -22f);
+                28f,
+                -28f);
             SetAlternatingRotation(
                 clip,
                 ShinL,
                 duration,
-                14f,
-                -17f);
+                20f,
+                -23f);
             SetAlternatingRotation(
                 clip,
                 ShinR,
                 duration,
-                -17f,
-                14f);
+                -23f,
+                20f);
             SetAlternatingRotation(
                 clip,
                 FootL,
                 duration,
-                -8f,
-                9f);
+                -13f,
+                14f);
             SetAlternatingRotation(
                 clip,
                 FootR,
                 duration,
-                9f,
-                -8f);
+                14f,
+                -13f);
             SetAlternatingRotation(
                 clip,
                 UpperArmL,
                 duration,
-                15f,
-                -15f);
+                21f,
+                -21f);
             SetAlternatingRotation(
                 clip,
                 UpperArmR,
                 duration,
-                -15f,
-                15f);
+                -21f,
+                21f);
             SetAlternatingRotation(
                 clip,
                 ForearmL,

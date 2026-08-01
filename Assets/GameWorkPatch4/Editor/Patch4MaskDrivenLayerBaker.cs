@@ -122,6 +122,25 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             new(RightEyePatch, .5235f, .1865f, 12f, 17f);
         private static readonly FaceFeature ClosedMouthFeature =
             new(MouthPatch, .5f, .220f, 40f, 24f);
+        private static readonly IReadOnlyList<string> ReferenceCutoutPaths =
+            Array.AsReadOnly(new[]
+            {
+                "Body/Neck",
+                "Head/HeadBase",
+                "ArmL/Upper",
+                "ArmL/Forearm",
+                "ArmL/Hand",
+                "ArmR/Upper",
+                "ArmR/Forearm",
+                "ArmR/Hand",
+                "LegL/Thigh",
+                "LegL/Shin",
+                "LegL/Foot",
+                "LegR/Thigh",
+                "LegR/Shin",
+                "LegR/Foot",
+                "Clothes/ShirtBase"
+            });
 
         [MenuItem("Tools/GameWork/Patch 4.0/Art/Bake Draft Layer Pack")]
         public static void BakeDraftLayerPack()
@@ -147,8 +166,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EnsureFolder(LayerRoot);
             List<string> manualItems = new();
             List<string> warnings = new();
-            Dictionary<string, Color32[]> bakedLayers =
-                new(StringComparer.Ordinal);
 
             try
             {
@@ -161,14 +178,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         (float)i / Mathf.Max(1, specs.Count));
 
                     Color32[] pixels = Bake(master, masks, spec, warnings);
-                    if (IsExclusiveRuntimeArtworkPath(spec.path))
-                    {
-                        bakedLayers[spec.path] = pixels;
-                    }
-                    else
-                    {
-                        WriteLayer(spec.path, pixels);
-                    }
+                    WriteLayer(spec.path, pixels);
                     if (spec.manual)
                     {
                         manualItems.Add(
@@ -177,26 +187,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                                 ? string.Empty
                                 : " — " + spec.reason));
                     }
-                }
-
-                EnforceExclusiveRuntimeArtworkOwnership(
-                    master,
-                    bakedLayers);
-                for (int i = 0; i < specs.Count; i++)
-                {
-                    Spec spec = specs[i];
-                    if (!bakedLayers.TryGetValue(
-                        spec.path,
-                        out Color32[] pixels))
-                    {
-                        continue;
-                    }
-
-                    EditorUtility.DisplayProgressBar(
-                        "GameWork Patch 4.0",
-                        "Writing exclusive cutout " + spec.path,
-                        (float)i / Mathf.Max(1, specs.Count));
-                    WriteLayer(spec.path, pixels);
                 }
             }
             finally
@@ -211,7 +201,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Debug.Log(
                 $"Patch 4 created {specs.Count} production-candidate layers " +
                 $"from {masks.Count} repository masks, painted face poses and " +
-                "texture-preserving joint continuations. Human review and " +
+                "one continuous runtime body. Human review and " +
                 "production activation remain locked.");
         }
 
@@ -332,6 +322,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Spec spec,
             ICollection<string> warnings)
         {
+            if (Patch4RigContract.IsRuntimeContinuousBodyLayer(spec.path))
+            {
+                Color32[] continuousBody =
+                    (Color32[])master.pixels.Clone();
+                ApplyProductionArtwork(
+                    master,
+                    spec,
+                    continuousBody);
+                return continuousBody;
+            }
+
             Color32[] result = new Color32[master.pixels.Length];
             bool requestedMasks = spec.masks.Length > 0;
             bool foundMask = false;
@@ -403,8 +404,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             ImageData master,
             IDictionary<string, Color32[]> bakedLayers)
         {
-            IReadOnlyList<string> paths =
-                Patch4RigContract.RuntimeExclusiveArtworkLayerPaths;
+            IReadOnlyList<string> paths = ReferenceCutoutPaths;
 
             for (int y = 0; y < Height; y++)
             {
@@ -520,8 +520,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static bool IsExclusiveRuntimeArtworkPath(string path)
         {
-            IReadOnlyList<string> paths =
-                Patch4RigContract.RuntimeExclusiveArtworkLayerPaths;
+            IReadOnlyList<string> paths = ReferenceCutoutPaths;
             for (int i = 0; i < paths.Count; i++)
             {
                 if (string.Equals(
@@ -682,6 +681,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             switch (path)
             {
+                case "Body/TorsoBase":
                 case "Head/HeadBase":
                     PaintSkinUnderlay(
                         master,

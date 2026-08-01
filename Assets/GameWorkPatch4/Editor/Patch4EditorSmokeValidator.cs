@@ -57,6 +57,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public int canvasSkinDeformerCount;
             public int weightedCanvasLayerCount;
             public int rigidRuntimeLayerCount;
+            public bool continuousBodyBindingReady;
             public int canvasSkinVertexCount;
             public int fullRectLayerSpriteCount;
             public int fullCanvasUvLayerCount;
@@ -424,6 +425,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation.WeightedLayerCount;
             report.rigidRuntimeLayerCount =
                 presentation.RuntimeRigidLayerCount;
+            report.continuousBodyBindingReady =
+                presentation.ContinuousBodyBindingReady;
 
             if (!report.canvasPresentationPrepared ||
                 report.canvasLayerCount !=
@@ -460,9 +463,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     deformer =>
                         deformer != null &&
                         deformer.IsBound);
-            bool softShirtWeighted = HasWeightedSkin(
+            bool continuousBodyWeighted = HasWeightedSkin(
                 skinDeformers,
-                "Clothes/ShirtBase");
+                Patch4RigContract.RuntimeContinuousBodyLayerPath) &&
+                skinDeformers.Any(
+                    deformer =>
+                        deformer != null &&
+                        Patch4RigContract.IsRuntimeContinuousBodyLayer(
+                            deformer.ContractPath) &&
+                        deformer.UsesContinuousBodyWeights &&
+                        deformer.ExpectedVertexCount >= 1600);
             bool runtimeRigidLayersReady =
                 Patch4RigContract.RuntimeRigidLayerPaths.All(
                     path => HasRigidSkin(
@@ -482,11 +492,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 report.fullRectLayerSpriteCount !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
                 report.weightedCanvasLayerCount < 1 ||
+                !report.continuousBodyBindingReady ||
                 report.rigidRuntimeLayerCount !=
                     Patch4RigContract.RuntimeRigidLayerPaths.Count ||
                 !presentation.RuntimeRigidBindingsReady ||
                 !runtimeRigidLayersReady ||
-                !softShirtWeighted)
+                !continuousBodyWeighted)
             {
                 AddError(
                     report,
@@ -495,9 +506,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "their bind anchors must stay frozen so live bone motion " +
                     "is not cancelled; " +
                     "every source must retain FullRect import and full-canvas " +
-                    "UVs; live head, face and limb cutouts must each follow " +
-                    "exactly their one parent bone; only the central shirt " +
-                    "requires a soft multi-bone grid.");
+                    "UVs; the visible character must use one dense continuous " +
+                    "full-body deformation surface; sparse face replacements " +
+                    "must follow the exact Head matrix. Hidden anatomical " +
+                    "reference cutouts are never part of the runtime stack.");
             }
 
             Image[] canvasImages =

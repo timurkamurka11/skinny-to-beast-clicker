@@ -126,14 +126,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                         canvasPresentation,
                         "WeightedLayerCount"),
                     1,
-                    "The central shirt needs a soft multi-bone Canvas grid.");
+                    "The intact painted body needs a dense multi-bone Canvas grid.");
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        canvasPresentation,
+                        "ContinuousBodyBindingReady"),
+                    "The visible character must use one continuous full-body " +
+                    "deformation surface.");
                 Assert.IsTrue(
                     GetBoolProperty(
                         canvasPresentation,
                         "RuntimeRigidBindingsReady"),
-                    "Head, face and limb cutouts must each follow one bone.");
+                    "Sparse face replacements must follow one bone.");
                 Assert.AreEqual(
-                    23,
+                    9,
                     GetIntProperty(
                         canvasPresentation,
                         "RuntimeRigidLayerCount"));
@@ -175,7 +181,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                             GetBoolProperty(
                                 skin,
                                 "IsRigidlyBound")),
-                    23);
+                    9);
+                Component continuousBodySkin = canvasSkins.Single(
+                    skin =>
+                        GetBoolProperty(
+                            skin,
+                            "UsesContinuousBodyWeights"));
+                Assert.GreaterOrEqual(
+                    GetIntProperty(
+                        continuousBodySkin,
+                        "ExpectedVertexCount"),
+                    1600,
+                    "The intact body needs enough vertices for smooth joint " +
+                    "transitions instead of rectangular limb cuts.");
 
                 Image[] paintedImages =
                     patchVisual.GetComponentsInChildren<Image>(true);
@@ -257,6 +275,30 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Body.TorsoBase",
+                    true);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Head.HeadBase",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.ArmL.Upper",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.ArmR.Upper",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.LegL.Thigh",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.LegR.Thigh",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Clothes.ShirtBase",
                     false);
                 AssertLayerActive(
                     patchVisual,

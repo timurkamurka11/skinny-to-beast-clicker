@@ -26,9 +26,8 @@ REPOSITORY_MASTER = (
 EXPECTED_COUNTS = {
     "RequiredBoneNames": 31,
     "RequiredLayerPaths": 40,
-    "RuntimeNeutralLayerPaths": 18,
-    "RuntimeExclusiveArtworkLayerPaths": 15,
-    "RuntimeRigidLayerPaths": 23,
+    "RuntimeNeutralLayerPaths": 4,
+    "RuntimeRigidLayerPaths": 9,
     "RequiredClipNames": 10,
     "ProtectedPathFragments": 6,
 }
@@ -111,6 +110,27 @@ def validate_contract(root: Path, errors: list[str]) -> None:
     bones = values_by_property.get("RequiredBoneNames", [])
     layers = values_by_property.get("RequiredLayerPaths", [])
     clips = values_by_property.get("RequiredClipNames", [])
+    neutral_layers = values_by_property.get("RuntimeNeutralLayerPaths", [])
+    if neutral_layers != [
+        "Body/TorsoBase",
+        "Face/EyeWhiteL",
+        "Face/EyeWhiteR",
+        "Face/MouthClosed",
+    ]:
+        fail(
+            errors,
+            "Runtime neutral stack must be one intact body plus sparse face replacements",
+        )
+    forbidden_runtime_cutouts = {
+        "Head/HeadBase",
+        "ArmL/Upper",
+        "ArmR/Upper",
+        "LegL/Thigh",
+        "LegR/Thigh",
+        "Clothes/ShirtBase",
+    }
+    if forbidden_runtime_cutouts.intersection(neutral_layers):
+        fail(errors, "Hidden anatomical reference cutouts are visible at runtime")
 
     for required in ("Root", "CharacterRoot", "Pelvis", "BellyTip", "Head", "GroundShadow"):
         if required not in bones:
@@ -253,7 +273,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"exclusive-cutout-rig-review-v9"',
+            '"continuous-body-rig-review-v10"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -352,7 +372,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AlignLayerAnchorsToBindPose()",
             "image.useSpriteMesh = false",
             "ResolveSkinProfile(",
+            "ContinuousBodyBindingReady",
             "RuntimeRigidBindingsReady",
+            "Patch4RigContract.IsRuntimeContinuousBodyLayer",
             "Patch4RigContract.IsRuntimeLayerVisibleByDefault",
             'FindLayerObject("Face/EyeWhiteL")',
         )
@@ -393,6 +415,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "bone.worldToLocalMatrix",
             "imageTransform.worldToLocalMatrix",
             "HasMultipleBoneWeights",
+            "UsesContinuousBodyWeights",
+            "DeformContinuousBody(",
+            "DeformArm(",
+            "DeformLeg(",
             "IsRigidlyBound",
             "PrimaryBoneName",
             "CaptureBindPose()",
@@ -421,12 +447,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         if "graphic.SetVerticesDirty()" not in late_update:
             fail(
                 errors,
-                "Canvas rigid cutouts are not refreshed on every animated frame",
+                "Canvas deformation is not refreshed on every animated frame",
             )
         if "HasMultipleBoneWeights" in late_update:
             fail(
                 errors,
-                "Canvas refresh still excludes rigid head, face or limb cutouts",
+                "Canvas refresh still excludes active rigid face replacements",
             )
 
     importer = read_text(
@@ -540,6 +566,15 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 "Animation clips must not transform Eye bones; painted face "
                 "replacement layers stay rigidly attached to Head",
             )
+        if re.search(
+            r'SetCurve\(\s*clip,\s*Head,\s*"m_LocalPosition\.',
+            animation_builder,
+        ):
+            fail(
+                errors,
+                "Animation clips must not translate Head independently; the "
+                "continuous body and sparse face replacements share its matrix",
+            )
 
     room_review = read_text(
         root,
@@ -553,6 +588,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Patch4AnimationRoomReviewDriver",
             "StartAfterTests()",
             "WaitingForEditModeStage",
+            "WaitingForEditorQuiescenceStage",
+            "WaitForEditorQuiescence",
+            "quiescentUpdateCount < 30",
+            "stableSeconds < 1.25d",
             "QueueEnterPlayMode()",
             "ClearPreviousReviewArtifacts()",
             "CurrentRunToken",
@@ -680,7 +719,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "PaintClosedLid(",
             "PaintOpenMouth(",
             "PaintSmile(",
-            "EnforceExclusiveRuntimeArtworkOwnership(",
+            "Patch4RigContract.IsRuntimeContinuousBodyLayer(spec.path)",
+            "(Color32[])master.pixels.Clone()",
         ):
             if required not in baker:
                 fail(errors, f"Joint/face candidate baker is missing: {required}")
@@ -690,6 +730,19 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Alternate facial layers still contain opaque backing patches")
         if "CopyMasterPatch(" in baker or "ClearPatch(" in baker:
             fail(errors, "Face swapping still uses a hard rectangular copy or cut")
+        bake_start = baker.find("public static void BakeDraftLayerPack()")
+        build_specs_start = baker.find("private static List<Spec> BuildSpecs()")
+        bake_method = (
+            baker[bake_start:build_specs_start]
+            if bake_start >= 0 and build_specs_start > bake_start
+            else ""
+        )
+        if "EnforceExclusiveRuntimeArtworkOwnership(" in bake_method:
+            fail(
+                errors,
+                "Draft baking still erases the intact body to expose hidden "
+                "anatomical cutouts",
+            )
 
     face = read_text(
         root,
@@ -716,8 +769,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Draft validation does not reject rectangular face backings")
         if "ValidateFaceTransitionLayers(" not in draft_validator:
             fail(errors, "Draft validation does not reject hard face-transition cuts")
-        if "ValidateExclusiveRuntimeOwnership(" not in draft_validator:
-            fail(errors, "Draft validation does not reject multiply-owned live pixels")
+        if "ValidateContinuousBodyLayer(" not in draft_validator:
+            fail(errors, "Draft validation does not require one intact runtime body")
 
 
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:
@@ -782,8 +835,9 @@ def main() -> int:
     print("- exact 1024 x 1536 RGBA repository master and SHA verified")
     print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
-    print("- exclusive cutouts use one-pixel ownership and rigid head/face/limb bindings")
-    print("- the soft shirt grid keeps frozen bind anchors, full-canvas UVs and FullRect sprites")
+    print("- one intact painted body uses a dense continuous anatomical deformation grid")
+    print("- sparse face replacements share the Head matrix without visible cutout limbs")
+    print("- Test Runner exit must stay quiescent before the separate room review")
     print("- actual-room review blocks weak motion, collapsed silhouettes and Console errors")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")

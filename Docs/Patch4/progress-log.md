@@ -347,5 +347,32 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Advanced automatic continuation to
   `exclusive-cutout-rig-review-v9`.
 - [x] Kept readiness locked, Patch 3.5 active and protected paths untouched.
-- [ ] Confirm P4.0-Q in Unity `6000.3.19f1`: `4/4`, a clean fresh ten-frame
-  sheet, no duplicated limbs, no detached face and a visible blink.
+- [x] Exercised P4.0-Q in Unity `6000.3.19f1`; duplicated full limbs were gone.
+- [x] Rejected P4.0-Q after human review: rectangular shoulder/arm/leg cutouts
+  remained visibly chopped, the face/head relationship shifted and the walk
+  did not read as walking.
+- [x] Accepted the two fresh Console errors as blockers and traced them to Test
+  Runner post-build cleanup calling `EditorSceneManager.NewScene` after the
+  separate room review had already entered Play Mode.
+
+## 2026-08-01 — P4.0-R intact continuous-body correction
+
+- [x] Replace the visible 18-piece anatomical stack with one intact
+  `Body/TorsoBase` master plus three sparse neutral face features.
+- [x] Keep all 40 required layers, but hide segmented head, limb, shirt and
+  clothing candidates as reference artwork.
+- [x] Build a dense `32 × 48` full-canvas deformation surface for the intact
+  body.
+- [x] Add smooth anatomical Head/Neck, torso/belly, shoulder/arm and hip/leg
+  weight zones instead of rectangular cutout ownership.
+- [x] Bind the base face region and all eye/lid/mouth replacements to the exact
+  same Head matrix; remove the extra LookAround head translation.
+- [x] Increase walk stride, knee bend, foot rotation, arm swing and body bounce.
+- [x] Require 30 stable Editor updates and 1.25 seconds of quiescence after Test
+  Runner cleanup before entering the separate review Play Mode.
+- [x] Update draft, smoke, PlayMode and static guards for the continuous body.
+- [x] Advance automatic continuation to
+  `continuous-body-rig-review-v10`.
+- [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
+- [ ] Confirm P4.0-R in Unity `6000.3.19f1`: `4/4`, zero Console errors, one
+  smooth intact body, attached face and a clearly readable walk.

@@ -35,11 +35,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private const string WaitingForEditModeStage =
             "waiting-for-test-play-mode-exit";
+        private const string WaitingForEditorQuiescenceStage =
+            "waiting-for-editor-quiescence";
         private const string EnteringStage = "entering-play-mode";
         private const string RunningStage = "running-room-review";
         private const string ExitingStage = "exiting-play-mode";
 
         private static double startDeadline;
+        private static double quiescenceStartedAt;
+        private static int quiescentUpdateCount;
         private static bool gameplayWindowRequested;
         private static bool driverStarted;
 
@@ -74,7 +78,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     StringComparison.Ordinal) &&
                 !EditorApplication.isPlayingOrWillChangePlaymode)
             {
-                QueueEnterPlayMode();
+                BeginEditorQuiescence();
+            }
+            else if (string.Equals(
+                         stage,
+                         WaitingForEditorQuiescenceStage,
+                         StringComparison.Ordinal) &&
+                     !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                BeginEditorQuiescence();
             }
             else if (string.Equals(
                     stage,
@@ -130,10 +142,61 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
             else
             {
-                QueueEnterPlayMode();
+                BeginEditorQuiescence();
             }
 
             return true;
+        }
+
+        private static void BeginEditorQuiescence()
+        {
+            if (!SessionState.GetBool(InProgressKey, false))
+            {
+                return;
+            }
+
+            SessionState.SetString(
+                StageKey,
+                WaitingForEditorQuiescenceStage);
+            quiescenceStartedAt = EditorApplication.timeSinceStartup;
+            quiescentUpdateCount = 0;
+            EditorApplication.update -= WaitForEditorQuiescence;
+            EditorApplication.update += WaitForEditorQuiescence;
+        }
+
+        private static void WaitForEditorQuiescence()
+        {
+            if (!SessionState.GetBool(InProgressKey, false) ||
+                !string.Equals(
+                    SessionState.GetString(StageKey, string.Empty),
+                    WaitingForEditorQuiescenceStage,
+                    StringComparison.Ordinal))
+            {
+                EditorApplication.update -= WaitForEditorQuiescence;
+                return;
+            }
+
+            if (EditorApplication.isCompiling ||
+                EditorApplication.isUpdating ||
+                EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isPlaying)
+            {
+                quiescenceStartedAt =
+                    EditorApplication.timeSinceStartup;
+                quiescentUpdateCount = 0;
+                return;
+            }
+
+            quiescentUpdateCount++;
+            double stableSeconds =
+                EditorApplication.timeSinceStartup - quiescenceStartedAt;
+            if (quiescentUpdateCount < 30 || stableSeconds < 1.25d)
+            {
+                return;
+            }
+
+            EditorApplication.update -= WaitForEditorQuiescence;
+            QueueEnterPlayMode();
         }
 
         private static void QueueEnterPlayMode()
@@ -166,7 +229,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Debug.Log(
                 "Patch 4 locked animation-room review started. Unity will " +
                 "open the real LivingGameplayScene, review all ten clips with " +
-                "Canvas bone weights, restore Patch 3.5 and return to Edit Mode.");
+                "the intact continuous Canvas body, restore Patch 3.5 and " +
+                "return to Edit Mode.");
             EditorApplication.ExecuteMenuItem("Window/General/Game");
             EditorApplication.isPlaying = true;
         }
@@ -209,10 +273,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     StringComparison.Ordinal) ||
                 string.Equals(
                     stage,
+                    WaitingForEditorQuiescenceStage,
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    stage,
                     EnteringStage,
                     StringComparison.Ordinal))
             {
-                QueueEnterPlayMode();
+                BeginEditorQuiescence();
                 return;
             }
 
@@ -383,7 +451,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 locked animation-room technical review PASSED: " +
                     "all ten clips were sampled in LivingGameplayScene with " +
-                    "frozen Canvas bind anchors, retained full silhouettes, " +
+                    "one intact body, frozen Canvas bind anchors, retained " +
+                    "full silhouettes, " +
                     "measurable start-to-peak motion, no legacy robot " +
                     "footsteps and zero review errors. " +
                     "Human motion review is still required and activation " +
@@ -426,6 +495,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             EditorApplication.delayCall -= CompleteAfterExit;
             EditorApplication.update -= TryBindRealRoom;
+            EditorApplication.update -= WaitForEditorQuiescence;
             if (!SessionState.GetBool(InProgressKey, false) ||
                 EditorApplication.isPlayingOrWillChangePlaymode)
             {

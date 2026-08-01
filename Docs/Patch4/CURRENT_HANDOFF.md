@@ -487,7 +487,7 @@ masks, every reference layer being visible, and multi-bone grids on cutout
 segments. Several required PNGs owned the same source pixels. Bone motion then
 separated those coincident copies.
 
-## Current P4.0-Q exclusive cutout and rigid-face correction
+## P4.0-Q exclusive-cutout result and rejection
 
 - The baker assigns every neutral source pixel to exactly one live body layer.
 - Only small named neck, shoulder, elbow, wrist, hip, knee and ankle
@@ -510,9 +510,51 @@ separated those coincident copies.
   `exclusive-cutout-rig-review-v9`.
 - Readiness stays locked and Patch 3.5 remains the active rollback character.
 
+Unity `6000.3.19f1` ran the regenerated P4.0-Q candidate. It removed the
+multiply-owned duplicate limbs from P4.0-P, but the fresh actual-room sheet
+still failed human review:
+
+- shoulders, elbows and hands visibly looked like cropped rectangular pieces
+  instead of one smoothly deforming painted body;
+- moving frames still displaced the head/face relationship;
+- `FatMan_Walk_InRoom` did not read as a real walk;
+- the review correctly reported failure after two Console errors;
+- the Console showed `EditorSceneManager.NewScene` being called while the
+  separate review Play Mode was already active, followed by the Test Runner's
+  `An unexpected error happened while running tests.` message.
+
+Rigidly transforming source rectangles is therefore rejected as the visible
+runtime architecture. The P4.0-Q technical sheet must not be accepted.
+
+## Current P4.0-R continuous-body correction
+
+- `Body/TorsoBase` becomes the one intact full-master runtime body, with the
+  already verified eye and mouth skin underlay beneath sparse replacement
+  features.
+- The neutral runtime stack is reduced from 18 cutout layers to four layers:
+  the intact body, two eye features and the closed mouth.
+- All segmented head, arm, leg and clothing candidates remain in the required
+  40-layer catalog but are hidden reference artwork and never render together
+  with the continuous body.
+- The visible body uses a dense `32 × 48` full-canvas mesh driven by smooth
+  head/neck, torso/belly, shoulder/arm and hip/leg weight zones.
+- The face region of that body and every replacement eye/lid/mouth layer use
+  the exact same `Head` matrix; LookAround no longer adds a separate head
+  translation that could pull the face away from the neck.
+- Walk stride, knee bend, foot rotation, arm counter-swing and vertical bounce
+  are increased so the locked room capture must show a readable walk.
+- The second review Play Mode now waits for at least 30 stable Editor updates
+  and 1.25 seconds with no compile/import/test transition before it starts.
+  This prevents Test Runner post-build cleanup from calling
+  `EditorSceneManager.NewScene` inside the review session.
+- Automatic continuation advances to
+  `continuous-body-rig-review-v10`.
+- Readiness remains locked, Patch 3.5 remains active and protected paths remain
+  unchanged.
+
 ## Exact next action
 
-After the P4.0-Q correction is present on `patch-4.0`, run only:
+After the P4.0-R correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -522,19 +564,19 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. enforce one live owner per neutral body pixel and restore only named joint
-   continuations;
-4. import every layer as FullRect and rebuild the locked hybrid Canvas prefab
-   with rigid head/face/limbs and a soft central shirt;
-5. assemble and compare the locked 18-layer neutral runtime pose;
+3. create one intact visible full-master body while preserving all 40 hidden
+   reference/alternate layers;
+4. import every layer as FullRect and rebuild the locked Canvas prefab with a
+   dense continuous full-body deformation grid and Head-bound face states;
+5. assemble and compare the locked four-layer neutral runtime pose;
 6. write the neutral and four-expression review images;
-7. validate all 40 skin bindings, frozen bind anchors, full-canvas UVs,
-   exclusive live-pixel ownership and every required rigid cutout;
+7. validate all 40 bindings, frozen bind anchors, full-canvas UVs, the dense
+   continuous body and every sparse rigid face replacement;
 8. run pixel, rig, compilation and Editor smoke validation;
 9. run all EditMode tests;
 10. enter Play Mode and run all PlayMode tests;
-11. after `4/4`, wait for Test Runner to return fully to Edit Mode, then enter
-    a separate Play Mode session and create the actual gameplay room;
+11. after `4/4`, require a stable quiescent Edit Mode interval after Test Runner
+    cleanup, then enter a separate Play Mode session and create the actual room;
 12. capture a clean background and neutral reference, then play all ten clips
     and block weak start-to-peak motion, weak focused blink motion, a collapsed
     silhouette or any Console error while the legacy robot-like footstep stays
@@ -561,12 +603,12 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-Q automatic room review
+## Work after the P4.0-R automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.
 - Reject and revise any exposed joint, detached layer, excessive stretch,
   overlap, foot slide or collapse at an animation extreme.
-- Keep the exclusive cutout ownership and rigid bindings locked until the ten
-  motions pass human review.
+- Keep the intact-body grid and exact Head-bound facial replacements locked
+  until the ten motions pass human review.
 - Approve readiness only after technical and human visual review.

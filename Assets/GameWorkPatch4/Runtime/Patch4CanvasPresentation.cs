@@ -87,6 +87,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             prepared &&
             skinBindingsReady &&
             bindAnchorsFrozen &&
+            ContinuousBodyBindingReady &&
+            RuntimeRigidBindingsReady &&
             gameplayLayoutConfigured &&
             hostCanvas != null;
         public int ImageCount => images.Count;
@@ -136,6 +138,26 @@ namespace SkinnyToBeast.Gameplay.Patch4
         public bool RuntimeRigidBindingsReady =>
             RuntimeRigidLayerCount ==
             Patch4RigContract.RuntimeRigidLayerPaths.Count;
+        public bool ContinuousBodyBindingReady
+        {
+            get
+            {
+                for (int i = 0; i < skinDeformers.Count; i++)
+                {
+                    Patch4CanvasSkinDeformer deformer =
+                        skinDeformers[i];
+                    if (deformer != null &&
+                        Patch4RigContract.IsRuntimeContinuousBodyLayer(
+                            deformer.ContractPath))
+                    {
+                        return deformer.UsesContinuousBodyWeights &&
+                               deformer.ExpectedVertexCount >= 1600;
+                    }
+                }
+
+                return false;
+            }
+        }
         public bool SkinBindingsReady => skinBindingsReady;
         public bool BindAnchorsFrozen => bindAnchorsFrozen;
 
@@ -467,6 +489,36 @@ namespace SkinnyToBeast.Gameplay.Patch4
             string contractPath,
             string parentBone)
         {
+            if (Patch4RigContract.IsRuntimeContinuousBodyLayer(
+                contractPath))
+            {
+                return new SkinProfile(
+                    32,
+                    48,
+                    "CharacterRoot",
+                    "Pelvis",
+                    "SpineLower",
+                    "BellyBase",
+                    "BellyTip",
+                    "SpineUpper",
+                    "ChestSoftL",
+                    "ChestSoftR",
+                    "Neck",
+                    "Head",
+                    "UpperArmL",
+                    "ForearmL",
+                    "HandL",
+                    "UpperArmR",
+                    "ForearmR",
+                    "HandR",
+                    "ThighL",
+                    "ShinL",
+                    "FootL",
+                    "ThighR",
+                    "ShinR",
+                    "FootR");
+            }
+
             if (Patch4RigContract.RequiresRigidCanvasBinding(contractPath))
             {
                 return new SkinProfile(

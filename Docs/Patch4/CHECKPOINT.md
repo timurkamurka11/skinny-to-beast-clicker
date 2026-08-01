@@ -715,6 +715,49 @@ parts that should have behaved as rigid cutouts.
   `exclusive-cutout-rig-review-v9`.
 - Production readiness remains locked; Patch 3.5 remains active.
 
+### P4.0-Q real Unity rejection
+
+Unity `6000.3.19f1` rebuilt and displayed the P4.0-Q runtime candidate. The
+one-owner pass removed the duplicated full limbs from P4.0-P, but the visible
+architecture still failed human review:
+
+- shoulder, elbow, hand and leg motion exposed cropped rectangular cutout
+  boundaries rather than a smooth painted body;
+- the head/face relationship still shifted in animated poses;
+- the walk capture did not read as walking;
+- the fresh review failed after two Console errors;
+- Test Runner post-build cleanup called `EditorSceneManager.NewScene` after the
+  separate animation review had already entered Play Mode, which Unity rejects.
+
+The rigid anatomical cutout approach is therefore not a production candidate.
+Its reference layers may remain in the 40-layer contract, but they may not be
+the visible runtime body.
+
+## P4.0-R intact full-body Canvas deformation
+
+- `Body/TorsoBase` now copies the complete locked master silhouette and keeps
+  the verified inpainted eye/mouth underlay.
+- The runtime neutral stack contains exactly four layers: the intact body, two
+  sparse neutral eye features and the sparse closed mouth.
+- Segmented head, arms, legs, shirt and other required candidates remain hidden
+  reference layers; they cannot produce chopped or doubled runtime limbs.
+- The visible body builds a `32 × 48` full-canvas grid with smooth anatomical
+  weighting for Head/Neck, spine/chest/belly, both three-part arms and both
+  three-part legs.
+- The full-body face pixels and every facial replacement use the same Head
+  matrix. The extra LookAround head translation is removed.
+- The in-room walk receives a stronger stride, knee/foot articulation, arm
+  counter-swing and body bounce.
+- The room-review handoff requires 30 consecutive idle Editor updates and at
+  least 1.25 seconds after Test Runner Play Mode before starting its own Play
+  Mode. Compile, import or play transitions reset that timer.
+- Editor smoke, PlayMode and static guards require the intact dense body and
+  forbid anatomical cutouts from the neutral runtime stack.
+- Automatic continuation advances to
+  `continuous-body-rig-review-v10`.
+- Readiness remains false, Patch 3.5 remains active and protected paths are
+  unchanged.
+
 ## Production dashboard
 
 Open in Unity:
@@ -774,19 +817,19 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-Q exclusive-cutout correction into Unity
+1. Pull the P4.0-R continuous-body correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
-3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, enforce
-   exclusive live-pixel ownership, rebuild the locked hybrid cutout/soft-shirt
+3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
+   one intact visible full-master body, rebuild the locked continuous-grid
    prefab, validate and complete EditMode `4 passed`, PlayMode `4 passed`.
-4. Let the Editor-only continuation wait for the Test Runner to return fully to
-   Edit Mode, then enter a separate Play Mode session, create the real room,
-   freeze the Canvas bind anchors, pause the old walk routine and cycle all ten
-   corrected clips with rigid head, face and limb parts.
-5. Let the driver reject duplicate source ownership, weak body/focused blink
-   motion or silhouette loss, capture the review sheet, restore Patch 3.5 and
-   its routine, then return to Edit Mode.
+4. Let the Editor-only continuation wait for a genuinely quiescent Edit Mode
+   after Test Runner cleanup, then enter a separate Play Mode session, create
+   the real room, freeze the Canvas bind anchors, pause the old walk routine
+   and cycle all ten corrected clips on the intact body.
+5. Let the driver reject weak body/focused blink motion or silhouette loss,
+   capture the review sheet, restore Patch 3.5 and its routine, then return to
+   Edit Mode.
 6. Confirm that the Console has zero errors and inspect the automatically
    focused 5 × 2 room-animation contact sheet.
 7. Revise any exposed joint, detached paint, extreme stretch, foot slide or
@@ -825,8 +868,11 @@ Detailed verification instructions:
   the window displayed the stale P4.0-N PNG.
 - P4.0-P completed a genuine fresh room review and correctly failed; its sheet
   exposed multiply-owned limbs and a detached face.
-- P4.0-Q source and static guards are complete, but the regenerated exclusive
-  cutouts have not yet been exercised by the user's Unity `6000.3.19f1`.
+- P4.0-Q was exercised in Unity and rejected: its anatomical rectangles still
+  looked chopped, the face shifted, walking was unreadable and Test Runner
+  cleanup collided with the separate review Play Mode.
+- P4.0-R source and static guards are complete, but its intact dense body has
+  not yet been exercised by the user's Unity `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

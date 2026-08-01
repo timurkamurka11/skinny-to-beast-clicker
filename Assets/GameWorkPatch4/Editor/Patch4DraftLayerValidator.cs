@@ -10,8 +10,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     /// <summary>
     /// Pixel-level validation for the full-canvas Patch 4 candidate layer pack.
     /// Existence alone is not enough: the validator checks dimensions, alpha
-    /// coverage, leakage, meaningful content, exclusive live-pixel ownership
-    /// and the small intentional overlap at moving joints.
+    /// coverage, leakage, meaningful content, one complete continuous runtime
+    /// body and hidden reference overlap at moving joints.
     /// </summary>
     public static class Patch4DraftLayerValidator
     {
@@ -142,7 +142,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             ValidateFaceReplacementLayers(layers, errors);
             ValidateFaceTransitionLayers(layers, errors);
-            ValidateExclusiveRuntimeOwnership(layers, errors);
+            ValidateContinuousBodyLayer(master, layers, errors);
 
             float coverage = 0f;
             float leakage = 0f;
@@ -269,76 +269,43 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             };
         }
 
-        private static void ValidateExclusiveRuntimeOwnership(
+        private static void ValidateContinuousBodyLayer(
+            ImageData master,
             IReadOnlyDictionary<string, ImageData> layers,
             ICollection<string> errors)
         {
-            IReadOnlyList<string> paths =
-                Patch4RigContract.RuntimeExclusiveArtworkLayerPaths;
-            JointCheck[] joints = BuildJointChecks();
-            int uncontrolledOverlapPixels = 0;
-
-            for (int y = 0; y < ExpectedHeight; y++)
-            {
-                for (int x = 0; x < ExpectedWidth; x++)
-                {
-                    int index = y * ExpectedWidth + x;
-                    int ownerCount = 0;
-                    for (int pathIndex = 0;
-                         pathIndex < paths.Count;
-                         pathIndex++)
-                    {
-                        if (layers.TryGetValue(
-                                paths[pathIndex],
-                                out ImageData layer) &&
-                            layer.pixels[index].a > VisibleThreshold)
-                        {
-                            ownerCount++;
-                        }
-                    }
-
-                    if (ownerCount > 1 &&
-                        !IsInsideAuthorizedJoint(x, y, joints))
-                    {
-                        uncontrolledOverlapPixels++;
-                    }
-                }
-            }
-
-            if (uncontrolledOverlapPixels > 0)
+            if (master == null ||
+                !layers.TryGetValue(
+                    Patch4RigContract.RuntimeContinuousBodyLayerPath,
+                    out ImageData continuousBody))
             {
                 errors.Add(
-                    "Runtime neutral artwork has " +
-                    uncontrolledOverlapPixels +
-                    " multiply-owned pixels outside authorized joints. " +
-                    "Those duplicate pixels will split into extra limbs or " +
-                    "a detached face when the rig moves.");
+                    "The continuous runtime body layer is missing.");
+                return;
             }
-        }
 
-        private static bool IsInsideAuthorizedJoint(
-            int x,
-            int y,
-            IReadOnlyList<JointCheck> joints)
-        {
-            for (int i = 0; i < joints.Count; i++)
+            MeasureCoverage(
+                master,
+                new[] { continuousBody },
+                out float coverage,
+                out float leakage);
+            if (coverage < .995f)
             {
-                JointCheck joint = joints[i];
-                float centerX =
-                    joint.normalizedTopPoint.x * ExpectedWidth;
-                float centerY =
-                    ExpectedHeight -
-                    joint.normalizedTopPoint.y * ExpectedHeight;
-                float dx = x - centerX;
-                float dy = y - centerY;
-                if (dx * dx + dy * dy <=
-                    joint.radiusPixels * joint.radiusPixels)
-                {
-                    return true;
-                }
+                errors.Add(
+                    "The continuous runtime body retains only " +
+                    FormatPercent(coverage) +
+                    " of the quality-master silhouette. Minimum is 99.5%. " +
+                    "The visible character must not be reconstructed from " +
+                    "separately transformed limb rectangles.");
             }
 
-            return false;
+            if (leakage > .0001f)
+            {
+                errors.Add(
+                    "The continuous runtime body leaks " +
+                    FormatPercent(leakage) +
+                    " outside the locked master silhouette.");
+            }
         }
 
         private static void ValidateFaceReplacementLayers(

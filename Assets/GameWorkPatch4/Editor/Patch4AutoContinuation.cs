@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "exclusive-cutout-rig-review-v9";
+            "continuous-body-rig-review-v10";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -60,12 +60,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 automatic fresh motion-review run started: " +
                     "restoring the repository master, rebaking all 40 layers as " +
-                    "one-owner cutouts, rebuilding the locked runtime prefab " +
-                    "with rigid head/face/limb bindings, a soft central shirt, " +
-                    "uncropped Canvas UVs and frozen bind anchors, then " +
+                    "one intact visible body plus sparse face replacements, " +
+                    "rebuilding the locked runtime prefab with a dense " +
+                    "continuous deformation grid, uncropped Canvas UVs and " +
+                    "frozen bind anchors, then " +
                     "running the corrected ten-clip library. " +
                     "After 4/4, Unity will review all ten clips in the real room, " +
-                    "block duplicate artwork, weak body motion, weak focused " +
+                    "block chopped reference layers, weak body motion, weak focused " +
                     "blink motion, collapsed silhouettes or Console errors, " +
                     "wait until Test Runner has fully returned to Edit " +
                     "Mode, suppress the legacy robot footstep only during the " +

@@ -60,6 +60,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public int canvasSkinDeformerCount;
             public int weightedLayerCount;
             public int rigidRuntimeLayerCount;
+            public bool continuousBodyBindingReady;
             public bool readinessGateRemainedLocked;
             public bool patch35Restored;
             public bool legacyRigStayedLogicallyActive;
@@ -196,6 +197,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     canvasPresentation != null
                         ? canvasPresentation.RuntimeRigidLayerCount
                         : 0,
+                continuousBodyBindingReady =
+                    canvasPresentation != null &&
+                    canvasPresentation.ContinuousBodyBindingReady,
                 readinessGateRemainedLocked =
                     rigController != null &&
                     !rigController.Patch4Enabled,
@@ -520,10 +524,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 canvasPresentation.SkinDeformerCount !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
                 canvasPresentation.WeightedLayerCount < 1 ||
+                !canvasPresentation.ContinuousBodyBindingReady ||
                 !canvasPresentation.RuntimeRigidBindingsReady)
             {
-                return "The Canvas skinning presentation is incomplete or " +
-                    "its bind anchors are not frozen.";
+                return "The continuous full-body Canvas deformation surface " +
+                    "or its frozen bind anchors are incomplete.";
             }
 
             if (rigController.Patch4Enabled ||
