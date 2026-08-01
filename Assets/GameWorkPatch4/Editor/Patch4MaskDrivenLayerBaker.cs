@@ -147,6 +147,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EnsureFolder(LayerRoot);
             List<string> manualItems = new();
             List<string> warnings = new();
+            Dictionary<string, Color32[]> bakedLayers =
+                new(StringComparer.Ordinal);
 
             try
             {
@@ -159,7 +161,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         (float)i / Mathf.Max(1, specs.Count));
 
                     Color32[] pixels = Bake(master, masks, spec, warnings);
-                    WriteLayer(spec.path, pixels);
+                    if (IsExclusiveRuntimeArtworkPath(spec.path))
+                    {
+                        bakedLayers[spec.path] = pixels;
+                    }
+                    else
+                    {
+                        WriteLayer(spec.path, pixels);
+                    }
                     if (spec.manual)
                     {
                         manualItems.Add(
@@ -168,6 +177,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                                 ? string.Empty
                                 : " — " + spec.reason));
                     }
+                }
+
+                EnforceExclusiveRuntimeArtworkOwnership(
+                    master,
+                    bakedLayers);
+                for (int i = 0; i < specs.Count; i++)
+                {
+                    Spec spec = specs[i];
+                    if (!bakedLayers.TryGetValue(
+                        spec.path,
+                        out Color32[] pixels))
+                    {
+                        continue;
+                    }
+
+                    EditorUtility.DisplayProgressBar(
+                        "GameWork Patch 4.0",
+                        "Writing exclusive cutout " + spec.path,
+                        (float)i / Mathf.Max(1, specs.Count));
+                    WriteLayer(spec.path, pixels);
                 }
             }
             finally
@@ -360,6 +389,239 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Repository masks are conservative rectangular source regions. A
+        /// neutral frame can hide that several such regions contain the same
+        /// master pixel, but those copies split apart as soon as their bones
+        /// rotate. Assign every neutral body pixel to exactly one live cutout,
+        /// then restore only the small joint overlaps that are intentionally
+        /// required to avoid seams.
+        /// </summary>
+        private static void EnforceExclusiveRuntimeArtworkOwnership(
+            ImageData master,
+            IDictionary<string, Color32[]> bakedLayers)
+        {
+            IReadOnlyList<string> paths =
+                Patch4RigContract.RuntimeExclusiveArtworkLayerPaths;
+
+            for (int y = 0; y < Height; y++)
+            {
+                float topY = 1f - (y + .5f) / Height;
+                for (int x = 0; x < Width; x++)
+                {
+                    int index = y * Width + x;
+                    Color32 source = master.pixels[index];
+                    if (source.a <= 8)
+                    {
+                        continue;
+                    }
+
+                    float normalizedX = (x + .5f) / Width;
+                    string preferredPath = ResolveFallbackArtworkOwner(
+                        normalizedX,
+                        topY);
+                    string ownerPath = string.Empty;
+                    float ownerDistance = float.PositiveInfinity;
+                    int candidateCount = 0;
+
+                    for (int i = 0; i < paths.Count; i++)
+                    {
+                        string path = paths[i];
+                        if (!bakedLayers.TryGetValue(
+                                path,
+                                out Color32[] pixels) ||
+                            pixels[index].a <= 8)
+                        {
+                            continue;
+                        }
+
+                        candidateCount++;
+                        float distance = ResolveArtworkOwnerDistance(
+                            path,
+                            normalizedX,
+                            topY);
+                        if (string.Equals(
+                            path,
+                            preferredPath,
+                            StringComparison.Ordinal))
+                        {
+                            distance = -1f;
+                        }
+                        if (distance < ownerDistance)
+                        {
+                            ownerDistance = distance;
+                            ownerPath = path;
+                        }
+                    }
+
+                    if (candidateCount == 0)
+                    {
+                        ownerPath = preferredPath;
+                        if (bakedLayers.TryGetValue(
+                            ownerPath,
+                            out Color32[] fallback))
+                        {
+                            fallback[index] = source;
+                        }
+
+                        continue;
+                    }
+
+                    if (candidateCount == 1)
+                    {
+                        continue;
+                    }
+
+                    for (int i = 0; i < paths.Count; i++)
+                    {
+                        string path = paths[i];
+                        if (string.Equals(
+                                path,
+                                ownerPath,
+                                StringComparison.Ordinal) ||
+                            !bakedLayers.TryGetValue(
+                                path,
+                                out Color32[] pixels))
+                        {
+                            continue;
+                        }
+
+                        pixels[index] = default;
+                    }
+                }
+            }
+
+            // Only these small ellipses may overlap after ownership is split.
+            for (int i = 0; i < paths.Count; i++)
+            {
+                string path = paths[i];
+                if (!bakedLayers.TryGetValue(
+                    path,
+                    out Color32[] pixels))
+                {
+                    continue;
+                }
+
+                JointContinuation[] continuations =
+                    ResolveJointContinuations(path);
+                for (int jointIndex = 0;
+                     jointIndex < continuations.Length;
+                     jointIndex++)
+                {
+                    PaintJointContinuation(
+                        master,
+                        pixels,
+                        continuations[jointIndex]);
+                }
+            }
+        }
+
+        private static bool IsExclusiveRuntimeArtworkPath(string path)
+        {
+            IReadOnlyList<string> paths =
+                Patch4RigContract.RuntimeExclusiveArtworkLayerPaths;
+            for (int i = 0; i < paths.Count; i++)
+            {
+                if (string.Equals(
+                    paths[i],
+                    path,
+                    StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static float ResolveArtworkOwnerDistance(
+            string path,
+            float normalizedX,
+            float topY)
+        {
+            Vector2 anchor = path switch
+            {
+                "Body/Neck" => new Vector2(.5f, .264f),
+                "Head/HeadBase" => new Vector2(.5f, .185f),
+                "ArmL/Upper" => new Vector2(.347f, .313f),
+                "ArmL/Forearm" => new Vector2(.293f, .423f),
+                "ArmL/Hand" => new Vector2(.264f, .527f),
+                "ArmR/Upper" => new Vector2(.653f, .313f),
+                "ArmR/Forearm" => new Vector2(.707f, .423f),
+                "ArmR/Hand" => new Vector2(.736f, .527f),
+                "LegL/Thigh" => new Vector2(.430f, .566f),
+                "LegL/Shin" => new Vector2(.420f, .677f),
+                "LegL/Foot" => new Vector2(.405f, .775f),
+                "LegR/Thigh" => new Vector2(.570f, .566f),
+                "LegR/Shin" => new Vector2(.580f, .677f),
+                "LegR/Foot" => new Vector2(.595f, .775f),
+                _ => new Vector2(.5f, .39f)
+            };
+            float dx = normalizedX - anchor.x;
+            float dy = topY - anchor.y;
+            return dx * dx + dy * dy;
+        }
+
+        private static string ResolveFallbackArtworkOwner(
+            float normalizedX,
+            float topY)
+        {
+            if (topY < .245f)
+            {
+                return "Head/HeadBase";
+            }
+
+            if (normalizedX < .37f && topY < .57f)
+            {
+                return ResolveArmOwner(true, topY);
+            }
+
+            if (normalizedX > .63f && topY < .57f)
+            {
+                return ResolveArmOwner(false, topY);
+            }
+
+            if (topY >= .48f)
+            {
+                return ResolveLegOwner(normalizedX < .5f, topY);
+            }
+
+            if (topY < .305f &&
+                normalizedX >= .39f &&
+                normalizedX <= .61f)
+            {
+                return "Body/Neck";
+            }
+
+            return "Clothes/ShirtBase";
+        }
+
+        private static string ResolveArmOwner(bool left, float topY)
+        {
+            string prefix = left ? "ArmL/" : "ArmR/";
+            if (topY < .405f)
+            {
+                return prefix + "Upper";
+            }
+
+            return topY < .495f
+                ? prefix + "Forearm"
+                : prefix + "Hand";
+        }
+
+        private static string ResolveLegOwner(bool left, float topY)
+        {
+            string prefix = left ? "LegL/" : "LegR/";
+            if (topY < .625f)
+            {
+                return prefix + "Thigh";
+            }
+
+            return topY < .735f
+                ? prefix + "Shin"
+                : prefix + "Foot";
         }
 
         private static void ApplyProductionArtwork(
@@ -1101,6 +1363,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     {
                         J(.34f, .285f, 30f, 24f),
                         J(.66f, .285f, 30f, 24f)
+                    };
+
+                case "Clothes/ShirtBase":
+                    return new[]
+                    {
+                        J(.34f, .285f, 30f, 24f),
+                        J(.66f, .285f, 30f, 24f),
+                        J(.42f, .505f, 30f, 24f),
+                        J(.58f, .505f, 30f, 24f)
                     };
 
                 case "ArmL/Upper":

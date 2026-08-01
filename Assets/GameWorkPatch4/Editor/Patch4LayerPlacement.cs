@@ -71,6 +71,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         public static string ResolveParentBone(string path)
         {
+            // Face replacement art is painted in full-canvas coordinates and
+            // must remain locked to the head. Driving those same pixels again
+            // from Eye/Jaw/Brow bones makes the face detach during body clips.
+            if (path.StartsWith("Face/", StringComparison.Ordinal)) return "Head";
             if (path.StartsWith("ArmL/Upper", StringComparison.Ordinal)) return "UpperArmL";
             if (path.StartsWith("ArmL/Forearm", StringComparison.Ordinal)) return "ForearmL";
             if (path.StartsWith("ArmL/Hand", StringComparison.Ordinal)) return "HandL";
@@ -93,20 +97,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "Head/HeadBase" => "Head",
                 "Head/EarL" => "Head",
                 "Head/EarR" => "Head",
-                "Face/BrowL" => "BrowL",
-                "Face/BrowR" => "BrowR",
-                "Face/EyeWhiteL" => "EyeL",
-                "Face/EyeWhiteR" => "EyeR",
-                "Face/IrisL" => "EyeL",
-                "Face/IrisR" => "EyeR",
-                "Face/LidL" => "EyeL",
-                "Face/LidR" => "EyeR",
-                "Face/Nose" => "Head",
-                "Face/MouthClosed" => "Jaw",
-                "Face/MouthOpen" => "Jaw",
-                "Face/MouthSmile" => "Jaw",
-                "Face/CheekL" => "Head",
-                "Face/CheekR" => "Head",
                 "Clothes/ShirtBase" => "SpineLower",
                 "Clothes/ShirtBellyOverlay" => "BellyBase",
                 "Clothes/Bottoms" => "Pelvis",

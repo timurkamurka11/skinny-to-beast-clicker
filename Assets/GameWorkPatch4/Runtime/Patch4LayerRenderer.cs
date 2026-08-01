@@ -80,8 +80,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 Patch4LayerCatalog.Entry entry = entries[i];
                 if (entry == null ||
-                    string.IsNullOrWhiteSpace(entry.contractPath) ||
-                    !entry.visibleByDefault)
+                    string.IsNullOrWhiteSpace(entry.contractPath))
                 {
                     continue;
                 }
@@ -115,10 +114,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     spriteRenderer.sortingLayerName = sortingLayerName;
                 }
 
+                layerObject.SetActive(
+                    entry.visibleByDefault &&
+                    Patch4RigContract.IsRuntimeLayerVisibleByDefault(
+                        entry.contractPath));
                 renderers.Add(spriteRenderer);
             }
 
-            complete = missingLayers.Count == 0 && renderers.Count > 0;
+            complete =
+                missingLayers.Count == 0 &&
+                renderers.Count ==
+                Patch4RigContract.RequiredLayerPaths.Count;
             if (autoEnableWhenComplete)
             {
                 rigController.SetPatch4Enabled(complete);

@@ -60,7 +60,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const int ExpectedHeight = 1536;
         private const byte VisibleThreshold = 8;
         private const int CloseColorThreshold = 12;
-        private const int ExcludedComparisonLayerCount = 7;
         private const int FaceCropX = 352;
         private const int FaceCropTop = 112;
         private const int FaceCropWidth = 320;
@@ -111,13 +110,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             };
 
             if (report.neutralLayerCount !=
-                report.requiredLayerCount - ExcludedComparisonLayerCount)
+                Patch4RigContract.RuntimeNeutralLayerPaths.Count)
             {
                 errors.Add(
                     "Neutral-pose layer count is " +
                     report.neutralLayerCount + "; expected " +
-                    (report.requiredLayerCount -
-                     ExcludedComparisonLayerCount) + ".");
+                    Patch4RigContract.RuntimeNeutralLayerPaths.Count + ".");
             }
 
             DeletePreviousPreview(CompositePath, errors);
@@ -329,34 +327,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static bool IsNeutralLayer(string contractPath)
         {
-            return !string.Equals(
-                       contractPath,
-                       "Face/LidL",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "Face/LidR",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "Face/MouthOpen",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "Face/MouthSmile",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "FX/Sweat",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "FX/ImpactFold",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "FX/Shadow",
-                       StringComparison.Ordinal);
+            return Patch4RigContract.IsRuntimeNeutralLayer(contractPath);
         }
 
         private static void CompositeLayer(

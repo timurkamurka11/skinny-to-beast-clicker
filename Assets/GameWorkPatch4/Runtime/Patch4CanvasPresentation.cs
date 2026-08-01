@@ -112,6 +112,30 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 return count;
             }
         }
+        public int RuntimeRigidLayerCount
+        {
+            get
+            {
+                int count = 0;
+                for (int i = 0; i < skinDeformers.Count; i++)
+                {
+                    Patch4CanvasSkinDeformer deformer =
+                        skinDeformers[i];
+                    if (deformer != null &&
+                        deformer.IsRigidlyBound &&
+                        Patch4RigContract.RequiresRigidCanvasBinding(
+                            deformer.ContractPath))
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+        public bool RuntimeRigidBindingsReady =>
+            RuntimeRigidLayerCount ==
+            Patch4RigContract.RuntimeRigidLayerPaths.Count;
         public bool SkinBindingsReady => skinBindingsReady;
         public bool BindAnchorsFrozen => bindAnchorsFrozen;
 
@@ -443,6 +467,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             string contractPath,
             string parentBone)
         {
+            if (Patch4RigContract.RequiresRigidCanvasBinding(contractPath))
+            {
+                return new SkinProfile(
+                    1,
+                    1,
+                    string.IsNullOrWhiteSpace(parentBone)
+                        ? Patch4RigContract.CharacterRootName
+                        : parentBone);
+            }
+
             switch (contractPath)
             {
                 case "Body/TorsoBase":
@@ -621,35 +655,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             string contractPath,
             bool visibleByDefault)
         {
-            if (!visibleByDefault)
-            {
-                return false;
-            }
-
-            return !string.Equals(
-                       contractPath,
-                       "Face/LidL",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "Face/LidR",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "Face/MouthOpen",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "Face/MouthSmile",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "FX/Sweat",
-                       StringComparison.Ordinal) &&
-                   !string.Equals(
-                       contractPath,
-                       "FX/ImpactFold",
-                       StringComparison.Ordinal);
+            return visibleByDefault &&
+                   Patch4RigContract.IsRuntimeLayerVisibleByDefault(
+                       contractPath);
         }
 
         private void ResolveReferences()
@@ -676,8 +684,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             faceController.BindPresentationLayers(
                 FindLayerObject("Face/EyeWhiteL"),
                 FindLayerObject("Face/EyeWhiteR"),
-                FindLayerObject("Face/IrisL"),
-                FindLayerObject("Face/IrisR"),
+                null,
+                null,
                 FindLayerTransform("Face/LidL"),
                 FindLayerTransform("Face/LidR"),
                 FindLayerObject("Face/MouthClosed"),

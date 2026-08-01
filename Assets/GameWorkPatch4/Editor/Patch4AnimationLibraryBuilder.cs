@@ -32,9 +32,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const string ThighR = Pelvis + "/ThighR";
         private const string ShinR = ThighR + "/ShinR";
         private const string FootR = ShinR + "/FootR";
-        private const string EyeL = Head + "/EyeL";
-        private const string EyeR = Head + "/EyeR";
-
         [MenuItem("Tools/GameWork/Patch 4.0/Animation/Rebuild Library")]
         public static void RebuildLibrary()
         {
@@ -145,24 +142,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static AnimationClip BuildBlink()
         {
-            AnimationClip clip = Prepare("FatMan_Blink_Random", false, 0.18f);
-            SetCurve(
-                clip,
-                EyeL,
-                "m_LocalScale.y",
-                new Keyframe(0f, 1f),
-                new Keyframe(0.065f, 0.05f),
-                new Keyframe(0.11f, 0.05f),
-                new Keyframe(0.18f, 1f));
-            SetCurve(
-                clip,
-                EyeR,
-                "m_LocalScale.y",
-                new Keyframe(0f, 1f),
-                new Keyframe(0.065f, 0.05f),
-                new Keyframe(0.11f, 0.05f),
-                new Keyframe(0.18f, 1f));
-            return clip;
+            // Patch4FaceController performs the painted open-eye/lid swap.
+            // Scaling Eye bones as well applies the blink twice and tears the
+            // full-canvas face away from the head during room review.
+            return Prepare("FatMan_Blink_Random", false, 0.18f);
         }
 
         private static AnimationClip BuildLookAround()
@@ -193,24 +176,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 new Keyframe(1.5f, 0f),
                 new Keyframe(2.25f, 0.08f),
                 new Keyframe(duration, 0f));
-            SetCurve(
-                clip,
-                EyeL,
-                "m_LocalPosition.x",
-                new Keyframe(0f, -0.4f),
-                new Keyframe(0.75f, -0.47f),
-                new Keyframe(1.5f, -0.4f),
-                new Keyframe(2.25f, -0.33f),
-                new Keyframe(duration, -0.4f));
-            SetCurve(
-                clip,
-                EyeR,
-                "m_LocalPosition.x",
-                new Keyframe(0f, 0.4f),
-                new Keyframe(0.75f, 0.33f),
-                new Keyframe(1.5f, 0.4f),
-                new Keyframe(2.25f, 0.47f),
-                new Keyframe(duration, 0.4f));
             return clip;
         }
 

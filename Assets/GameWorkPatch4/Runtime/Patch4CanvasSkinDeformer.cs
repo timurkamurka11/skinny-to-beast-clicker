@@ -47,6 +47,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         public string ContractPath => contractPath;
         public Sprite SourceSprite => ResolveSprite();
         public int BoneCount => boneBindings.Count;
+        public string PrimaryBoneName =>
+            boneBindings.Count > 0 && boneBindings[0] != null
+                ? boneBindings[0].boneName
+                : string.Empty;
+        public bool IsRigidlyBound => boneBindings.Count == 1;
         public bool HasMultipleBoneWeights => boneBindings.Count > 1;
         public bool IsBound => bindPoseCaptured && boneBindings.Count > 0;
         public bool UsesFullCanvasUv => HasFullCanvasUv(ResolveSprite());
@@ -262,10 +267,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void LateUpdate()
         {
             if (bindPoseCaptured &&
-                HasMultipleBoneWeights &&
                 graphic != null &&
                 graphic.gameObject.activeInHierarchy)
             {
+                // Rigid one-bone cutouts still deform through this mesh
+                // effect. They therefore need the same per-frame vertex
+                // refresh as the soft multi-bone shirt; otherwise the bones
+                // animate while the visible head and limbs remain frozen at
+                // their captured bind pose.
                 graphic.SetVerticesDirty();
             }
         }

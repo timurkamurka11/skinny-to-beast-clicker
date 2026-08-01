@@ -26,6 +26,9 @@ REPOSITORY_MASTER = (
 EXPECTED_COUNTS = {
     "RequiredBoneNames": 31,
     "RequiredLayerPaths": 40,
+    "RuntimeNeutralLayerPaths": 18,
+    "RuntimeExclusiveArtworkLayerPaths": 15,
+    "RuntimeRigidLayerPaths": 23,
     "RequiredClipNames": 10,
     "ProtectedPathFragments": 6,
 }
@@ -250,7 +253,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"fresh-room-review-handoff-v8"',
+            '"exclusive-cutout-rig-review-v9"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -349,8 +352,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AlignLayerAnchorsToBindPose()",
             "image.useSpriteMesh = false",
             "ResolveSkinProfile(",
+            "RuntimeRigidBindingsReady",
+            "Patch4RigContract.IsRuntimeLayerVisibleByDefault",
             'FindLayerObject("Face/EyeWhiteL")',
-            'FindLayerObject("Face/IrisR")',
         )
         for snippet in required_snippets:
             if snippet not in presentation:
@@ -389,6 +393,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "bone.worldToLocalMatrix",
             "imageTransform.worldToLocalMatrix",
             "HasMultipleBoneWeights",
+            "IsRigidlyBound",
+            "PrimaryBoneName",
             "CaptureBindPose()",
         )
         for snippet in required_snippets:
@@ -402,6 +408,26 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 "Canvas skin deformer must not expand a Tight opaque UV crop "
                 "over the full layer canvas",
             )
+        late_update_start = deformer.find("private void LateUpdate()")
+        deform_vertex_start = deformer.find(
+            "private Vector3 DeformVertex(",
+            late_update_start,
+        )
+        late_update = (
+            deformer[late_update_start:deform_vertex_start]
+            if late_update_start >= 0 and deform_vertex_start > late_update_start
+            else ""
+        )
+        if "graphic.SetVerticesDirty()" not in late_update:
+            fail(
+                errors,
+                "Canvas rigid cutouts are not refreshed on every animated frame",
+            )
+        if "HasMultipleBoneWeights" in late_update:
+            fail(
+                errors,
+                "Canvas refresh still excludes rigid head, face or limb cutouts",
+            )
 
     importer = read_text(
         root,
@@ -410,6 +436,24 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     if importer and "spriteMeshType = SpriteMeshType.FullRect" not in importer:
         fail(errors, "Patch 4 layer imports must force FullRect sprite meshes")
+
+    fallback_renderer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4LayerRenderer.cs",
+        errors,
+    )
+    if fallback_renderer:
+        for snippet in (
+            "Patch4RigContract.IsRuntimeLayerVisibleByDefault",
+            "Patch4RigContract.RequiredLayerPaths.Count",
+            "layerObject.SetActive(",
+        ):
+            if snippet not in fallback_renderer:
+                fail(
+                    errors,
+                    "Fallback layer renderer does not preserve all 40 layers "
+                    "with canonical visibility: " + snippet,
+                )
 
     review_driver = read_text(
         root,
@@ -429,7 +473,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "CaptureReviewBackground()",
             "AnalyzeRoomSilhouette(",
             "AnalyzeVisibleMotion(",
+            "AnalyzeFocusedFaceMotion(",
             "minimumMotionCoverage",
+            "minimumFaceMotionCoverage",
+            "focusedFaceMotionPassed",
             "neutralWidthRetention",
             "visualSanityPassed",
             "visibleMotionPassed",
@@ -486,6 +533,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 errors,
                 "The float Speed parameter must use a float transition, not a "
                 "bool transition",
+            )
+        if "EyeL" in animation_builder or "EyeR" in animation_builder:
+            fail(
+                errors,
+                "Animation clips must not transform Eye bones; painted face "
+                "replacement layers stay rigidly attached to Head",
             )
 
     room_review = read_text(
@@ -577,13 +630,7 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         required_snippets = (
             "humanReviewRequired = true",
             "report.activationAllowed = false",
-            '"Face/LidL"',
-            '"Face/LidR"',
-            '"Face/MouthOpen"',
-            '"Face/MouthSmile"',
-            '"FX/Sweat"',
-            '"FX/ImpactFold"',
-            '"FX/Shadow"',
+            "Patch4RigContract.IsRuntimeNeutralLayer",
             "patch4-neutral-pose-review.png",
             "patch4-face-pose-review.png",
             "report.facePosePreviewCreated = true",
@@ -607,19 +654,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
         errors,
     )
     if presentation:
-        for hidden_layer in (
-            '"Face/LidL"',
-            '"Face/LidR"',
-            '"Face/MouthOpen"',
-            '"Face/MouthSmile"',
-            '"FX/Sweat"',
-            '"FX/ImpactFold"',
-        ):
-            if hidden_layer not in presentation:
-                fail(
-                    errors,
-                    f"Canvas neutral visibility is missing: {hidden_layer}",
-                )
+        if "Patch4RigContract.IsRuntimeLayerVisibleByDefault" not in presentation:
+            fail(errors, "Canvas presentation does not enforce canonical visibility")
 
     pipeline = read_text(
         root,
@@ -644,6 +680,7 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "PaintClosedLid(",
             "PaintOpenMouth(",
             "PaintSmile(",
+            "EnforceExclusiveRuntimeArtworkOwnership(",
         ):
             if required not in baker:
                 fail(errors, f"Joint/face candidate baker is missing: {required}")
@@ -679,6 +716,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Draft validation does not reject rectangular face backings")
         if "ValidateFaceTransitionLayers(" not in draft_validator:
             fail(errors, "Draft validation does not reject hard face-transition cuts")
+        if "ValidateExclusiveRuntimeOwnership(" not in draft_validator:
+            fail(errors, "Draft validation does not reject multiply-owned live pixels")
 
 
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:
@@ -743,7 +782,8 @@ def main() -> int:
     print("- exact 1024 x 1536 RGBA repository master and SHA verified")
     print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
-    print("- Canvas grids use frozen bind anchors, full-canvas UVs and FullRect sprites")
+    print("- exclusive cutouts use one-pixel ownership and rigid head/face/limb bindings")
+    print("- the soft shirt grid keeps frozen bind anchors, full-canvas UVs and FullRect sprites")
     print("- actual-room review blocks weak motion, collapsed silhouettes and Console errors")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")

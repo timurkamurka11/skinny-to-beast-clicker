@@ -37,6 +37,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public int motionChangedPixelCount;
             public float motionCoverage;
             public float minimumMotionCoverage;
+            public bool focusedFaceMotionRequired;
+            public int faceMotionChangedPixelCount;
+            public int faceReferencePixelCount;
+            public float faceMotionCoverage;
+            public float minimumFaceMotionCoverage;
+            public bool focusedFaceMotionPassed;
             public bool visibleMotionPassed;
         }
 
@@ -53,6 +59,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool canvasBindAnchorsFrozen;
             public int canvasSkinDeformerCount;
             public int weightedLayerCount;
+            public int rigidRuntimeLayerCount;
             public bool readinessGateRemainedLocked;
             public bool patch35Restored;
             public bool legacyRigStayedLogicallyActive;
@@ -89,6 +96,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumNeutralWidthRetention = 0.72f;
         private const float MinimumNeutralHeightRetention = 0.78f;
         private const float MinimumNeutralAreaRetention = 0.58f;
+        private const float MinimumBlinkFaceMotionCoverage = 0.015f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -183,6 +191,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 weightedLayerCount =
                     canvasPresentation != null
                         ? canvasPresentation.WeightedLayerCount
+                        : 0,
+                rigidRuntimeLayerCount =
+                    canvasPresentation != null
+                        ? canvasPresentation.RuntimeRigidLayerCount
                         : 0,
                 readinessGateRemainedLocked =
                     rigController != null &&
@@ -459,7 +471,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 case "FatMan_Idle_Breathe":
                     return 0.004f;
                 case "FatMan_Blink_Random":
-                    return 0.003f;
+                    // Blink is a deliberately small face-only replacement.
+                    // It must still alter the character and also pass the much
+                    // stricter focused face-region test below.
+                    return 0.0005f;
                 case "FatMan_LookAround":
                     return 0.008f;
                 case "FatMan_Idle_ShiftWeight":
@@ -504,7 +519,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 !canvasPresentation.BindAnchorsFrozen ||
                 canvasPresentation.SkinDeformerCount !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
-                canvasPresentation.WeightedLayerCount < 20)
+                canvasPresentation.WeightedLayerCount < 1 ||
+                !canvasPresentation.RuntimeRigidBindingsReady)
             {
                 return "The Canvas skinning presentation is incomplete or " +
                     "its bind anchors are not frozen.";
@@ -1043,10 +1059,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             clipReport.motionChangedPixelCount = changed;
             clipReport.motionCoverage =
                 changed / (float)neutralSilhouetteArea;
-            bool passed =
+            bool fullCharacterPassed =
                 clipReport.motionCoverage >=
                 clipReport.minimumMotionCoverage;
-            if (!passed)
+            if (!fullCharacterPassed)
             {
                 report.error = AppendError(
                     report.error,
@@ -1058,7 +1074,122 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     ").");
             }
 
-            return passed;
+            bool focusedFacePassed = true;
+            if (string.Equals(
+                clipReport.clipName,
+                "FatMan_Blink_Random",
+                StringComparison.Ordinal))
+            {
+                focusedFacePassed = AnalyzeFocusedFaceMotion(
+                    current,
+                    screenshot.width,
+                    screenshot.height,
+                    clipReport);
+            }
+            else
+            {
+                clipReport.focusedFaceMotionRequired = false;
+                clipReport.focusedFaceMotionPassed = true;
+            }
+
+            return fullCharacterPassed && focusedFacePassed;
+        }
+
+        private bool AnalyzeFocusedFaceMotion(
+            IReadOnlyList<Color32> current,
+            int screenWidth,
+            int screenHeight,
+            ClipReview clipReport)
+        {
+            clipReport.focusedFaceMotionRequired = true;
+            clipReport.minimumFaceMotionCoverage =
+                MinimumBlinkFaceMotionCoverage;
+            if (current == null ||
+                current.Count != screenWidth * screenHeight ||
+                clipStartPixels == null ||
+                clipStartPixels.Length != current.Count ||
+                backgroundPixels == null ||
+                backgroundPixels.Length != current.Count)
+            {
+                clipReport.focusedFaceMotionPassed = false;
+                return false;
+            }
+
+            Rect expected = neutralExpectedScreenRect;
+            int xMin = Mathf.Clamp(
+                Mathf.FloorToInt(
+                    expected.xMin + expected.width * .405f),
+                0,
+                screenWidth - 1);
+            int xMax = Mathf.Clamp(
+                Mathf.CeilToInt(
+                    expected.xMin + expected.width * .595f),
+                xMin + 1,
+                screenWidth);
+            int yMin = Mathf.Clamp(
+                Mathf.FloorToInt(
+                    expected.yMax - expected.height * .255f),
+                0,
+                screenHeight - 1);
+            int yMax = Mathf.Clamp(
+                Mathf.CeilToInt(
+                    expected.yMax - expected.height * .135f),
+                yMin + 1,
+                screenHeight);
+
+            int changed = 0;
+            int reference = 0;
+            for (int y = yMin; y < yMax; y++)
+            {
+                int row = y * screenWidth;
+                for (int x = xMin; x < xMax; x++)
+                {
+                    int index = row + x;
+                    Color32 start = clipStartPixels[index];
+                    Color32 clean = backgroundPixels[index];
+                    int foregroundDelta =
+                        Math.Abs(start.r - clean.r) +
+                        Math.Abs(start.g - clean.g) +
+                        Math.Abs(start.b - clean.b);
+                    if (foregroundDelta >= PixelDifferenceThreshold)
+                    {
+                        reference++;
+                    }
+
+                    Color32 after = current[index];
+                    int motionDelta =
+                        Math.Abs(after.r - start.r) +
+                        Math.Abs(after.g - start.g) +
+                        Math.Abs(after.b - start.b);
+                    if (motionDelta >= MotionPixelDifferenceThreshold)
+                    {
+                        changed++;
+                    }
+                }
+            }
+
+            clipReport.faceMotionChangedPixelCount = changed;
+            clipReport.faceReferencePixelCount = reference;
+            clipReport.faceMotionCoverage =
+                reference > 0 ? changed / (float)reference : 0f;
+            clipReport.focusedFaceMotionPassed =
+                reference > 0 &&
+                clipReport.faceMotionCoverage >=
+                clipReport.minimumFaceMotionCoverage;
+            if (!clipReport.focusedFaceMotionPassed)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": painted eyelid motion is too small inside the face " +
+                    "region (" +
+                    clipReport.faceMotionCoverage.ToString("0.000") +
+                    ", minimum " +
+                    clipReport.minimumFaceMotionCoverage.ToString("0.000") +
+                    ").");
+            }
+
+            return clipReport.focusedFaceMotionPassed;
         }
 
         private Rect ResolveExpectedScreenRect(

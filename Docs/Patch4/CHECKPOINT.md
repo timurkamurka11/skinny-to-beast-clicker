@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-07-30
+Last updated: 2026-08-01
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -674,6 +674,47 @@ curves. That displayed result is rejected.
 - P4.0-O motion, Canvas, rollback and audio isolation remain unchanged.
 - Readiness remains false and protected paths remain unchanged.
 
+### P4.0-P real Unity rejection
+
+Unity `6000.3.19f1` completed the fresh token-matched second Play Mode session.
+The new sheet and JSON were current, and the honest validator failed
+`FatMan_Blink_Random` at `0.001` visible whole-character motion against the old
+`0.003` threshold. Human review also rejected the actual frames: neutral hid
+coincident copies, while moving clips separated duplicate heads, arms and legs
+and detached the Eye/Jaw-bound face from the head.
+
+The root cause was upstream of the animation curves. Repository masks are
+conservative rectangular source regions, and all required reference layers
+were initially visible. The same master pixels therefore existed in several
+independently weighted layers. Coarse multi-bone grids compounded the split on
+parts that should have behaved as rigid cutouts.
+
+## P4.0-Q exclusive cutout ownership and rigid face/limbs
+
+- `Patch4RigContract` defines the canonical 18-layer neutral runtime stack,
+  the 15 exclusive source-art owners and the 23 controlled rigid layers.
+- The baker resolves every visible master pixel to one live body owner and
+  re-adds overlap only inside named joint continuations.
+- The draft validator rejects multiply-owned runtime pixels outside those
+  joints and measures master coverage from the actual 18-layer neutral stack.
+- Required reference copies remain available in the 40-layer catalog but are
+  hidden by both catalog metadata and runtime defensive visibility.
+- Head, painted face states, arms and legs use a one-bone four-vertex cutout;
+  only the central shirt retains soft multi-bone Canvas deformation.
+- The Canvas mesh effect dirties rigid and soft layers every frame, so a
+  one-bone cutout visibly follows its animated bone instead of staying at the
+  captured bind pose.
+- All face replacements share the Head pivot, separate Iris copies stay hidden,
+  and animation clips no longer apply a second Eye-bone blink/look transform.
+- Blink QA now requires both non-zero character motion and a focused face-region
+  motion ratio, so a real lid swap is measured without pretending it is a
+  whole-body action.
+- Editor smoke and PlayMode contracts require all rigid runtime bindings and
+  the soft shirt grid.
+- Automatic continuation advances to
+  `exclusive-cutout-rig-review-v9`.
+- Production readiness remains locked; Patch 3.5 remains active.
+
 ## Production dashboard
 
 Open in Unity:
@@ -733,18 +774,19 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-P fresh-room-review handoff correction into Unity
+1. Pull the P4.0-Q exclusive-cutout correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
-3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, rebuild
-   the locked weighted prefab, validate and complete EditMode `4 passed`,
-   PlayMode `4 passed`.
+3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, enforce
+   exclusive live-pixel ownership, rebuild the locked hybrid cutout/soft-shirt
+   prefab, validate and complete EditMode `4 passed`, PlayMode `4 passed`.
 4. Let the Editor-only continuation wait for the Test Runner to return fully to
    Edit Mode, then enter a separate Play Mode session, create the real room,
    freeze the Canvas bind anchors, pause the old walk routine and cycle all ten
-   corrected clips.
-5. Let the driver reject weak motion or silhouette loss, capture the review
-   sheet, restore Patch 3.5 and its routine, then return to Edit Mode.
+   corrected clips with rigid head, face and limb parts.
+5. Let the driver reject duplicate source ownership, weak body/focused blink
+   motion or silhouette loss, capture the review sheet, restore Patch 3.5 and
+   its routine, then return to Edit Mode.
 6. Confirm that the Console has zero errors and inspect the automatically
    focused 5 × 2 room-animation contact sheet.
 7. Revise any exposed joint, detached paint, extreme stretch, foot slide or
@@ -781,8 +823,10 @@ Detailed verification instructions:
 - P4.0-O compiled and passed Unity `4/4`, but its corrected room animations were
   not captured because the second Play Mode session raced the Test Runner exit;
   the window displayed the stale P4.0-N PNG.
-- P4.0-P token-matched room-review handoff has not yet been exercised by the
-  user's Unity `6000.3.19f1`.
+- P4.0-P completed a genuine fresh room review and correctly failed; its sheet
+  exposed multiply-owned limbs and a detached face.
+- P4.0-Q source and static guards are complete, but the regenerated exclusive
+  cutouts have not yet been exercised by the user's Unity `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

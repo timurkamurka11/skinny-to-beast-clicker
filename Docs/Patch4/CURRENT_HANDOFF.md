@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-07-30**
+Last updated: **2026-08-01**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -89,7 +89,8 @@ Important commits in that path include:
 - `0386784` — Canvas-compatible 40-layer room presentation;
 - `5ea24ef` — locked neutral-pose review and automatic `4/4` verification;
 - `e25763d` — exact 1024 × 1536 repository quality master;
-- `20c4e43` — feathered feature-only face transitions.
+- `20c4e43` — feathered feature-only face transitions;
+- `38f885f` — token-matched fresh actual-room review lifecycle.
 
 ## Real Unity test result
 
@@ -166,7 +167,8 @@ legacy room, menu, audio or settings code:
 - `Patch4CanvasPresentation` converts all 40 full-canvas painted sprites into
   non-interactive `UI.Image` layers.
 - The images live in one flat hierarchy with deterministic canonical ordering.
-- Each image follows its assigned Patch 4 bone in `LateUpdate`.
+- Each image captures a frozen bind anchor; live motion comes only from its
+  Canvas skin matrix so the transform is never applied twice or cancelled.
 - The approved `1024 × 1536` master is fitted to the existing `720 × 1280`
   character room at the legacy `0.74` presentation scale.
 - The painted pelvis is aligned to the existing gameplay character origin.
@@ -223,7 +225,8 @@ The verified pass remains isolated and read-only:
   `7b151f1ded93f3852bc8a7218ab26f94298b7f822094304bbcea9c076cad72a3`;
 - the former embedded preview class was removed;
 - local restoration refuses a mismatched checksum, size or PNG format;
-- `Patch4NeutralPoseValidator` now composites 33 neutral comparison layers;
+- `Patch4NeutralPoseValidator` composites only the canonical 18-layer neutral
+  runtime stack; required reference/duplicate layers are excluded;
 - alternate lids, open/smile mouths, sweat, impact FX and the runtime-only
   ground shadow are excluded from the neutral master comparison;
 - the ground shadow still exists in the runtime layer pack, but no longer
@@ -446,9 +449,9 @@ checking whether it belonged to the current run. That stale sheet still showed
 the old nearly static poses and the old vertical `FatMan_Turn`. It is rejected
 and is not evidence that the P4.0-O animation curves ran.
 
-## Current P4.0-P fresh room-review handoff
+## P4.0-P fresh room-review result and rejection
 
-The follow-up correction:
+The P4.0-P correction:
 
 - adds an explicit waiting stage between Test Runner Play Mode and the separate
   locked room-review Play Mode;
@@ -466,9 +469,50 @@ The follow-up correction:
   intact;
 - keeps readiness locked and all protected paths unchanged.
 
+Unity `6000.3.19f1` then completed the separate token-matched room review. The
+new sheet was fresh and the validator correctly rejected it instead of showing
+an old pass:
+
+- `FatMan_Blink_Random` changed only `0.001` of the neutral silhouette against
+  the old `0.003` whole-body minimum;
+- neutral looked plausible only because overlapping copies occupied the same
+  pixels;
+- LookAround, tap, turn, sit and upgrade frames exposed duplicate heads, arms
+  and legs;
+- eyes and mouths separated from the head as their Eye/Jaw bones moved;
+- the fresh P4.0-P sheet therefore fails both technical and human review.
+
+The source cause was the combination of conservative rectangular repository
+masks, every reference layer being visible, and multi-bone grids on cutout
+segments. Several required PNGs owned the same source pixels. Bone motion then
+separated those coincident copies.
+
+## Current P4.0-Q exclusive cutout and rigid-face correction
+
+- The baker assigns every neutral source pixel to exactly one live body layer.
+- Only small named neck, shoulder, elbow, wrist, hip, knee and ankle
+  continuations may overlap.
+- Duplicate/reference torso, belly, chest, ears, brows, irises, nose, cheeks,
+  shirt overlay, bottoms and shoes remain in the 40-layer catalog but start
+  hidden.
+- Head, all face replacements and every arm/leg segment follow exactly one
+  parent bone; only `Clothes/ShirtBase` keeps a soft multi-bone grid.
+- The Canvas deformer refreshes both rigid one-bone cutouts and the soft shirt
+  every frame; rigid head/face/limb meshes can no longer remain frozen while
+  their bones animate.
+- All face replacement sprites use the Head pivot. Animation clips no longer
+  transform Eye bones in addition to the independent painted blink controller.
+- Draft QA blocks any multiply-owned live pixel outside an authorized joint and
+  measures neutral coverage from only the 18 layers that actually render.
+- Blink keeps a non-zero whole-character requirement and additionally must pass
+  a stricter focused face-region changed-pixel check.
+- Automatic continuation advances to
+  `exclusive-cutout-rig-review-v9`.
+- Readiness stays locked and Patch 3.5 remains the active rollback character.
+
 ## Exact next action
 
-After the P4.0-P correction is present on `patch-4.0`, run only:
+After the P4.0-Q correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -478,21 +522,23 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. preserve the verified hidden continuations and feathered face states;
-4. import every layer as FullRect and rebuild the locked Canvas-weighted
-   prefab;
-5. assemble and compare the locked neutral pose;
+3. enforce one live owner per neutral body pixel and restore only named joint
+   continuations;
+4. import every layer as FullRect and rebuild the locked hybrid Canvas prefab
+   with rigid head/face/limbs and a soft central shirt;
+5. assemble and compare the locked 18-layer neutral runtime pose;
 6. write the neutral and four-expression review images;
-7. validate all 40 skin bindings, frozen bind anchors, full-canvas UVs and
-   multi-bone weight maps;
+7. validate all 40 skin bindings, frozen bind anchors, full-canvas UVs,
+   exclusive live-pixel ownership and every required rigid cutout;
 8. run pixel, rig, compilation and Editor smoke validation;
 9. run all EditMode tests;
 10. enter Play Mode and run all PlayMode tests;
 11. after `4/4`, wait for Test Runner to return fully to Edit Mode, then enter
     a separate Play Mode session and create the actual gameplay room;
 12. capture a clean background and neutral reference, then play all ten clips
-    and block weak start-to-peak motion, a collapsed silhouette or any Console
-    error while the legacy robot-like footstep stays paused;
+    and block weak start-to-peak motion, weak focused blink motion, a collapsed
+    silhouette or any Console error while the legacy robot-like footstep stays
+    paused;
 13. write a token-matched fresh report and contact sheet, restore Patch 3.5,
     exit Play Mode and open the read-only review windows.
 
@@ -515,11 +561,12 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-P automatic room review
+## Work after the P4.0-Q automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.
 - Reject and revise any exposed joint, detached layer, excessive stretch,
   overlap, foot slide or collapse at an animation extreme.
-- Keep the Canvas weight maps locked until the ten motions pass human review.
+- Keep the exclusive cutout ownership and rigid bindings locked until the ten
+  motions pass human review.
 - Approve readiness only after technical and human visual review.

@@ -56,6 +56,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool canvasBindAnchorsFrozen;
             public int canvasSkinDeformerCount;
             public int weightedCanvasLayerCount;
+            public int rigidRuntimeLayerCount;
             public int canvasSkinVertexCount;
             public int fullRectLayerSpriteCount;
             public int fullCanvasUvLayerCount;
@@ -421,6 +422,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation.SkinDeformerCount;
             report.weightedCanvasLayerCount =
                 presentation.WeightedLayerCount;
+            report.rigidRuntimeLayerCount =
+                presentation.RuntimeRigidLayerCount;
 
             if (!report.canvasPresentationPrepared ||
                 report.canvasLayerCount !=
@@ -457,34 +460,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     deformer =>
                         deformer != null &&
                         deformer.IsBound);
-            bool coreSoftLayersWeighted =
-                HasWeightedSkin(
-                    skinDeformers,
-                    "Body/TorsoBase") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "Body/BellyFront") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "Body/ChestSoft") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "Clothes/ShirtBase") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "Clothes/ShirtBellyOverlay") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "ArmL/Upper") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "ArmR/Upper") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "LegL/Thigh") &&
-                HasWeightedSkin(
-                    skinDeformers,
-                    "LegR/Thigh");
+            bool softShirtWeighted = HasWeightedSkin(
+                skinDeformers,
+                "Clothes/ShirtBase");
+            bool runtimeRigidLayersReady =
+                Patch4RigContract.RuntimeRigidLayerPaths.All(
+                    path => HasRigidSkin(
+                        skinDeformers,
+                        path,
+                        Patch4LayerPlacement.ResolveParentBone(path)));
 
             if (!report.canvasSkinBindingsReady ||
                 !report.canvasBindAnchorsFrozen ||
@@ -497,9 +481,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Patch4RigContract.RequiredLayerPaths.Count ||
                 report.fullRectLayerSpriteCount !=
                 Patch4RigContract.RequiredLayerPaths.Count ||
-                report.weightedCanvasLayerCount < 20 ||
-                report.canvasSkinVertexCount < 1800 ||
-                !coreSoftLayersWeighted)
+                report.weightedCanvasLayerCount < 1 ||
+                report.rigidRuntimeLayerCount !=
+                    Patch4RigContract.RuntimeRigidLayerPaths.Count ||
+                !presentation.RuntimeRigidBindingsReady ||
+                !runtimeRigidLayersReady ||
+                !softShirtWeighted)
             {
                 AddError(
                     report,
@@ -508,9 +495,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "their bind anchors must stay frozen so live bone motion " +
                     "is not cancelled; " +
                     "every source must retain FullRect import and full-canvas " +
-                    "UVs; " +
-                    "at least 20 body, clothing and limb layers must use " +
-                    "multi-bone weight-painted grids.");
+                    "UVs; live head, face and limb cutouts must each follow " +
+                    "exactly their one parent bone; only the central shirt " +
+                    "requires a soft multi-bone grid.");
             }
 
             Image[] canvasImages =
@@ -578,6 +565,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         StringComparison.Ordinal) &&
                     deformer.HasMultipleBoneWeights &&
                     deformer.ExpectedVertexCount > 4);
+        }
+
+        private static bool HasRigidSkin(
+            IEnumerable<Patch4CanvasSkinDeformer> deformers,
+            string contractPath,
+            string expectedBone)
+        {
+            return deformers.Any(
+                deformer =>
+                    deformer != null &&
+                    string.Equals(
+                        deformer.ContractPath,
+                        contractPath,
+                        StringComparison.Ordinal) &&
+                    deformer.IsRigidlyBound &&
+                    string.Equals(
+                        deformer.PrimaryBoneName,
+                        expectedBone,
+                        StringComparison.Ordinal) &&
+                    deformer.ExpectedVertexCount == 4);
         }
 
         private static bool IsFullRectSprite(Sprite sprite)

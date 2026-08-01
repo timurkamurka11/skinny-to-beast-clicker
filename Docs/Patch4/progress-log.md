@@ -324,3 +324,28 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Keep P4.0-O motion fixes, rollback, readiness and protected paths intact.
 - [ ] Confirm P4.0-P in Unity `6000.3.19f1`: `4/4`, a separate completed room
   review, a fresh ten-frame sheet with no vertical turn and no legacy step.
+
+## 2026-08-01 — P4.0-Q exclusive cutout and rigid-face correction
+
+- [x] Accepted the fresh P4.0-P technical failure instead of weakening its
+  evidence: blink measured `0.001`, and moving frames visibly split the rig.
+- [x] Isolated coincident source pixels in rectangular mask regions, default-
+  visible reference layers and soft grids on cutout parts as the shared cause.
+- [x] Added a canonical 18-layer neutral runtime stack and hid all required
+  reference duplicates without removing them from the 40-layer contract.
+- [x] Assigned each neutral body pixel to one exclusive live owner and restored
+  only named joint continuations.
+- [x] Made the head, face states, arms and legs rigid one-bone cutouts; kept
+  soft multi-bone deformation only on the central shirt.
+- [x] Refresh rigid Canvas cutouts every frame as well as the soft shirt, so
+  visible parts cannot freeze while their bones move.
+- [x] Reparented painted face states to Head, hid duplicate Iris layers and
+  removed redundant Eye-bone transforms from blink/look clips.
+- [x] Added blocking duplicate-ownership QA and focused face-region blink QA.
+- [x] Updated Editor smoke, PlayMode and static guard contracts for the hybrid
+  cutout/soft-shirt rig.
+- [x] Advanced automatic continuation to
+  `exclusive-cutout-rig-review-v9`.
+- [x] Kept readiness locked, Patch 3.5 active and protected paths untouched.
+- [ ] Confirm P4.0-Q in Unity `6000.3.19f1`: `4/4`, a clean fresh ten-frame
+  sheet, no duplicated limbs, no detached face and a visible blink.

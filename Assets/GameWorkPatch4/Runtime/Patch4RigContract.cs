@@ -93,6 +93,93 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 "FX/Shadow"
             });
 
+        /// <summary>
+        /// The one neutral visual stack that is allowed to render at runtime.
+        /// The remaining required layers are alternate poses, transient FX or
+        /// review/reference artwork; rendering those reference copies together
+        /// is what previously produced doubled limbs and a detached face.
+        /// </summary>
+        public static IReadOnlyList<string> RuntimeNeutralLayerPaths { get; } =
+            Array.AsReadOnly(new[]
+            {
+                "Body/Neck",
+                "Head/HeadBase",
+                "Face/EyeWhiteL",
+                "Face/EyeWhiteR",
+                "Face/MouthClosed",
+                "ArmL/Upper",
+                "ArmL/Forearm",
+                "ArmL/Hand",
+                "ArmR/Upper",
+                "ArmR/Forearm",
+                "ArmR/Hand",
+                "LegL/Thigh",
+                "LegL/Shin",
+                "LegL/Foot",
+                "LegR/Thigh",
+                "LegR/Shin",
+                "LegR/Foot",
+                "Clothes/ShirtBase"
+            });
+
+        /// <summary>
+        /// Source-art layers that divide the neutral master into one exclusive
+        /// owner per pixel. Face replacements are intentionally excluded: the
+        /// head contains a painted skin underlay beneath those features.
+        /// </summary>
+        public static IReadOnlyList<string>
+            RuntimeExclusiveArtworkLayerPaths { get; } =
+            Array.AsReadOnly(new[]
+            {
+                "Body/Neck",
+                "Head/HeadBase",
+                "ArmL/Upper",
+                "ArmL/Forearm",
+                "ArmL/Hand",
+                "ArmR/Upper",
+                "ArmR/Forearm",
+                "ArmR/Hand",
+                "LegL/Thigh",
+                "LegL/Shin",
+                "LegL/Foot",
+                "LegR/Thigh",
+                "LegR/Shin",
+                "LegR/Foot",
+                "Clothes/ShirtBase"
+            });
+
+        /// <summary>
+        /// Cutout pieces that must follow exactly one bone. Only the central
+        /// shirt is allowed to use a soft multi-bone Canvas grid.
+        /// </summary>
+        public static IReadOnlyList<string> RuntimeRigidLayerPaths { get; } =
+            Array.AsReadOnly(new[]
+            {
+                "Body/Neck",
+                "Head/HeadBase",
+                "Face/EyeWhiteL",
+                "Face/EyeWhiteR",
+                "Face/LidL",
+                "Face/LidR",
+                "Face/MouthClosed",
+                "Face/MouthOpen",
+                "Face/MouthSmile",
+                "ArmL/Upper",
+                "ArmL/Forearm",
+                "ArmL/Hand",
+                "ArmR/Upper",
+                "ArmR/Forearm",
+                "ArmR/Hand",
+                "LegL/Thigh",
+                "LegL/Shin",
+                "LegL/Foot",
+                "LegR/Thigh",
+                "LegR/Shin",
+                "LegR/Foot",
+                "FX/Sweat",
+                "FX/Shadow"
+            });
+
         public static IReadOnlyList<string> RequiredClipNames { get; } =
             Array.AsReadOnly(new[]
             {
@@ -118,5 +205,48 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 "/Audio/Mixers/",
                 "/Settings/"
             });
+
+        public static bool IsRuntimeNeutralLayer(string contractPath)
+        {
+            return Contains(RuntimeNeutralLayerPaths, contractPath);
+        }
+
+        public static bool IsRuntimeLayerVisibleByDefault(
+            string contractPath)
+        {
+            return IsRuntimeNeutralLayer(contractPath) ||
+                   string.Equals(
+                       contractPath,
+                       "FX/Shadow",
+                       StringComparison.Ordinal);
+        }
+
+        public static bool RequiresRigidCanvasBinding(string contractPath)
+        {
+            return Contains(RuntimeRigidLayerPaths, contractPath);
+        }
+
+        private static bool Contains(
+            IReadOnlyList<string> paths,
+            string contractPath)
+        {
+            if (paths == null || string.IsNullOrWhiteSpace(contractPath))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < paths.Count; i++)
+            {
+                if (string.Equals(
+                    paths[i],
+                    contractPath,
+                    StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

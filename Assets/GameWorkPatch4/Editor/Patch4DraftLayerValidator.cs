@@ -10,7 +10,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     /// <summary>
     /// Pixel-level validation for the full-canvas Patch 4 candidate layer pack.
     /// Existence alone is not enough: the validator checks dimensions, alpha
-    /// coverage, leakage, meaningful content and local overlap at moving joints.
+    /// coverage, leakage, meaningful content, exclusive live-pixel ownership
+    /// and the small intentional overlap at moving joints.
     /// </summary>
     public static class Patch4DraftLayerValidator
     {
@@ -141,17 +142,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             ValidateFaceReplacementLayers(layers, errors);
             ValidateFaceTransitionLayers(layers, errors);
+            ValidateExclusiveRuntimeOwnership(layers, errors);
 
             float coverage = 0f;
             float leakage = 0f;
             if (master.width == ExpectedWidth && master.height == ExpectedHeight)
             {
                 List<ImageData> characterLayers = new();
-                foreach (KeyValuePair<string, ImageData> entry in layers)
+                IReadOnlyList<string> neutralPaths =
+                    Patch4RigContract.RuntimeNeutralLayerPaths;
+                for (int i = 0; i < neutralPaths.Count; i++)
                 {
-                    if (!entry.Key.StartsWith("FX/", StringComparison.Ordinal))
+                    if (layers.TryGetValue(
+                        neutralPaths[i],
+                        out ImageData layer))
                     {
-                        characterLayers.Add(entry.Value);
+                        characterLayers.Add(layer);
                     }
                 }
 
@@ -248,20 +254,91 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             return new[]
             {
                 new JointCheck("neck-head", "Body/Neck", "Head/HeadBase", 0.5f, 0.225f),
-                new JointCheck("left-shoulder", "Body/ChestSoft", "ArmL/Upper", 0.34f, 0.285f),
-                new JointCheck("right-shoulder", "Body/ChestSoft", "ArmR/Upper", 0.66f, 0.285f),
+                new JointCheck("left-shoulder", "Clothes/ShirtBase", "ArmL/Upper", 0.34f, 0.285f),
+                new JointCheck("right-shoulder", "Clothes/ShirtBase", "ArmR/Upper", 0.66f, 0.285f),
                 new JointCheck("left-elbow", "ArmL/Upper", "ArmL/Forearm", 0.285f, 0.405f),
                 new JointCheck("right-elbow", "ArmR/Upper", "ArmR/Forearm", 0.715f, 0.405f),
                 new JointCheck("left-wrist", "ArmL/Forearm", "ArmL/Hand", 0.255f, 0.495f),
                 new JointCheck("right-wrist", "ArmR/Forearm", "ArmR/Hand", 0.745f, 0.495f),
-                new JointCheck("left-hip", "Body/TorsoBase", "LegL/Thigh", 0.42f, 0.505f),
-                new JointCheck("right-hip", "Body/TorsoBase", "LegR/Thigh", 0.58f, 0.505f),
+                new JointCheck("left-hip", "Clothes/ShirtBase", "LegL/Thigh", 0.42f, 0.505f),
+                new JointCheck("right-hip", "Clothes/ShirtBase", "LegR/Thigh", 0.58f, 0.505f),
                 new JointCheck("left-knee", "LegL/Thigh", "LegL/Shin", 0.40f, 0.625f),
                 new JointCheck("right-knee", "LegR/Thigh", "LegR/Shin", 0.60f, 0.625f),
                 new JointCheck("left-ankle", "LegL/Shin", "LegL/Foot", 0.385f, 0.735f),
-                new JointCheck("right-ankle", "LegR/Shin", "LegR/Foot", 0.615f, 0.735f),
-                new JointCheck("belly-shirt-hem", "Body/BellyFront", "Clothes/ShirtBellyOverlay", 0.5f, 0.48f, 58f, 360)
+                new JointCheck("right-ankle", "LegR/Shin", "LegR/Foot", 0.615f, 0.735f)
             };
+        }
+
+        private static void ValidateExclusiveRuntimeOwnership(
+            IReadOnlyDictionary<string, ImageData> layers,
+            ICollection<string> errors)
+        {
+            IReadOnlyList<string> paths =
+                Patch4RigContract.RuntimeExclusiveArtworkLayerPaths;
+            JointCheck[] joints = BuildJointChecks();
+            int uncontrolledOverlapPixels = 0;
+
+            for (int y = 0; y < ExpectedHeight; y++)
+            {
+                for (int x = 0; x < ExpectedWidth; x++)
+                {
+                    int index = y * ExpectedWidth + x;
+                    int ownerCount = 0;
+                    for (int pathIndex = 0;
+                         pathIndex < paths.Count;
+                         pathIndex++)
+                    {
+                        if (layers.TryGetValue(
+                                paths[pathIndex],
+                                out ImageData layer) &&
+                            layer.pixels[index].a > VisibleThreshold)
+                        {
+                            ownerCount++;
+                        }
+                    }
+
+                    if (ownerCount > 1 &&
+                        !IsInsideAuthorizedJoint(x, y, joints))
+                    {
+                        uncontrolledOverlapPixels++;
+                    }
+                }
+            }
+
+            if (uncontrolledOverlapPixels > 0)
+            {
+                errors.Add(
+                    "Runtime neutral artwork has " +
+                    uncontrolledOverlapPixels +
+                    " multiply-owned pixels outside authorized joints. " +
+                    "Those duplicate pixels will split into extra limbs or " +
+                    "a detached face when the rig moves.");
+            }
+        }
+
+        private static bool IsInsideAuthorizedJoint(
+            int x,
+            int y,
+            IReadOnlyList<JointCheck> joints)
+        {
+            for (int i = 0; i < joints.Count; i++)
+            {
+                JointCheck joint = joints[i];
+                float centerX =
+                    joint.normalizedTopPoint.x * ExpectedWidth;
+                float centerY =
+                    ExpectedHeight -
+                    joint.normalizedTopPoint.y * ExpectedHeight;
+                float dx = x - centerX;
+                float dy = y - centerY;
+                if (dx * dx + dy * dy <=
+                    joint.radiusPixels * joint.radiusPixels)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void ValidateFaceReplacementLayers(

@@ -125,9 +125,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     GetIntProperty(
                         canvasPresentation,
                         "WeightedLayerCount"),
-                    20,
-                    "The painted body and clothing layers need multi-bone " +
-                    "Canvas weights.");
+                    1,
+                    "The central shirt needs a soft multi-bone Canvas grid.");
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        canvasPresentation,
+                        "RuntimeRigidBindingsReady"),
+                    "Head, face and limb cutouts must each follow one bone.");
+                Assert.AreEqual(
+                    23,
+                    GetIntProperty(
+                        canvasPresentation,
+                        "RuntimeRigidLayerCount"));
 
                 Type canvasSkinType = RequireType(
                     "SkinnyToBeast.Gameplay.Patch4." +
@@ -159,7 +168,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                             GetBoolProperty(
                                 skin,
                                 "HasMultipleBoneWeights")),
-                    20);
+                    1);
+                Assert.GreaterOrEqual(
+                    canvasSkins.Count(
+                        skin =>
+                            GetBoolProperty(
+                                skin,
+                                "IsRigidlyBound")),
+                    23);
 
                 Image[] paintedImages =
                     patchVisual.GetComponentsInChildren<Image>(true);
@@ -205,11 +221,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.IrisL",
-                    true);
+                    false);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.IrisR",
-                    true);
+                    false);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.MouthClosed",
@@ -238,6 +254,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     patchVisual,
                     "Layer.FX.ImpactFold",
                     false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Body.TorsoBase",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Head.EarL",
+                    false);
+                AssertLayerActive(
+                    patchVisual,
+                    "Layer.Clothes.Bottoms",
+                    false);
 
                 Type patchFaceType = RequireType(
                     "SkinnyToBeast.Gameplay.Patch4.Patch4FaceController");
@@ -248,9 +276,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     GetPrivateField(patchFace, "eyeWhiteLeft"));
                 Assert.NotNull(
                     GetPrivateField(patchFace, "eyeWhiteRight"));
-                Assert.NotNull(
+                Assert.IsNull(
                     GetPrivateField(patchFace, "irisLeft"));
-                Assert.NotNull(
+                Assert.IsNull(
                     GetPrivateField(patchFace, "irisRight"));
 
                 Transform rollbackVisual =
