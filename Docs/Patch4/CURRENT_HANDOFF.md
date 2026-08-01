@@ -549,7 +549,7 @@ on sparse color extraction to reconstruct them. The deformer classified broad
 horizontal strips as arms, including outer shirt pixels. The review had no
 maximum-expansion check and no walk-specific limb-motion check.
 
-## Current P4.0-S exact-face and anatomical-warp correction
+## P4.0-S exact-face and anatomical-warp correction
 
 - The neutral runtime stack is exactly one layer: the untouched full-quality
   `Body/TorsoBase` master. Original eyes, irises and closed mouth are preserved
@@ -574,9 +574,41 @@ maximum-expansion check and no walk-specific limb-motion check.
 - Readiness remains locked, Patch 3.5 remains active and protected paths remain
   unchanged.
 
+## P4.0-S real Unity test stop
+
+Unity `6000.3.19f1` imported and rebuilt P4.0-S, but the actual-room animation
+review correctly did not start because the fourth PlayMode test failed first.
+The Console identified the failed leaf as
+`Patch4RuntimeInstallationPlayModeTests.LivingGameplayRoomGetsLockedRollbackInstance`
+with `Expected: not null` / `But was: null`.
+
+This is a stale test contract, not evidence that the new body rig or animation
+curves failed. P4.0-S intentionally binds `eyeWhiteLeft`, `eyeWhiteRight`, both
+irises and `mouthClosed` as `null` because those neutral pixels now live inside
+the one untouched exact-master body. The PlayMode test updated the layer
+visibility checks but accidentally retained the older P4.0-R `Assert.NotNull`
+requirements for the two eye-white fields. Test Runner therefore stopped before
+the separate ten-clip room session.
+
+## Current P4.0-T exact-master face-binding test correction
+
+- The fourth PlayMode test now requires all five obsolete neutral face-object
+  bindings to be `null`.
+- It separately requires both feathered lid replacements, the open mouth and
+  the smile to remain bound and non-null.
+- The static guard enforces the same split, preventing a future neutral-face
+  architecture change from leaving stale PlayMode assertions behind.
+- Automatic continuation advances to
+  `exact-master-face-binding-review-v12`, so the complete locked pipeline and
+  ten-clip review restart after one pull without a button click.
+- P4.0-S artwork, constrained `64 × 96` deformation, motion curves and strict
+  room-review gates are unchanged.
+- Readiness remains locked, Patch 3.5 remains active and protected paths remain
+  unchanged.
+
 ## Exact next action
 
-After the P4.0-S correction is present on `patch-4.0`, run only:
+After the P4.0-T correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -625,7 +657,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-S automatic room review
+## Work after the P4.0-T automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

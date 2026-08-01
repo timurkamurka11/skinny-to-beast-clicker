@@ -314,14 +314,34 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Component patchFace =
                     patchInstance.GetComponent(patchFaceType);
                 Assert.NotNull(patchFace);
-                Assert.NotNull(
-                    GetPrivateField(patchFace, "eyeWhiteLeft"));
-                Assert.NotNull(
-                    GetPrivateField(patchFace, "eyeWhiteRight"));
+                Assert.IsNull(
+                    GetPrivateField(patchFace, "eyeWhiteLeft"),
+                    "Neutral left-eye artwork must remain inside the exact " +
+                    "master body instead of rendering as a duplicate layer.");
+                Assert.IsNull(
+                    GetPrivateField(patchFace, "eyeWhiteRight"),
+                    "Neutral right-eye artwork must remain inside the exact " +
+                    "master body instead of rendering as a duplicate layer.");
                 Assert.IsNull(
                     GetPrivateField(patchFace, "irisLeft"));
                 Assert.IsNull(
                     GetPrivateField(patchFace, "irisRight"));
+                Assert.IsNull(
+                    GetPrivateField(patchFace, "mouthClosed"),
+                    "The neutral closed mouth must remain inside the exact " +
+                    "master body instead of rendering as a duplicate layer.");
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "lidLeft"),
+                    "The left feathered blink replacement is missing.");
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "lidRight"),
+                    "The right feathered blink replacement is missing.");
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "mouthOpen"),
+                    "The feathered open-mouth replacement is missing.");
+                Assert.NotNull(
+                    GetPrivateField(patchFace, "mouthSmile"),
+                    "The feathered smile replacement is missing.");
 
                 Transform rollbackVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;

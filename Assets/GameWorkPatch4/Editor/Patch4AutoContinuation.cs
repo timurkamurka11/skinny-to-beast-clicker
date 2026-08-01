@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "anatomical-warp-face-review-v11";
+            "exact-master-face-binding-review-v12";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 

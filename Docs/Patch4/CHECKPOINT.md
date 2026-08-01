@@ -804,6 +804,36 @@ centerlines, so shirt pixels followed large arm rotations.
 - Production readiness stays false, Patch 3.5 stays active and menu, video,
   music, audio and settings paths remain untouched.
 
+### P4.0-S real Unity test stop
+
+Unity `6000.3.19f1` imported the P4.0-S source and reached Test Runner. EditMode
+passed, but PlayMode returned `Failed(Child)` before the separate actual-room
+review could begin. The first failed leaf was
+`Patch4RuntimeInstallationPlayModeTests.LivingGameplayRoomGetsLockedRollbackInstance`
+with a bare `Expected: not null` / `But was: null` assertion.
+
+The failure was isolated to two stale assertions. P4.0-S deliberately passes
+`null` for the old left/right eye-white bindings because the untouched master
+body now owns the complete neutral eyes, irises and closed mouth. The test had
+already changed those layer objects to start hidden, but still asserted that
+the two private eye-white bindings were non-null. No animation clip ran, so
+this result says nothing yet about the P4.0-S motion or deformation quality.
+
+## P4.0-T exact-master face-binding test correction
+
+- The runtime installation test now requires `eyeWhiteLeft`, `eyeWhiteRight`,
+  `irisLeft`, `irisRight` and `mouthClosed` to be null.
+- The same test requires both feathered lid transforms, `mouthOpen` and
+  `mouthSmile` to remain bound.
+- The static guard checks both sides of that contract.
+- Automatic continuation advances to
+  `exact-master-face-binding-review-v12` so the complete test and room-review
+  sequence reruns after pull.
+- The P4.0-S exact master, constrained anatomical weights, animation values and
+  over-stretch/focused-limb gates are unchanged.
+- Production readiness remains locked, Patch 3.5 remains active and protected
+  paths remain untouched.
+
 ## Production dashboard
 
 Open in Unity:
@@ -863,7 +893,7 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-S exact-face/anatomical-warp correction into Unity
+1. Pull the P4.0-T face-binding test correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
@@ -921,9 +951,11 @@ Detailed verification instructions:
 - P4.0-R was exercised in Unity and rejected: its face reconstruction erased
   neutral features, broad arm weights pulled the shirt outward and walking
   remained weak despite the minimum-only technical pass.
-- P4.0-S source and static guards are complete, but its exact face and
-  constrained anatomical warp have not yet been exercised by the user's Unity
-  `6000.3.19f1`.
+- P4.0-S reached real Unity Test Runner, but a stale eye-white `NotNull`
+  assertion stopped PlayMode before any room animation was sampled.
+- P4.0-T source and static guards are complete, but its corrected PlayMode
+  contract and the P4.0-S exact face/constrained warp have not yet completed
+  the user's Unity `6000.3.19f1` room review.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

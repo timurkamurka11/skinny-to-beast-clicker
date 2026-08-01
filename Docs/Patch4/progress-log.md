@@ -396,5 +396,22 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Advance automatic continuation to
   `anatomical-warp-face-review-v11`.
 - [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
-- [ ] Confirm P4.0-S in Unity `6000.3.19f1`: exact neutral face, no vacuum
-  stretch, readable limbs/walk, `4/4` and zero Console errors.
+- [x] Exercise P4.0-S in Unity `6000.3.19f1`; record that the fourth PlayMode
+  test stopped before the actual-room animation review.
+- [x] Isolate the failure to stale `Assert.NotNull` checks for neutral eye
+  objects that P4.0-S intentionally removed from the live face binding.
+
+## 2026-08-02 — P4.0-T face-binding PlayMode correction
+
+- [x] Require neutral eye, iris and closed-mouth controller bindings to remain
+  null because the exact master body owns those pixels.
+- [x] Require both feathered lids, open mouth and smile replacements to remain
+  bound.
+- [x] Add a static regression guard for the exact-master face-binding split.
+- [x] Advance automatic continuation to
+  `exact-master-face-binding-review-v12`.
+- [x] Keep the P4.0-S art, mesh weights, animation curves and validation gates
+  unchanged.
+- [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
+- [ ] Confirm P4.0-T in Unity `6000.3.19f1`: `4/4`, exact neutral face, no
+  vacuum stretch, readable limbs/walk and zero Console errors.

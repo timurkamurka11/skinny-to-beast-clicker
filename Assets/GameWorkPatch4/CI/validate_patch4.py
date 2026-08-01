@@ -268,7 +268,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"anatomical-warp-face-review-v11"',
+            '"exact-master-face-binding-review-v12"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -665,6 +665,41 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "PlayMode must validate the custom Canvas grid contract, not "
             "Unity's internal source Sprite vertex-array cardinality",
         )
+    if playmode_tests:
+        neutral_master_fields = (
+            "eyeWhiteLeft",
+            "eyeWhiteRight",
+            "irisLeft",
+            "irisRight",
+            "mouthClosed",
+        )
+        for field_name in neutral_master_fields:
+            null_contract = re.search(
+                r'Assert\.IsNull\(\s*GetPrivateField\(patchFace,\s*"'
+                + re.escape(field_name)
+                + r'"\)',
+                playmode_tests,
+            )
+            if not null_contract:
+                fail(
+                    errors,
+                    "PlayMode still expects a separate neutral face object: "
+                    + field_name,
+                )
+
+        for field_name in ("lidLeft", "lidRight", "mouthOpen", "mouthSmile"):
+            replacement_contract = re.search(
+                r'Assert\.NotNull\(\s*GetPrivateField\(patchFace,\s*"'
+                + re.escape(field_name)
+                + r'"\)',
+                playmode_tests,
+            )
+            if not replacement_contract:
+                fail(
+                    errors,
+                    "PlayMode does not require the feathered face replacement: "
+                    + field_name,
+                )
 
 
 def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
