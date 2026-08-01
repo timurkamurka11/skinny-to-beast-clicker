@@ -96,18 +96,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             });
 
         /// <summary>
-        /// The neutral runtime stack is one continuous painted body plus sparse
-        /// mutually exclusive face replacements. The remaining required layers
-        /// stay available only as hidden review/reference artwork. Rendering the
-        /// old anatomical cutouts produced visibly chopped shoulders and limbs.
+        /// The neutral runtime stack is the exact continuous painted master.
+        /// Its original eyes, irises and closed mouth stay intact; rebuilding
+        /// those details from sparse color extraction visibly erased the face.
+        /// Alternate expressions remain mutually exclusive overlays, while all
+        /// anatomical cutouts stay hidden review/reference artwork.
         /// </summary>
         public static IReadOnlyList<string> RuntimeNeutralLayerPaths { get; } =
             Array.AsReadOnly(new[]
             {
-                "Body/TorsoBase",
-                "Face/EyeWhiteL",
-                "Face/EyeWhiteR",
-                "Face/MouthClosed"
+                "Body/TorsoBase"
             });
 
         /// <summary>

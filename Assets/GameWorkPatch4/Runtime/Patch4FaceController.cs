@@ -32,9 +32,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [SerializeField, Min(0.02f)] private float holdDuration = 0.04f;
         [SerializeField, Min(0.02f)] private float openDuration = 0.09f;
         [SerializeField] private Vector2 blinkInterval = new(2.2f, 5.5f);
-        [SerializeField, Range(0.01f, 0.25f)] private float openScaleY = 0.04f;
-        [SerializeField, Range(0.25f, 0.75f)]
-        private float eyeSwapThreshold = 0.52f;
+        [SerializeField, Range(0.01f, 0.35f)]
+        private float eyelidFadeStart = 0.08f;
 
         private Vector3 leftClosedScale = Vector3.one;
         private Vector3 rightClosedScale = Vector3.one;
@@ -189,25 +188,29 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void ApplyLidClosure(float closure)
         {
             closure = Mathf.Clamp01(closure);
-            SetOpenEyesActive(closure < eyeSwapThreshold);
+            // The neutral eyes now remain part of the exact master body. Each
+            // lid sprite is therefore a complete feathered eye replacement,
+            // not a line that can expose the open eye underneath. Fade that
+            // replacement over the master without scaling or detaching it.
+            SetOpenEyesActive(true);
+            float opacity = Mathf.SmoothStep(
+                0f,
+                1f,
+                Mathf.InverseLerp(
+                    eyelidFadeStart,
+                    1f,
+                    closure));
+            SetLidsActive(opacity > 0.001f);
             if (lidLeft != null)
             {
-                Vector3 scale = leftClosedScale;
-                scale.y *= Mathf.Lerp(
-                    openScaleY,
-                    1f,
-                    closure);
-                lidLeft.localScale = scale;
+                lidLeft.localScale = leftClosedScale;
+                SetGraphicOpacity(lidLeft, opacity);
             }
 
             if (lidRight != null)
             {
-                Vector3 scale = rightClosedScale;
-                scale.y *= Mathf.Lerp(
-                    openScaleY,
-                    1f,
-                    closure * 0.98f);
-                lidRight.localScale = scale;
+                lidRight.localScale = rightClosedScale;
+                SetGraphicOpacity(lidRight, opacity);
             }
         }
 
@@ -217,11 +220,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (lidLeft != null)
             {
                 lidLeft.localScale = leftClosedScale;
+                SetGraphicOpacity(lidLeft, 1f);
             }
 
             if (lidRight != null)
             {
                 lidRight.localScale = rightClosedScale;
+                SetGraphicOpacity(lidRight, 1f);
             }
 
             SetLidsActive(false);
@@ -264,6 +269,27 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 target.SetActive(active);
             }
+        }
+
+        private static void SetGraphicOpacity(
+            Transform target,
+            float opacity)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            UnityEngine.UI.Graphic graphic =
+                target.GetComponent<UnityEngine.UI.Graphic>();
+            if (graphic == null)
+            {
+                return;
+            }
+
+            Color color = graphic.color;
+            color.a = Mathf.Clamp01(opacity);
+            graphic.color = color;
         }
     }
 }

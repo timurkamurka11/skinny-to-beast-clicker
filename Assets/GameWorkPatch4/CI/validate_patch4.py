@@ -26,7 +26,7 @@ REPOSITORY_MASTER = (
 EXPECTED_COUNTS = {
     "RequiredBoneNames": 31,
     "RequiredLayerPaths": 40,
-    "RuntimeNeutralLayerPaths": 4,
+    "RuntimeNeutralLayerPaths": 1,
     "RuntimeRigidLayerPaths": 9,
     "RequiredClipNames": 10,
     "ProtectedPathFragments": 6,
@@ -111,15 +111,10 @@ def validate_contract(root: Path, errors: list[str]) -> None:
     layers = values_by_property.get("RequiredLayerPaths", [])
     clips = values_by_property.get("RequiredClipNames", [])
     neutral_layers = values_by_property.get("RuntimeNeutralLayerPaths", [])
-    if neutral_layers != [
-        "Body/TorsoBase",
-        "Face/EyeWhiteL",
-        "Face/EyeWhiteR",
-        "Face/MouthClosed",
-    ]:
+    if neutral_layers != ["Body/TorsoBase"]:
         fail(
             errors,
-            "Runtime neutral stack must be one intact body plus sparse face replacements",
+            "Runtime neutral stack must preserve the one exact intact master body",
         )
     forbidden_runtime_cutouts = {
         "Head/HeadBase",
@@ -273,7 +268,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"continuous-body-rig-review-v10"',
+            '"anatomical-warp-face-review-v11"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -376,7 +371,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "RuntimeRigidBindingsReady",
             "Patch4RigContract.IsRuntimeContinuousBodyLayer",
             "Patch4RigContract.IsRuntimeLayerVisibleByDefault",
-            'FindLayerObject("Face/EyeWhiteL")',
+            "faceController.BindPresentationLayers(",
         )
         for snippet in required_snippets:
             if snippet not in presentation:
@@ -419,6 +414,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "DeformContinuousBody(",
             "DeformArm(",
             "DeformLeg(",
+            "ArmCenterX(",
+            "ArmTorsoBoundary(",
+            "LegCenterX(",
             "IsRigidlyBound",
             "PrimaryBoneName",
             "CaptureBindPose()",
@@ -428,6 +426,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 fail(errors, f"Canvas skin deformer is missing: {snippet}")
         if "SetPatch4Enabled(" in deformer:
             fail(errors, "Canvas skin deformer must never change Patch 4 activation")
+        if "float horizontalInfluence" in deformer:
+            fail(
+                errors,
+                "The continuous body still applies broad horizontal strips "
+                "that pull shirt pixels as arms or legs",
+            )
         if "DataUtility.GetOuterUV" in deformer:
             fail(
                 errors,
@@ -500,10 +504,14 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AnalyzeRoomSilhouette(",
             "AnalyzeVisibleMotion(",
             "AnalyzeFocusedFaceMotion(",
+            "AnalyzeWalkLimbMotion(",
             "minimumMotionCoverage",
             "minimumFaceMotionCoverage",
+            "minimumLimbMotionCoverage",
             "focusedFaceMotionPassed",
+            "limbArticulationPassed",
             "neutralWidthRetention",
+            "MaximumNeutralWidthExpansion",
             "visualSanityPassed",
             "visibleMotionPassed",
             "legacyRoutine.enabled = false",
@@ -719,6 +727,7 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "PaintClosedLid(",
             "PaintOpenMouth(",
             "PaintSmile(",
+            "CopyFeatheredMasterPatch(",
             "Patch4RigContract.IsRuntimeContinuousBodyLayer(spec.path)",
             "(Color32[])master.pixels.Clone()",
         ):
@@ -754,7 +763,8 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "ApplyLidClosure(",
             "SetLidsActive(false)",
             "SetOpenEyesActive(",
-            "openScaleY",
+            "SetGraphicOpacity(",
+            "eyelidFadeStart",
         ):
             if required not in face:
                 fail(errors, f"Independent blink controller is missing: {required}")
@@ -836,9 +846,9 @@ def main() -> int:
     print("- automatic joint/face restore and full rebake order verified")
     print("- automatic readiness approval blocked")
     print("- one intact painted body uses a dense continuous anatomical deformation grid")
-    print("- sparse face replacements share the Head matrix without visible cutout limbs")
+    print("- exact neutral face and feathered expression replacements share the Head matrix")
     print("- Test Runner exit must stay quiescent before the separate room review")
-    print("- actual-room review blocks weak motion, collapsed silhouettes and Console errors")
+    print("- actual-room review blocks weak limbs, collapse, over-stretch and Console errors")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

@@ -90,10 +90,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "This is a fresh completed review. These ten frames were " +
                     "captured while the generated character played every " +
                     "required clip inside the real LivingGameplayScene with " +
-                    "one intact continuous Canvas body and frozen bind anchors. " +
-                    "Every " +
-                    "peak retained the neutral silhouette and passed visible " +
-                    "start-to-peak motion. The legacy robot-like footstep was " +
+                    "one intact continuous Canvas body, constrained anatomical " +
+                    "weights and frozen bind anchors. Every peak retained the " +
+                    "neutral silhouette without excessive expansion, and the " +
+                    "walk also passed focused arm/leg articulation. The legacy " +
+                    "robot-like footstep was " +
                     "paused only during this review and restored afterward. " +
                     "Human review is still required and activation remains " +
                     "locked.",

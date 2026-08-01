@@ -472,7 +472,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         Patch4RigContract.IsRuntimeContinuousBodyLayer(
                             deformer.ContractPath) &&
                         deformer.UsesContinuousBodyWeights &&
-                        deformer.ExpectedVertexCount >= 1600);
+                        deformer.ExpectedVertexCount >= 6000);
             bool runtimeRigidLayersReady =
                 Patch4RigContract.RuntimeRigidLayerPaths.All(
                     path => HasRigidSkin(
@@ -507,8 +507,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "is not cancelled; " +
                     "every source must retain FullRect import and full-canvas " +
                     "UVs; the visible character must use one dense continuous " +
-                    "full-body deformation surface; sparse face replacements " +
-                    "must follow the exact Head matrix. Hidden anatomical " +
+                    "full-body deformation surface; exact-master face and " +
+                    "feathered expression replacements must share the Head " +
+                    "matrix. Hidden anatomical " +
                     "reference cutouts are never part of the runtime stack.");
             }
 

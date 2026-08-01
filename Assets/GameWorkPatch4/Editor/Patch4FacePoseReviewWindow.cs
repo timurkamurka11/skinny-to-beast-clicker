@@ -59,9 +59,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "GameWork Patch 4.0 — Locked Independent Face Review",
                 EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "Neutral, blink, open-mouth and smile are assembled from " +
-                "mutually exclusive replacement layers. No rectangular skin " +
-                "backing or straight patch edge is acceptable. This review is " +
+                "Neutral keeps the exact master eyes and mouth. Blink, " +
+                "open-mouth and smile use mutually exclusive, softly feathered " +
+                "replacement overlays. No straight patch edge is acceptable. " +
+                "This review is " +
                 "read-only; human approval is still required and production " +
                 "activation remains locked.",
                 MessageType.Info);

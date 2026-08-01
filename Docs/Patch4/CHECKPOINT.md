@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-08-01
+Last updated: 2026-08-02
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -16,6 +16,10 @@ The following must remain unchanged:
 - main-menu scenes, prefabs, transitions and button logic
 - music, ambient audio and audio mixers
 - settings UI, persistence, language, vibration and notifications
+
+The user installed CoplayDev MCP locally. It is useful for later live Unity
+inspection, but its commands were not exposed to the assistant session during
+the P4.0-S source correction. A second Unity MCP is not required.
 
 ## Current visual source
 
@@ -758,6 +762,48 @@ the visible runtime body.
 - Readiness remains false, Patch 3.5 remains active and protected paths are
   unchanged.
 
+### P4.0-R real Unity rejection
+
+Unity `6000.3.19f1` completed the fresh P4.0-R room review without Console
+errors. It confirmed that one intact body removed the chopped rectangles, but
+the visual candidate still failed:
+
+- the face had no readable neutral eyes or mouth;
+- reaction clips stretched the outer shirt sideways like a vacuum pull;
+- arms and legs barely articulated and the walk stayed visually static;
+- minimum-only silhouette and motion thresholds incorrectly allowed the sheet
+  to report a technical pass.
+
+Repository inspection confirmed that P4.0-R inpainted the master face before
+runtime and relied on sparse feature extraction to rebuild it. Its continuous
+mesh also assigned arm influence to broad x/y strips rather than the actual arm
+centerlines, so shirt pixels followed large arm rotations.
+
+## P4.0-S exact neutral face and constrained anatomical warp
+
+- `Body/TorsoBase` now returns the quality master clone without eye or mouth
+  inpainting. It is the only neutral runtime layer.
+- Eye-white, iris and closed-mouth candidates remain hidden references.
+- Closed lids, open mouth and smile copy only a feathered elliptical master
+  patch, inpaint the feature center and paint the alternate expression. The
+  unchanged feather matches the underlying master exactly.
+- The blink controller fades those full replacement patches instead of scaling
+  a thin lid line over an open eye.
+- The continuous grid becomes `64 × 96` and includes both clavicles.
+- Arm influence is constrained around curved shoulder-to-hand centerlines and
+  fades before the torso; leg influence follows separate hip-to-foot
+  centerlines and fades at the center seam.
+- Large whole-body/arm reaction values are reduced; walk stride, knee/foot
+  articulation and arm counter-swing remain clearly authored.
+- Actual-room validation adds maximum neutral width, height and area expansion
+  limits, plus a focused arm/leg motion gate for `FatMan_Walk_InRoom`.
+- Static, EditMode, PlayMode, smoke and neutral/face QA contracts are updated
+  for the exact one-layer neutral stack and the denser constrained grid.
+- Automatic continuation advances to
+  `anatomical-warp-face-review-v11`.
+- Production readiness stays false, Patch 3.5 stays active and menu, video,
+  music, audio and settings paths remain untouched.
+
 ## Production dashboard
 
 Open in Unity:
@@ -817,19 +863,20 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-R continuous-body correction into Unity
+1. Pull the P4.0-S exact-face/anatomical-warp correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
-   one intact visible full-master body, rebuild the locked continuous-grid
-   prefab, validate and complete EditMode `4 passed`, PlayMode `4 passed`.
+   one exact intact visible full-master body, rebuild the locked constrained
+   `64 × 96` grid prefab, validate and complete EditMode `4 passed`, PlayMode
+   `4 passed`.
 4. Let the Editor-only continuation wait for a genuinely quiescent Edit Mode
    after Test Runner cleanup, then enter a separate Play Mode session, create
    the real room, freeze the Canvas bind anchors, pause the old walk routine
    and cycle all ten corrected clips on the intact body.
-5. Let the driver reject weak body/focused blink motion or silhouette loss,
-   capture the review sheet, restore Patch 3.5 and its routine, then return to
-   Edit Mode.
+5. Let the driver reject weak body, focused blink or focused walk-limb motion,
+   silhouette loss or excessive expansion, capture the review sheet, restore
+   Patch 3.5 and its routine, then return to Edit Mode.
 6. Confirm that the Console has zero errors and inspect the automatically
    focused 5 × 2 room-animation contact sheet.
 7. Revise any exposed joint, detached paint, extreme stretch, foot slide or
@@ -871,8 +918,12 @@ Detailed verification instructions:
 - P4.0-Q was exercised in Unity and rejected: its anatomical rectangles still
   looked chopped, the face shifted, walking was unreadable and Test Runner
   cleanup collided with the separate review Play Mode.
-- P4.0-R source and static guards are complete, but its intact dense body has
-  not yet been exercised by the user's Unity `6000.3.19f1`.
+- P4.0-R was exercised in Unity and rejected: its face reconstruction erased
+  neutral features, broad arm weights pulled the shirt outward and walking
+  remained weak despite the minimum-only technical pass.
+- P4.0-S source and static guards are complete, but its exact face and
+  constrained anatomical warp have not yet been exercised by the user's Unity
+  `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

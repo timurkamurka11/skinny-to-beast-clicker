@@ -374,5 +374,27 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Advance automatic continuation to
   `continuous-body-rig-review-v10`.
 - [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
-- [ ] Confirm P4.0-R in Unity `6000.3.19f1`: `4/4`, zero Console errors, one
-  smooth intact body, attached face and a clearly readable walk.
+- [x] Exercise P4.0-R in Unity `6000.3.19f1`; reject its blank face,
+  shirt-vacuum stretch and unreadable walk despite zero Console errors.
+
+## 2026-08-02 — P4.0-R rejection and P4.0-S correction
+
+- [x] Exercise P4.0-R in real Unity and confirm that chopped rectangles are
+  gone.
+- [x] Reject P4.0-R: neutral eyes/mouth were erased, reaction poses pulled the
+  shirt into vacuum-like wings, and walk limb motion remained unreadable.
+- [x] Trace the face loss to inpainting the only continuous body plus fragile
+  sparse feature extraction.
+- [x] Trace the vacuum stretch to broad horizontal arm weights that included
+  outer shirt pixels.
+- [x] Preserve the exact master as the sole neutral runtime layer.
+- [x] Build softly feathered full eye/mouth expression replacements over that
+  exact master.
+- [x] Replace broad arm/leg strips with curved anatomical centerline envelopes
+  on a denser `64 × 96` grid.
+- [x] Add maximum expansion gates and focused walk arm/leg motion QA.
+- [x] Advance automatic continuation to
+  `anatomical-warp-face-review-v11`.
+- [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
+- [ ] Confirm P4.0-S in Unity `6000.3.19f1`: exact neutral face, no vacuum
+  stretch, readable limbs/walk, `4/4` and zero Console errors.

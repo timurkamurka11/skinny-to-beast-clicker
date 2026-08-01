@@ -328,19 +328,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     new Rect(.499f, .164f, .063f, .045f)),
                 new(
                     "Face/LidL",
-                    new Rect(.438f, .164f, .063f, .045f)),
+                    new Rect(.438f, .164f, .063f, .045f),
+                    .78f),
                 new(
                     "Face/LidR",
-                    new Rect(.499f, .164f, .063f, .045f)),
+                    new Rect(.499f, .164f, .063f, .045f),
+                    .78f),
                 new(
                     "Face/MouthClosed",
                     new Rect(.452f, .198f, .096f, .052f)),
                 new(
                     "Face/MouthOpen",
-                    new Rect(.452f, .198f, .096f, .052f)),
+                    new Rect(.452f, .198f, .096f, .052f),
+                    .78f),
                 new(
                     "Face/MouthSmile",
-                    new Rect(.452f, .198f, .096f, .052f))
+                    new Rect(.452f, .198f, .096f, .052f),
+                    .78f)
             };
 
             for (int i = 0; i < checks.Length; i++)
@@ -396,11 +400,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     visibleRatio > check.maximumVisibleRatio)
                 {
                     errors.Add(
-                        $"Layer {check.path} still behaves like a backing " +
-                        $"rectangle: {visibleRatio:P2} region fill, " +
+                        $"Layer {check.path} is not a clean feathered face " +
+                        $"replacement: {visibleRatio:P2} region fill, " +
                         $"{visibleBorder} border pixels and {outside} pixels " +
-                        "outside its face region. Replacement poses must " +
-                        "contain only their painted feature.");
+                        "outside its face region. Alternate poses may carry " +
+                        "matching master skin only inside a soft ellipse.");
                 }
             }
         }

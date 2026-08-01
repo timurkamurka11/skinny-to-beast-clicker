@@ -43,6 +43,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public float faceMotionCoverage;
             public float minimumFaceMotionCoverage;
             public bool focusedFaceMotionPassed;
+            public bool limbArticulationRequired;
+            public int limbMotionChangedPixelCount;
+            public int limbReferencePixelCount;
+            public float limbMotionCoverage;
+            public float minimumLimbMotionCoverage;
+            public bool limbArticulationPassed;
             public bool visibleMotionPassed;
         }
 
@@ -97,7 +103,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumNeutralWidthRetention = 0.72f;
         private const float MinimumNeutralHeightRetention = 0.78f;
         private const float MinimumNeutralAreaRetention = 0.58f;
+        private const float MaximumNeutralWidthExpansion = 1.32f;
+        private const float MaximumNeutralHeightExpansion = 1.18f;
+        private const float MaximumNeutralAreaExpansion = 1.38f;
         private const float MinimumBlinkFaceMotionCoverage = 0.015f;
+        private const float MinimumWalkLimbMotionCoverage = 0.08f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -905,16 +915,22 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     MinimumSilhouetteAreaCoverage &&
                 clipReport.neutralWidthRetention >=
                     MinimumNeutralWidthRetention &&
+                clipReport.neutralWidthRetention <=
+                    MaximumNeutralWidthExpansion &&
                 clipReport.neutralHeightRetention >=
                     MinimumNeutralHeightRetention &&
+                clipReport.neutralHeightRetention <=
+                    MaximumNeutralHeightExpansion &&
                 clipReport.neutralAreaRetention >=
-                    MinimumNeutralAreaRetention;
+                    MinimumNeutralAreaRetention &&
+                clipReport.neutralAreaRetention <=
+                    MaximumNeutralAreaExpansion;
             if (!sane)
             {
                 report.error = AppendError(
                     report.error,
                     clipReport.clipName +
-                    ": collapsed room silhouette (width " +
+                    ": collapsed or over-stretched room silhouette (width " +
                     clipReport.widthCoverage.ToString("0.000") +
                     ", height " +
                     clipReport.heightCoverage.ToString("0.000") +
@@ -1097,7 +1113,144 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clipReport.focusedFaceMotionPassed = true;
             }
 
-            return fullCharacterPassed && focusedFacePassed;
+            bool limbArticulationPassed = true;
+            if (string.Equals(
+                clipReport.clipName,
+                "FatMan_Walk_InRoom",
+                StringComparison.Ordinal))
+            {
+                limbArticulationPassed = AnalyzeWalkLimbMotion(
+                    current,
+                    screenshot.width,
+                    screenshot.height,
+                    clipReport);
+            }
+            else
+            {
+                clipReport.limbArticulationRequired = false;
+                clipReport.limbArticulationPassed = true;
+            }
+
+            return fullCharacterPassed &&
+                   focusedFacePassed &&
+                   limbArticulationPassed;
+        }
+
+        private bool AnalyzeWalkLimbMotion(
+            IReadOnlyList<Color32> current,
+            int screenWidth,
+            int screenHeight,
+            ClipReview clipReport)
+        {
+            clipReport.limbArticulationRequired = true;
+            clipReport.minimumLimbMotionCoverage =
+                MinimumWalkLimbMotionCoverage;
+            if (current == null ||
+                current.Count != screenWidth * screenHeight ||
+                clipStartPixels == null ||
+                clipStartPixels.Length != current.Count ||
+                backgroundPixels == null ||
+                backgroundPixels.Length != current.Count)
+            {
+                clipReport.limbArticulationPassed = false;
+                return false;
+            }
+
+            Rect expected = neutralExpectedScreenRect;
+            int xMin = Mathf.Clamp(
+                Mathf.FloorToInt(expected.xMin),
+                0,
+                screenWidth - 1);
+            int xMax = Mathf.Clamp(
+                Mathf.CeilToInt(expected.xMax),
+                xMin + 1,
+                screenWidth);
+            int yMin = Mathf.Clamp(
+                Mathf.FloorToInt(expected.yMin),
+                0,
+                screenHeight - 1);
+            int yMax = Mathf.Clamp(
+                Mathf.CeilToInt(expected.yMax),
+                yMin + 1,
+                screenHeight);
+            int changed = 0;
+            int reference = 0;
+
+            for (int y = yMin; y < yMax; y++)
+            {
+                float topY =
+                    (expected.yMax - y) /
+                    Mathf.Max(1f, expected.height);
+                int row = y * screenWidth;
+                for (int x = xMin; x < xMax; x++)
+                {
+                    float normalizedX =
+                        (x - expected.xMin) /
+                        Mathf.Max(1f, expected.width);
+                    bool armRegion =
+                        topY >= .27f &&
+                        topY <= .55f &&
+                        ((normalizedX >= .20f &&
+                          normalizedX <= .39f) ||
+                         (normalizedX >= .61f &&
+                          normalizedX <= .80f));
+                    bool legRegion =
+                        topY >= .54f &&
+                        topY <= .82f &&
+                        ((normalizedX >= .27f &&
+                          normalizedX <= .49f) ||
+                         (normalizedX >= .51f &&
+                          normalizedX <= .73f));
+                    if (!armRegion && !legRegion)
+                    {
+                        continue;
+                    }
+
+                    int index = row + x;
+                    Color32 start = clipStartPixels[index];
+                    Color32 clean = backgroundPixels[index];
+                    int foregroundDelta =
+                        Math.Abs(start.r - clean.r) +
+                        Math.Abs(start.g - clean.g) +
+                        Math.Abs(start.b - clean.b);
+                    if (foregroundDelta >= PixelDifferenceThreshold)
+                    {
+                        reference++;
+                    }
+
+                    Color32 after = current[index];
+                    int motionDelta =
+                        Math.Abs(after.r - start.r) +
+                        Math.Abs(after.g - start.g) +
+                        Math.Abs(after.b - start.b);
+                    if (motionDelta >= MotionPixelDifferenceThreshold)
+                    {
+                        changed++;
+                    }
+                }
+            }
+
+            clipReport.limbMotionChangedPixelCount = changed;
+            clipReport.limbReferencePixelCount = reference;
+            clipReport.limbMotionCoverage =
+                reference > 0 ? changed / (float)reference : 0f;
+            clipReport.limbArticulationPassed =
+                reference > 0 &&
+                clipReport.limbMotionCoverage >=
+                    clipReport.minimumLimbMotionCoverage;
+            if (!clipReport.limbArticulationPassed)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": arm/leg articulation is too small (" +
+                    clipReport.limbMotionCoverage.ToString("0.000") +
+                    ", minimum " +
+                    clipReport.minimumLimbMotionCoverage.ToString("0.000") +
+                    "). A body bob without a readable stride cannot pass.");
+            }
+
+            return clipReport.limbArticulationPassed;
         }
 
         private bool AnalyzeFocusedFaceMotion(

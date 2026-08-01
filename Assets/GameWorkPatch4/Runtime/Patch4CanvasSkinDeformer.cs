@@ -34,8 +34,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         [SerializeField] private string contractPath = string.Empty;
         [SerializeField] private Sprite sourceSprite;
-        [SerializeField, Range(1, 32)] private int gridColumns = 8;
-        [SerializeField, Range(1, 48)] private int gridRows = 12;
+        [SerializeField, Range(1, 64)] private int gridColumns = 8;
+        [SerializeField, Range(1, 96)] private int gridRows = 12;
         [SerializeField, Range(1.25f, 4f)]
         private float weightFalloff = 2.35f;
         [SerializeField] private List<BoneBinding> boneBindings = new();
@@ -78,8 +78,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             contractPath = layerContractPath ?? string.Empty;
             sourceSprite = sprite;
-            gridColumns = Mathf.Clamp(columns, 1, 32);
-            gridRows = Mathf.Clamp(rows, 1, 48);
+            gridColumns = Mathf.Clamp(columns, 1, 64);
+            gridRows = Mathf.Clamp(rows, 1, 96);
             boneBindings.Clear();
             bindPoseCaptured = false;
             skinMatrices = Array.Empty<Matrix4x4>();
@@ -382,17 +382,32 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             Vector3 result = torso;
-            if (topY >= .225f && topY <= .585f)
+            if (topY >= .255f && topY <= .55f)
             {
                 bool left = normalizedX < .5f;
-                float horizontalInfluence = left
-                    ? 1f - SmoothRange(.345f, .415f, normalizedX)
-                    : SmoothRange(.585f, .655f, normalizedX);
+                float sideX = left
+                    ? normalizedX
+                    : 1f - normalizedX;
+                float centerX = ArmCenterX(topY);
+                float radius = ArmRadius(topY);
+                float centerlineInfluence =
+                    1f - SmoothRange(
+                        radius * .62f,
+                        radius,
+                        Mathf.Abs(sideX - centerX));
+                float torsoBoundary = ArmTorsoBoundary(topY);
+                float outsideTorso =
+                    1f - SmoothRange(
+                        torsoBoundary - .025f,
+                        torsoBoundary + .004f,
+                        sideX);
                 float verticalInfluence =
-                    SmoothRange(.225f, .275f, topY) *
-                    (1f - SmoothRange(.545f, .585f, topY));
+                    SmoothRange(.255f, .295f, topY) *
+                    (1f - SmoothRange(.52f, .55f, topY));
                 float armInfluence =
-                    horizontalInfluence * verticalInfluence;
+                    centerlineInfluence *
+                    outsideTorso *
+                    verticalInfluence;
                 if (armInfluence > .0001f)
                 {
                     Vector3 arm = DeformArm(
@@ -407,16 +422,27 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 }
             }
 
-            if (topY >= .48f)
+            if (topY >= .515f)
             {
                 bool left = normalizedX < .5f;
-                float centerDistance = Mathf.Abs(normalizedX - .5f);
-                float horizontalInfluence =
-                    SmoothRange(.012f, .065f, centerDistance);
+                float sideX = left
+                    ? normalizedX
+                    : 1f - normalizedX;
+                float centerX = LegCenterX(topY);
+                float radius = LegRadius(topY);
+                float centerlineInfluence =
+                    1f - SmoothRange(
+                        radius * .68f,
+                        radius,
+                        Mathf.Abs(sideX - centerX));
+                float centerSeparation =
+                    1f - SmoothRange(.465f, .495f, sideX);
                 float verticalInfluence =
-                    SmoothRange(.48f, .545f, topY);
+                    SmoothRange(.515f, .575f, topY);
                 float legInfluence =
-                    horizontalInfluence * verticalInfluence;
+                    centerlineInfluence *
+                    centerSeparation *
+                    verticalInfluence;
                 if (legInfluence > .0001f)
                 {
                     Vector3 leg = DeformLeg(
@@ -521,33 +547,46 @@ namespace SkinnyToBeast.Gameplay.Patch4
             string upperName = left ? "UpperArmL" : "UpperArmR";
             string forearmName = left ? "ForearmL" : "ForearmR";
             string handName = left ? "HandL" : "HandR";
+            string clavicleName = left ? "ClavicleL" : "ClavicleR";
+            Vector3 clavicle = BonePoint(
+                clavicleName,
+                original,
+                matrices);
             Vector3 upper = BonePoint(upperName, original, matrices);
             Vector3 forearm = BonePoint(forearmName, original, matrices);
             Vector3 hand = BonePoint(handName, original, matrices);
 
-            if (topY <= .38f)
+            if (topY <= .325f)
+            {
+                return Vector3.Lerp(
+                    clavicle,
+                    upper,
+                    SmoothRange(.275f, .325f, topY));
+            }
+
+            if (topY <= .385f)
             {
                 return upper;
             }
 
-            if (topY <= .43f)
+            if (topY <= .435f)
             {
                 return Vector3.Lerp(
                     upper,
                     forearm,
-                    SmoothRange(.38f, .43f, topY));
+                    SmoothRange(.385f, .435f, topY));
             }
 
-            if (topY <= .47f)
+            if (topY <= .48f)
             {
                 return forearm;
             }
 
-            return topY <= .52f
+            return topY <= .525f
                 ? Vector3.Lerp(
                     forearm,
                     hand,
-                    SmoothRange(.47f, .52f, topY))
+                    SmoothRange(.48f, .525f, topY))
                 : hand;
         }
 
@@ -622,6 +661,78 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 0f,
                 1f,
                 Mathf.InverseLerp(start, end, value));
+        }
+
+        private static float ArmCenterX(float topY)
+        {
+            if (topY <= .315f)
+            {
+                return Mathf.Lerp(
+                    .365f,
+                    .345f,
+                    Mathf.InverseLerp(.255f, .315f, topY));
+            }
+
+            if (topY <= .425f)
+            {
+                return Mathf.Lerp(
+                    .345f,
+                    .293f,
+                    Mathf.InverseLerp(.315f, .425f, topY));
+            }
+
+            return Mathf.Lerp(
+                .293f,
+                .262f,
+                Mathf.InverseLerp(.425f, .53f, topY));
+        }
+
+        private static float ArmRadius(float topY)
+        {
+            return Mathf.Lerp(
+                .086f,
+                .052f,
+                Mathf.InverseLerp(.27f, .53f, topY));
+        }
+
+        private static float ArmTorsoBoundary(float topY)
+        {
+            return Mathf.Lerp(
+                .397f,
+                .305f,
+                Mathf.InverseLerp(.27f, .52f, topY));
+        }
+
+        private static float LegCenterX(float topY)
+        {
+            if (topY <= .68f)
+            {
+                return Mathf.Lerp(
+                    .43f,
+                    .405f,
+                    Mathf.InverseLerp(.54f, .68f, topY));
+            }
+
+            return Mathf.Lerp(
+                .405f,
+                .39f,
+                Mathf.InverseLerp(.68f, .79f, topY));
+        }
+
+        private static float LegRadius(float topY)
+        {
+            if (topY <= .68f)
+            {
+                return Mathf.Lerp(
+                    .115f,
+                    .088f,
+                    Mathf.InverseLerp(.54f, .68f, topY));
+            }
+
+            return Mathf.Lerp(
+                .088f,
+                .098f,
+                Mathf.InverseLerp(.68f, .79f, topY));
         }
 
         private Sprite ResolveSprite()

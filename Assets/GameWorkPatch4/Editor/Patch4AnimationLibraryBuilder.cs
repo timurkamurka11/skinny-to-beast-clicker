@@ -198,7 +198,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 BellyTip,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.12f, 1.13f),
+                new Keyframe(0.12f, 1.06f),
                 new Keyframe(0.32f, 0.97f),
                 new Keyframe(duration, 1f));
             SetCurve(
@@ -257,13 +257,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                -22f,
+                -18f,
                 7f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                22f,
+                18f,
                 -7f);
             SetReactionRotation(
                 clip,
@@ -298,21 +298,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalPosition.x",
                 duration,
-                0.075f,
-                -0.075f);
+                0.22f,
+                -0.22f);
             SetCyclePosition(
                 clip,
                 Visual,
                 "m_LocalPosition.y",
                 duration,
-                0.11f,
-                0.11f);
+                0.14f,
+                0.14f);
             SetAlternatingRotation(
                 clip,
                 Pelvis,
                 duration,
-                -6.5f,
-                6.5f);
+                -4.5f,
+                4.5f);
             SetAlternatingRotation(
                 clip,
                 SpineLower,
@@ -323,26 +323,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 ThighL,
                 duration,
-                -28f,
-                28f);
+                -22f,
+                22f);
             SetAlternatingRotation(
                 clip,
                 ThighR,
                 duration,
-                28f,
-                -28f);
+                22f,
+                -22f);
             SetAlternatingRotation(
                 clip,
                 ShinL,
                 duration,
-                20f,
-                -23f);
+                24f,
+                -28f);
             SetAlternatingRotation(
                 clip,
                 ShinR,
                 duration,
-                -23f,
-                20f);
+                -28f,
+                24f);
             SetAlternatingRotation(
                 clip,
                 FootL,
@@ -359,14 +359,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                21f,
-                -21f);
+                18f,
+                -18f);
             SetAlternatingRotation(
                 clip,
                 UpperArmR,
                 duration,
-                -21f,
-                21f);
+                -18f,
+                18f);
             SetAlternatingRotation(
                 clip,
                 ForearmL,
@@ -537,7 +537,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.2f, 1.065f),
+                new Keyframe(0.2f, 1.035f),
                 new Keyframe(0.48f, 0.98f),
                 new Keyframe(duration, 1f));
             SetCurve(
@@ -545,20 +545,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalScale.y",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.2f, 1.065f),
+                new Keyframe(0.2f, 1.035f),
                 new Keyframe(0.48f, 0.98f),
                 new Keyframe(duration, 1f));
             SetReactionRotation(
                 clip,
                 UpperArmL,
                 duration,
-                -42f,
+                -26f,
                 10f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                42f,
+                26f,
                 -10f);
             SetReactionRotation(
                 clip,
@@ -589,7 +589,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 BellyTip,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.2f, 1.1f),
+                new Keyframe(0.2f, 1.045f),
                 new Keyframe(0.48f, 0.97f),
                 new Keyframe(duration, 1f));
             return clip;

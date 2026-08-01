@@ -23,7 +23,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
 
             AssertCollection(contract, "RequiredBoneNames", 31);
             AssertCollection(contract, "RequiredLayerPaths", 40);
-            AssertCollection(contract, "RuntimeNeutralLayerPaths", 4);
+            AssertCollection(contract, "RuntimeNeutralLayerPaths", 1);
             AssertCollection(contract, "RuntimeRigidLayerPaths", 9);
             AssertCollection(contract, "RequiredClipNames", 10);
             AssertCollection(contract, "ProtectedPathFragments", 6);

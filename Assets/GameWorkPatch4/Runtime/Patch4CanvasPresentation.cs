@@ -151,7 +151,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                             deformer.ContractPath))
                     {
                         return deformer.UsesContinuousBodyWeights &&
-                               deformer.ExpectedVertexCount >= 1600;
+                               deformer.ExpectedVertexCount >= 6000;
                     }
                 }
 
@@ -493,8 +493,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 contractPath))
             {
                 return new SkinProfile(
-                    32,
-                    48,
+                    64,
+                    96,
                     "CharacterRoot",
                     "Pelvis",
                     "SpineLower",
@@ -505,9 +505,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     "ChestSoftR",
                     "Neck",
                     "Head",
+                    "ClavicleL",
                     "UpperArmL",
                     "ForearmL",
                     "HandL",
+                    "ClavicleR",
                     "UpperArmR",
                     "ForearmR",
                     "HandR",
@@ -734,13 +736,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             faceController.BindPresentationLayers(
-                FindLayerObject("Face/EyeWhiteL"),
-                FindLayerObject("Face/EyeWhiteR"),
+                null,
+                null,
                 null,
                 null,
                 FindLayerTransform("Face/LidL"),
                 FindLayerTransform("Face/LidR"),
-                FindLayerObject("Face/MouthClosed"),
+                null,
                 FindLayerObject("Face/MouthOpen"),
                 FindLayerObject("Face/MouthSmile"));
         }

@@ -18,7 +18,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         [Serializable]
         private sealed class NeutralPoseReport
         {
-            public int schemaVersion = 3;
+            public int schemaVersion = 4;
             public string generatedUtc = string.Empty;
             public bool passedTechnicalChecks;
             public bool technicalCompositeCreated;
@@ -545,6 +545,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             usesReplacementComposition = false;
             replacementLayersClean = false;
             transitionLayersFeathered = false;
+            EnsureFaceLayerCrops(faceLayerCrops, errors);
             Color32[][] poses =
             {
                 BuildReplacementPoseComposite(
@@ -675,8 +676,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             int cropBottom =
                 ExpectedHeight - FaceCropTop - FaceCropHeight;
             const int borderWidth = 3;
-            const float maximumVisibleRatio = .48f;
-
             for (int i = 0; i < paths.Length; i++)
             {
                 if (!faceLayerCrops.TryGetValue(
@@ -736,6 +735,25 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     regionPixelCount == 0
                         ? 1f
                         : (float)visibleInside / regionPixelCount;
+                bool allowsFeatheredSkin =
+                    string.Equals(
+                        paths[i],
+                        "Face/LidL",
+                        StringComparison.Ordinal) ||
+                    string.Equals(
+                        paths[i],
+                        "Face/LidR",
+                        StringComparison.Ordinal) ||
+                    string.Equals(
+                        paths[i],
+                        "Face/MouthOpen",
+                        StringComparison.Ordinal) ||
+                    string.Equals(
+                        paths[i],
+                        "Face/MouthSmile",
+                        StringComparison.Ordinal);
+                float maximumVisibleRatio =
+                    allowsFeatheredSkin ? .78f : .48f;
                 int outside = visibleTotal - visibleInside;
                 if (outside <= 0 &&
                     visibleBorder <= 0 &&
@@ -754,6 +772,57 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             return clean;
+        }
+
+        private static void EnsureFaceLayerCrops(
+            IDictionary<string, Color32[]> faceLayerCrops,
+            ICollection<string> errors)
+        {
+            string[] requiredPaths =
+            {
+                "Face/EyeWhiteL",
+                "Face/EyeWhiteR",
+                "Face/IrisL",
+                "Face/IrisR",
+                "Face/LidL",
+                "Face/LidR",
+                "Face/MouthClosed",
+                "Face/MouthOpen",
+                "Face/MouthSmile",
+                "Face/CheekL",
+                "Face/CheekR"
+            };
+
+            for (int i = 0; i < requiredPaths.Length; i++)
+            {
+                string path = requiredPaths[i];
+                if (faceLayerCrops.ContainsKey(path))
+                {
+                    continue;
+                }
+
+                ImageData layer = LoadImage(
+                    LayerPath(path),
+                    errors);
+                if (layer == null)
+                {
+                    continue;
+                }
+
+                if (layer.width != ExpectedWidth ||
+                    layer.height != ExpectedHeight)
+                {
+                    errors.Add(
+                        path + " face-review layer is " +
+                        layer.width + "x" + layer.height +
+                        "; expected " + ExpectedWidth + "x" +
+                        ExpectedHeight + ".");
+                    continue;
+                }
+
+                faceLayerCrops[path] =
+                    ExtractFaceCrop(layer.pixels);
+            }
         }
 
         private static bool ValidateFaceTransitionLayerCrops(

@@ -191,7 +191,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     GetIntProperty(
                         continuousBodySkin,
                         "ExpectedVertexCount"),
-                    1600,
+                    6000,
                     "The intact body needs enough vertices for smooth joint " +
                     "transitions instead of rectangular limb cuts.");
 
@@ -231,11 +231,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.EyeWhiteL",
-                    true);
+                    false);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.EyeWhiteR",
-                    true);
+                    false);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.IrisL",
@@ -247,7 +247,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.MouthClosed",
-                    true);
+                    false);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Face.LidL",

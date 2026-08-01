@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-08-01**
+Last updated: **2026-08-02**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -49,6 +49,10 @@ Patch 4 work remains isolated under:
 - Project opens and compiles outside Safe Mode.
 - `Assets/Scenes/SampleScene.unity` is only a bootstrap scene.
 - The full gameplay room is created dynamically at runtime.
+- The user installed CoplayDev MCP locally. It can provide live Console,
+  Hierarchy and Play Mode inspection once its tools are exposed to the active
+  assistant session; they were not visible during the P4.0-S source pass. No
+  second Unity MCP installation is required.
 
 ## Completed art and validation pipeline
 
@@ -526,35 +530,53 @@ still failed human review:
 Rigidly transforming source rectangles is therefore rejected as the visible
 runtime architecture. The P4.0-Q technical sheet must not be accepted.
 
-## Current P4.0-R continuous-body correction
+## P4.0-R real Unity result and visual rejection
 
-- `Body/TorsoBase` becomes the one intact full-master runtime body, with the
-  already verified eye and mouth skin underlay beneath sparse replacement
-  features.
-- The neutral runtime stack is reduced from 18 cutout layers to four layers:
-  the intact body, two eye features and the closed mouth.
-- All segmented head, arm, leg and clothing candidates remain in the required
-  40-layer catalog but are hidden reference artwork and never render together
-  with the continuous body.
-- The visible body uses a dense `32 × 48` full-canvas mesh driven by smooth
-  head/neck, torso/belly, shoulder/arm and hip/leg weight zones.
-- The face region of that body and every replacement eye/lid/mouth layer use
-  the exact same `Head` matrix; LookAround no longer adds a separate head
-  translation that could pull the face away from the neck.
-- Walk stride, knee bend, foot rotation, arm counter-swing and vertical bounce
-  are increased so the locked room capture must show a readable walk.
-- The second review Play Mode now waits for at least 30 stable Editor updates
-  and 1.25 seconds with no compile/import/test transition before it starts.
-  This prevents Test Runner post-build cleanup from calling
-  `EditorSceneManager.NewScene` inside the review session.
+Unity `6000.3.19f1` completed the fresh P4.0-R review with zero Console errors.
+The cutout rectangles and duplicated body pieces were gone, but human review
+still rejected the character:
+
+- the neutral face lost its eyes, irises and closed mouth;
+- `TapReact_02` and especially `UpgradeReact` pulled the outer shirt into wide
+  vacuum-like wings;
+- arm and leg articulation remained weak and the walk did not read clearly;
+- the technical review incorrectly printed `PASSED` because it enforced only
+  minimum silhouette size and total changed pixels.
+
+The causes are now confirmed in the isolated Patch 4 code. The continuous body
+was deliberately inpainted over all three neutral face regions, then depended
+on sparse color extraction to reconstruct them. The deformer classified broad
+horizontal strips as arms, including outer shirt pixels. The review had no
+maximum-expansion check and no walk-specific limb-motion check.
+
+## Current P4.0-S exact-face and anatomical-warp correction
+
+- The neutral runtime stack is exactly one layer: the untouched full-quality
+  `Body/TorsoBase` master. Original eyes, irises and closed mouth are preserved
+  directly and no longer reconstructed from extracted fragments.
+- Blink, open-mouth and smile use complete elliptical replacement overlays:
+  unchanged pixels match the master exactly, the edited center is inpainted,
+  and the boundary fades before the region edge.
+- Neutral eye and mouth reference layers remain in the 40-layer catalog but
+  start hidden and are no longer bound as live neutral face objects.
+- The intact body grid increases from `32 × 48` to `64 × 96`.
+- Arm weights follow curved shoulder/elbow/wrist centerlines and stop at a
+  torso boundary; leg weights follow separate hip/knee/foot centerlines and
+  fade at the crotch. Broad shirt-pulling horizontal strips are removed.
+- Extreme reaction scale and arm values are reduced while the walk receives a
+  readable step sway, knee bend, foot rotation and counter-swing.
+- Actual-room QA now rejects both silhouette collapse and excessive width,
+  height or area expansion.
+- `FatMan_Walk_InRoom` must additionally pass a focused arm/leg changed-pixel
+  ratio; a body bob with static limbs can no longer pass.
 - Automatic continuation advances to
-  `continuous-body-rig-review-v10`.
+  `anatomical-warp-face-review-v11`.
 - Readiness remains locked, Patch 3.5 remains active and protected paths remain
   unchanged.
 
 ## Exact next action
 
-After the P4.0-R correction is present on `patch-4.0`, run only:
+After the P4.0-S correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -564,23 +586,23 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. create one intact visible full-master body while preserving all 40 hidden
+3. create one exact intact visible full-master body while preserving all 40
    reference/alternate layers;
 4. import every layer as FullRect and rebuild the locked Canvas prefab with a
-   dense continuous full-body deformation grid and Head-bound face states;
-5. assemble and compare the locked four-layer neutral runtime pose;
+   dense silhouette-constrained `64 × 96` body grid and Head-bound face states;
+5. assemble and compare the locked one-layer exact neutral runtime pose;
 6. write the neutral and four-expression review images;
 7. validate all 40 bindings, frozen bind anchors, full-canvas UVs, the dense
-   continuous body and every sparse rigid face replacement;
+   continuous body and every rigid feathered face replacement;
 8. run pixel, rig, compilation and Editor smoke validation;
 9. run all EditMode tests;
 10. enter Play Mode and run all PlayMode tests;
 11. after `4/4`, require a stable quiescent Edit Mode interval after Test Runner
     cleanup, then enter a separate Play Mode session and create the actual room;
 12. capture a clean background and neutral reference, then play all ten clips
-    and block weak start-to-peak motion, weak focused blink motion, a collapsed
-    silhouette or any Console error while the legacy robot-like footstep stays
-    paused;
+    and block weak start-to-peak motion, weak focused blink or walk-limb motion,
+    a collapsed or over-stretched silhouette, or any Console error while the
+    legacy robot-like footstep stays paused;
 13. write a token-matched fresh report and contact sheet, restore Patch 3.5,
     exit Play Mode and open the read-only review windows.
 
@@ -603,12 +625,12 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-R automatic room review
+## Work after the P4.0-S automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.
 - Reject and revise any exposed joint, detached layer, excessive stretch,
   overlap, foot slide or collapse at an animation extreme.
-- Keep the intact-body grid and exact Head-bound facial replacements locked
+- Keep the intact-body grid and exact-master/Head-bound facial replacements locked
   until the ten motions pass human review.
 - Approve readiness only after technical and human visual review.

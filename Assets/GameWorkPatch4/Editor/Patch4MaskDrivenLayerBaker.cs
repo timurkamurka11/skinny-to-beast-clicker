@@ -324,13 +324,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             if (Patch4RigContract.IsRuntimeContinuousBodyLayer(spec.path))
             {
-                Color32[] continuousBody =
-                    (Color32[])master.pixels.Clone();
-                ApplyProductionArtwork(
-                    master,
-                    spec,
-                    continuousBody);
-                return continuousBody;
+                // Neutral runtime art must remain byte-for-byte equivalent to
+                // the quality master. P4.0-R inpainted its eyes and mouth here
+                // and then tried to reconstruct them from sparse extraction;
+                // real Unity review showed a blank face.
+                return (Color32[])master.pixels.Clone();
             }
 
             Color32[] result = new Color32[master.pixels.Length];
@@ -681,7 +679,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             switch (path)
             {
-                case "Body/TorsoBase":
                 case "Head/HeadBase":
                     PaintSkinUnderlay(
                         master,
@@ -726,12 +723,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     break;
 
                 case "Face/LidL":
-                    ClearLayer(result);
+                    CopyFeatheredMasterPatch(
+                        master,
+                        result,
+                        LeftEyePatch);
+                    PaintSkinUnderlay(
+                        master,
+                        result,
+                        LeftEyePatch);
                     PaintClosedLid(result, LeftEyePatch);
                     break;
 
                 case "Face/LidR":
-                    ClearLayer(result);
+                    CopyFeatheredMasterPatch(
+                        master,
+                        result,
+                        RightEyePatch);
+                    PaintSkinUnderlay(
+                        master,
+                        result,
+                        RightEyePatch);
                     PaintClosedLid(result, RightEyePatch);
                     break;
 
@@ -743,12 +754,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     break;
 
                 case "Face/MouthOpen":
-                    ClearLayer(result);
+                    CopyFeatheredMasterPatch(
+                        master,
+                        result,
+                        MouthPatch);
+                    PaintSkinUnderlay(
+                        master,
+                        result,
+                        MouthPatch);
                     PaintOpenMouth(result);
                     break;
 
                 case "Face/MouthSmile":
-                    ClearLayer(result);
+                    CopyFeatheredMasterPatch(
+                        master,
+                        result,
+                        MouthPatch);
+                    PaintSkinUnderlay(
+                        master,
+                        result,
+                        MouthPatch);
                     PaintSmile(result);
                     break;
 
@@ -945,6 +970,56 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         current,
                         skin,
                         coverage);
+                }
+            }
+        }
+
+        private static void CopyFeatheredMasterPatch(
+            ImageData master,
+            Color32[] result,
+            Rect patch)
+        {
+            ClearLayer(result);
+            GetPixelBounds(
+                patch,
+                out int minX,
+                out int maxX,
+                out int minY,
+                out int maxY);
+            Vector2 center = ToPixel(
+                patch.center.x,
+                patch.center.y);
+            float radiusX = Mathf.Max(1f, patch.width * Width * .5f);
+            float radiusY = Mathf.Max(1f, patch.height * Height * .5f);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float dx = (x - center.x) / radiusX;
+                    float dy = (y - center.y) / radiusY;
+                    float distance = Mathf.Sqrt(dx * dx + dy * dy);
+                    float coverage =
+                        1f -
+                        Mathf.SmoothStep(
+                            0f,
+                            1f,
+                            Mathf.InverseLerp(
+                                .66f,
+                                .86f,
+                                distance));
+                    if (coverage <= 0f)
+                    {
+                        continue;
+                    }
+
+                    int index = y * Width + x;
+                    Color32 source = master.pixels[index];
+                    source.a = ScaleAlpha(source.a, coverage);
+                    if (source.a > 0)
+                    {
+                        result[index] = source;
+                    }
                 }
             }
         }
