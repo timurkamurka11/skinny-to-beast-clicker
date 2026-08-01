@@ -434,9 +434,41 @@ The corrective pass:
   settings untouched;
 - keeps readiness false and Patch 3.5 active outside the temporary review.
 
+Unity `6000.3.19f1` compiled P4.0-O and again completed EditMode `4 passed`
+and PlayMode `4 passed`. The corrected room review itself did **not** run.
+`StartAfterTests()` was invoked while the Test Runner was still leaving its own
+Play Mode session. The review marked itself in progress too early, then treated
+the Test Runner's normal `EnteredEditMode` event as an interrupted review.
+Console recorded `Play Mode ended before the locked room review completed`.
+
+The animation window then loaded the previous contact-sheet PNG without
+checking whether it belonged to the current run. That stale sheet still showed
+the old nearly static poses and the old vertical `FatMan_Turn`. It is rejected
+and is not evidence that the P4.0-O animation curves ran.
+
+## Current P4.0-P fresh room-review handoff
+
+The follow-up correction:
+
+- adds an explicit waiting stage between Test Runner Play Mode and the separate
+  locked room-review Play Mode;
+- persists that waiting state across Unity domain reloads;
+- clears the previous room report and PNG before a new review begins;
+- gives every review a unique run token written into its JSON report;
+- opens the animation window only when the report and PNG match the current
+  token and the report is complete;
+- labels a fresh technical failure as failed instead of displaying unconditional
+  success text;
+- blocks an old contact sheet even if stale files somehow remain;
+- advances the automatic continuation id to rerun the complete pipeline after
+  pull;
+- leaves the P4.0-O frozen-anchor animation and silent-review corrections
+  intact;
+- keeps readiness locked and all protected paths unchanged.
+
 ## Exact next action
 
-After the P4.0-O correction is present on `patch-4.0`, run only:
+After the P4.0-P correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -456,12 +488,13 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 8. run pixel, rig, compilation and Editor smoke validation;
 9. run all EditMode tests;
 10. enter Play Mode and run all PlayMode tests;
-11. after `4/4`, enter Play Mode again and create the actual gameplay room;
+11. after `4/4`, wait for Test Runner to return fully to Edit Mode, then enter
+    a separate Play Mode session and create the actual gameplay room;
 12. capture a clean background and neutral reference, then play all ten clips
     and block weak start-to-peak motion, a collapsed silhouette or any Console
     error while the legacy robot-like footstep stays paused;
-13. restore Patch 3.5, exit Play Mode and open all three read-only review
-    windows.
+13. write a token-matched fresh report and contact sheet, restore Patch 3.5,
+    exit Play Mode and open the read-only review windows.
 
 Expected final count:
 
@@ -482,7 +515,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-O automatic room review
+## Work after the P4.0-P automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

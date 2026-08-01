@@ -299,8 +299,28 @@ The verification source code is committed, but Unity has not physically compiled
   cannot contaminate Patch 4 motion review.
 - [x] Keep ambient audio, menu, video, music and settings unchanged.
 - [x] Keep readiness locked and Patch 3.5 active outside review.
-- [ ] Confirm P4.0-O in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
-  `4 passed`, ten visibly distinct peaks, zero collapse and no legacy walk
-  sound.
+- [x] Confirm P4.0-O source compiles with EditMode `4 passed` and PlayMode
+  `4 passed` in Unity `6000.3.19f1`.
+- [ ] Capture the corrected ten visibly distinct peaks; the P4.0-O room-review
+  session did not start, so zero collapse and silent walking remain unverified.
 - [ ] Complete human review of joints, stretch, clothing continuity and foot
   contact only after the corrected contact sheet is visually coherent.
+
+## 2026-08-01 — P4.0-P fresh room-review handoff
+
+- [x] Confirmed P4.0-O source compiled and completed EditMode `4 passed` plus
+  PlayMode `4 passed` in Unity `6000.3.19f1`.
+- [x] Rejected the opened animation window: Console reported that the locked
+  room review did not complete, while the window showed the stale P4.0-N PNG.
+- [x] Isolated the race between Test Runner leaving Play Mode and the separate
+  actual-room review attempting to track its own Play Mode session.
+- [x] Added a persistent waiting stage before the second Play Mode entry.
+- [x] Clear previous room-review artifacts at the start of every run.
+- [x] Add a unique run token to the driver report and require the current token
+  before any contact sheet can open.
+- [x] Make the review window distinguish a fresh pass, fresh failure and absent
+  or stale evidence.
+- [x] Advance automatic continuation to a new run id.
+- [x] Keep P4.0-O motion fixes, rollback, readiness and protected paths intact.
+- [ ] Confirm P4.0-P in Unity `6000.3.19f1`: `4/4`, a separate completed room
+  review, a fresh ten-frame sheet with no vertical turn and no legacy step.

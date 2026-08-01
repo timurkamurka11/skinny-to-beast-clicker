@@ -15,6 +15,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AnimationRoomReview
     {
+        [Serializable]
+        private sealed class ReviewArtifactStatus
+        {
+            public string runToken = string.Empty;
+            public bool completed;
+        }
+
         private const string InProgressKey =
             "SkinnyToBeast.GameWorkPatch4.AnimationReview.InProgress";
         private const string StageKey =
@@ -23,7 +30,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             "SkinnyToBeast.GameWorkPatch4.AnimationReview.Result";
         private const string MessageKey =
             "SkinnyToBeast.GameWorkPatch4.AnimationReview.Message";
+        private const string RunTokenKey =
+            "SkinnyToBeast.GameWorkPatch4.AnimationReview.RunToken";
 
+        private const string WaitingForEditModeStage =
+            "waiting-for-test-play-mode-exit";
         private const string EnteringStage = "entering-play-mode";
         private const string RunningStage = "running-room-review";
         private const string ExitingStage = "exiting-play-mode";
@@ -40,6 +51,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4CompilationMonitor.ReportDirectory,
             Patch4AnimationRoomReviewDriver.ContactSheetFileName);
 
+        public static string CurrentRunToken =>
+            SessionState.GetString(RunTokenKey, string.Empty);
+
         static Patch4AnimationRoomReview()
         {
             EditorApplication.playModeStateChanged -=
@@ -55,6 +69,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             string stage =
                 SessionState.GetString(StageKey, string.Empty);
             if (string.Equals(
+                    stage,
+                    WaitingForEditModeStage,
+                    StringComparison.Ordinal) &&
+                !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                QueueEnterPlayMode();
+            }
+            else if (string.Equals(
                     stage,
                     EnteringStage,
                     StringComparison.Ordinal) &&
@@ -89,11 +111,36 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             SessionState.SetBool(InProgressKey, true);
-            SessionState.SetString(StageKey, EnteringStage);
             SessionState.SetBool(ResultKey, false);
             SessionState.SetString(MessageKey, string.Empty);
-            EditorApplication.delayCall += EnterPlayModeWhenReady;
+            SessionState.SetString(
+                RunTokenKey,
+                Guid.NewGuid().ToString("N"));
+            ClearPreviousReviewArtifacts();
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isPlaying)
+            {
+                SessionState.SetString(
+                    StageKey,
+                    WaitingForEditModeStage);
+                Debug.Log(
+                    "Patch 4 room review is queued until the Test Runner " +
+                    "has fully returned to Edit Mode.");
+            }
+            else
+            {
+                QueueEnterPlayMode();
+            }
+
             return true;
+        }
+
+        private static void QueueEnterPlayMode()
+        {
+            SessionState.SetString(StageKey, EnteringStage);
+            EditorApplication.delayCall -= EnterPlayModeWhenReady;
+            EditorApplication.delayCall += EnterPlayModeWhenReady;
         }
 
         private static void EnterPlayModeWhenReady()
@@ -134,6 +181,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (state == PlayModeStateChange.EnteredPlayMode)
             {
+                string enteredStage =
+                    SessionState.GetString(StageKey, string.Empty);
+                if (!string.Equals(
+                        enteredStage,
+                        EnteringStage,
+                        StringComparison.Ordinal))
+                {
+                    return;
+                }
+
                 SessionState.SetString(StageKey, RunningStage);
                 ScheduleRoomBinding();
                 return;
@@ -146,6 +203,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             string stage =
                 SessionState.GetString(StageKey, string.Empty);
+            if (string.Equals(
+                    stage,
+                    WaitingForEditModeStage,
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    stage,
+                    EnteringStage,
+                    StringComparison.Ordinal))
+            {
+                QueueEnterPlayMode();
+                return;
+            }
+
             if (!string.Equals(
                 stage,
                 ExitingStage,
@@ -271,7 +341,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 animator,
                 patchVisual,
                 rollbackVisual,
-                Patch4CompilationMonitor.ReportDirectory);
+                Patch4CompilationMonitor.ReportDirectory,
+                CurrentRunToken);
         }
 
         private static Patch4CharacterRigController FindInstalledPatchRig()
@@ -370,13 +441,79 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorApplication.ExecuteMenuItem("Window/General/Console");
             Patch4NeutralPoseReviewWindow.Open();
             Patch4FacePoseReviewWindow.Open();
-            Patch4AnimationRoomReviewWindow.Open();
+            bool hasFreshRoomArtifacts = HasFreshRoomArtifacts();
+            if (hasFreshRoomArtifacts)
+            {
+                Patch4AnimationRoomReviewWindow.Open();
+            }
 
             if (!passed && !string.IsNullOrWhiteSpace(message))
             {
                 Debug.LogError(
                     "Patch 4 animation-room review did not complete: " +
                     message);
+            }
+
+            if (!hasFreshRoomArtifacts)
+            {
+                Debug.LogError(
+                    "Patch 4 did not produce a fresh animation-room report " +
+                    "and contact sheet. No previous contact sheet was opened.");
+            }
+        }
+
+        private static void ClearPreviousReviewArtifacts()
+        {
+            DeleteReviewArtifact(ReportPath);
+            DeleteReviewArtifact(ContactSheetPath);
+        }
+
+        private static bool HasFreshRoomArtifacts()
+        {
+            if (!File.Exists(ReportPath) ||
+                !File.Exists(ContactSheetPath) ||
+                string.IsNullOrWhiteSpace(CurrentRunToken))
+            {
+                return false;
+            }
+
+            try
+            {
+                ReviewArtifactStatus status =
+                    JsonUtility.FromJson<ReviewArtifactStatus>(
+                        File.ReadAllText(ReportPath));
+                return status != null &&
+                    status.completed &&
+                    string.Equals(
+                        status.runToken,
+                        CurrentRunToken,
+                        StringComparison.Ordinal);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "Patch 4 could not verify review artifact freshness: " +
+                    exception.Message);
+                return false;
+            }
+        }
+
+        private static void DeleteReviewArtifact(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "Patch 4 could not clear stale review artifact " +
+                    path + ": " + exception.Message);
             }
         }
     }

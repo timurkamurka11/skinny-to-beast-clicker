@@ -640,6 +640,40 @@ with the character, so it could not reject that frame.
   unchanged.
 - Readiness and activation remain locked.
 
+### P4.0-O Unity handoff race and stale artifact rejection
+
+Unity `6000.3.19f1` compiled this source and completed EditMode `4 passed` plus
+PlayMode `4 passed`. The subsequent locked room review did not complete.
+`StartAfterTests()` began tracking the second session before the Test Runner had
+fully exited its Play Mode session, so the normal test-session exit was
+misclassified as an interrupted review.
+
+Console correctly exposed the lifecycle failure:
+
+`Play Mode ended before the locked room review completed.`
+
+The review window nevertheless loaded the previous PNG because it did not
+validate artifact freshness. The displayed nearly static poses and vertical
+turn were the stale P4.0-N contact sheet, not a capture of the corrected P4.0-O
+curves. That displayed result is rejected.
+
+## P4.0-P token-matched fresh room review
+
+- The review uses `waiting-for-test-play-mode-exit` until Unity has fully
+  returned to Edit Mode after PlayMode tests.
+- Only then does it enter the separate actual-room Play Mode session.
+- The waiting stage survives domain reload through `SessionState`.
+- Previous room-review JSON and PNG artifacts are cleared before the run.
+- A unique run token is passed into the driver and written to the report.
+- Completion opens the animation window only when both artifacts exist, the
+  report is complete and its token matches the current run.
+- The window independently repeats the token/completion check and shows clear
+  failure text for a fresh failed report.
+- An old contact sheet can no longer masquerade as the current review.
+- Automatic continuation advances to `fresh-room-review-handoff-v8`.
+- P4.0-O motion, Canvas, rollback and audio isolation remain unchanged.
+- Readiness remains false and protected paths remain unchanged.
+
 ## Production dashboard
 
 Open in Unity:
@@ -699,15 +733,16 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-O visible-motion and silent-review correction into Unity
+1. Pull the P4.0-P fresh-room-review handoff correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, rebuild
    the locked weighted prefab, validate and complete EditMode `4 passed`,
    PlayMode `4 passed`.
-4. Let the Editor-only continuation enter Play Mode again, create the real
-   room, freeze the Canvas bind anchors, pause the old walk routine and cycle
-   all ten corrected clips.
+4. Let the Editor-only continuation wait for the Test Runner to return fully to
+   Edit Mode, then enter a separate Play Mode session, create the real room,
+   freeze the Canvas bind anchors, pause the old walk routine and cycle all ten
+   corrected clips.
 5. Let the driver reject weak motion or silhouette loss, capture the review
    sheet, restore Patch 3.5 and its routine, then return to Edit Mode.
 6. Confirm that the Console has zero errors and inspect the automatically
@@ -743,8 +778,11 @@ Detailed verification instructions:
   `Failed(Child)` before the room review.
 - P4.0-N passed Unity `4/4` and wrote all ten frames, but human review rejected
   nearly static motion, the collapsed turn and the audible old footstep.
-- P4.0-O frozen anchors, expanded motion and visible-motion measurements have
-  not yet been exercised by the user's Unity `6000.3.19f1`.
+- P4.0-O compiled and passed Unity `4/4`, but its corrected room animations were
+  not captured because the second Play Mode session raced the Test Runner exit;
+  the window displayed the stale P4.0-N PNG.
+- P4.0-P token-matched room-review handoff has not yet been exercised by the
+  user's Unity `6000.3.19f1`.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

@@ -250,7 +250,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"frozen-bind-visible-motion-silent-review-v7"',
+            '"fresh-room-review-handoff-v8"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -436,6 +436,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "legacyRoutine.enabled = false",
             "legacySignalBridge.enabled = false",
             "source.Stop()",
+            "runToken = reviewRunToken",
+            "string.IsNullOrWhiteSpace(reviewRunToken)",
             "Application.logMessageReceived",
             "reviewConsoleErrorCount == 0",
             "SetEditorReviewActive(true)",
@@ -497,12 +499,39 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
             "Patch4AnimationRoomReviewDriver",
             "StartAfterTests()",
+            "WaitingForEditModeStage",
+            "QueueEnterPlayMode()",
+            "ClearPreviousReviewArtifacts()",
+            "CurrentRunToken",
+            "HasFreshRoomArtifacts()",
+            "hasFreshRoomArtifacts",
             "Patch4AnimationRoomReviewWindow.Open()",
         ):
             if snippet not in room_review:
                 fail(errors, f"Actual-room review automation is missing: {snippet}")
         if "SetPatch4Enabled(true)" in room_review:
             fail(errors, "Actual-room review automation must not enable Patch 4")
+
+    review_window = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
+        errors,
+    )
+    if review_window:
+        for snippet in (
+            "LoadReviewStatus(",
+            "reviewStatus.runToken",
+            "Patch4AnimationRoomReview.CurrentRunToken",
+            "passedTechnicalChecks",
+            "No fresh completed animation-room report is available",
+            "An older contact sheet is deliberately blocked",
+        ):
+            if snippet not in review_window:
+                fail(
+                    errors,
+                    "Animation review window can still mislabel stale "
+                    "artifacts as current: " + snippet,
+                )
 
     automated_tests = read_text(
         root,

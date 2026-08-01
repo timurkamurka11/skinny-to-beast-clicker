@@ -43,6 +43,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [Serializable]
         private sealed class ReviewReport
         {
+            public string runToken = string.Empty;
             public string generatedUtc = string.Empty;
             public bool completed;
             public bool passedTechnicalChecks;
@@ -98,6 +99,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private GameObject patch4VisualRoot;
         private GameObject patch35RollbackRoot;
         private string outputDirectory = string.Empty;
+        private string reviewRunToken = string.Empty;
         private Texture2D contactSheet;
         private Color32[] backgroundPixels = Array.Empty<Color32>();
         private int backgroundWidth;
@@ -133,7 +135,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Animator targetAnimator,
             GameObject visualRoot,
             GameObject rollbackRoot,
-            string reportDirectory)
+            string reportDirectory,
+            string runToken)
         {
             if (started)
             {
@@ -150,6 +153,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             patch4VisualRoot = visualRoot;
             patch35RollbackRoot = rollbackRoot;
             outputDirectory = reportDirectory ?? string.Empty;
+            reviewRunToken = runToken ?? string.Empty;
             Application.logMessageReceived += OnReviewLog;
             logCaptureRegistered = true;
             StartCoroutine(RunReview());
@@ -159,6 +163,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             report = new ReviewReport
             {
+                runToken = reviewRunToken,
                 generatedUtc = DateTime.UtcNow.ToString("O"),
                 actualLivingGameplayRoom =
                     IsInsideLivingGameplayRoom(
@@ -483,7 +488,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 animator == null ||
                 animator.runtimeAnimatorController == null ||
                 patch4VisualRoot == null ||
-                patch35RollbackRoot == null)
+                patch35RollbackRoot == null ||
+                string.IsNullOrWhiteSpace(reviewRunToken))
             {
                 return "The locked room-review binding is incomplete.";
             }

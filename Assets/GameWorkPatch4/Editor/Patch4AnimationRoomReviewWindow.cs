@@ -11,6 +11,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     /// </summary>
     public sealed class Patch4AnimationRoomReviewWindow : EditorWindow
     {
+        [Serializable]
+        private sealed class ReviewStatus
+        {
+            public string runToken = string.Empty;
+            public bool completed;
+            public bool passedTechnicalChecks;
+            public string generatedUtc = string.Empty;
+            public string error = string.Empty;
+        }
+
         private const int Columns = 5;
         private const int Rows = 2;
 
@@ -29,6 +39,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         };
 
         private Texture2D contactSheet;
+        private ReviewStatus reviewStatus;
 
         [MenuItem(
             "Tools/GameWork/Patch 4.0/Validation/" +
@@ -53,6 +64,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private void OnDisable()
         {
             DestroyTexture();
+            reviewStatus = null;
         }
 
         private void OnGUI()
@@ -60,18 +72,47 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             EditorGUILayout.LabelField(
                 "GameWork Patch 4.0 — Locked Actual-Room Animation Review",
                 EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                "These ten frames were captured while the generated character " +
-                "played every required clip inside the real LivingGameplayScene " +
-                "with frozen bind anchors, full-canvas UVs and Canvas bone " +
-                "weights active. Every peak frame retained the neutral " +
-                "silhouette and had measurable pixel motion from its start " +
-                "pose. The legacy routine and its robot-like footstep were " +
-                "paused only for this Patch 4 review and restored afterward. " +
-                "The review emitted no Console errors. This surface is " +
-                "read-only: human motion review is still required and " +
-                "production activation remains locked.",
-                MessageType.Info);
+            bool currentRun =
+                reviewStatus != null &&
+                !string.IsNullOrWhiteSpace(
+                    Patch4AnimationRoomReview.CurrentRunToken) &&
+                string.Equals(
+                    reviewStatus.runToken,
+                    Patch4AnimationRoomReview.CurrentRunToken,
+                    StringComparison.Ordinal);
+            bool passed =
+                currentRun &&
+                reviewStatus.completed &&
+                reviewStatus.passedTechnicalChecks;
+            if (passed)
+            {
+                EditorGUILayout.HelpBox(
+                    "This is a fresh completed review. These ten frames were " +
+                    "captured while the generated character played every " +
+                    "required clip inside the real LivingGameplayScene with " +
+                    "frozen bind anchors and Canvas bone weights active. Every " +
+                    "peak retained the neutral silhouette and passed visible " +
+                    "start-to-peak motion. The legacy robot-like footstep was " +
+                    "paused only during this review and restored afterward. " +
+                    "Human review is still required and activation remains " +
+                    "locked.",
+                    MessageType.Info);
+            }
+            else if (currentRun && reviewStatus.completed)
+            {
+                EditorGUILayout.HelpBox(
+                    "This contact sheet belongs to a fresh review that FAILED " +
+                    "technical checks. It is shown only for diagnosis and must " +
+                    "not be accepted. " + reviewStatus.error,
+                    MessageType.Error);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "No fresh completed animation-room report is available. " +
+                    "An older contact sheet is deliberately blocked.",
+                    MessageType.Warning);
+            }
 
             if (contactSheet == null)
             {
@@ -133,9 +174,45 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private void Reload()
         {
             DestroyTexture();
+            reviewStatus = LoadReviewStatus(
+                Patch4AnimationRoomReview.ReportPath);
+            if (reviewStatus == null ||
+                !reviewStatus.completed ||
+                string.IsNullOrWhiteSpace(
+                    Patch4AnimationRoomReview.CurrentRunToken) ||
+                !string.Equals(
+                    reviewStatus.runToken,
+                    Patch4AnimationRoomReview.CurrentRunToken,
+                    StringComparison.Ordinal))
+            {
+                Repaint();
+                return;
+            }
+
             contactSheet = LoadTexture(
                 Patch4AnimationRoomReview.ContactSheetPath);
             Repaint();
+        }
+
+        private static ReviewStatus LoadReviewStatus(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonUtility.FromJson<ReviewStatus>(
+                    File.ReadAllText(path));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning(
+                    "Patch 4 animation review could not read " +
+                    path + ": " + exception.Message);
+                return null;
+            }
         }
 
         private void DestroyTexture()
