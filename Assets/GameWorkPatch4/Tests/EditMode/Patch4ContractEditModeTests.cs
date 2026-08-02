@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
@@ -130,6 +131,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 9,
                 bindPresentationLayers.GetParameters().Length,
                 "Blink replacement must bind open-eye layers as well as lids.");
+
+            AssertWalkClipHasArticulatedGait();
         }
 
         [Test]
@@ -237,6 +240,102 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 ExpectedSha,
                 actualSha,
                 "Repository master bytes do not match the readiness contract.");
+        }
+
+        private static void AssertWalkClipHasArticulatedGait()
+        {
+            const string clipPath =
+                "Assets/GameWorkPatch4/Animations/FatMan_Walk_InRoom.anim";
+            const string visual =
+                "Patch4VisualRoot/Root/CharacterRoot";
+            const string pelvis = visual + "/Pelvis";
+            const string thighLeft = pelvis + "/ThighL";
+            const string thighRight = pelvis + "/ThighR";
+            const string spineLower = pelvis + "/SpineLower";
+            const string spineUpper = spineLower + "/SpineUpper";
+            const string upperArmLeft =
+                spineUpper + "/ClavicleL/UpperArmL";
+            const string upperArmRight =
+                spineUpper + "/ClavicleR/UpperArmR";
+
+            AnimationClip walk =
+                AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
+            Assert.NotNull(walk, "The generated walk clip is missing.");
+            float firstPeak = walk.length * 0.25f;
+            float secondPeak = walk.length * 0.75f;
+
+            AnimationCurve leftLift = RequireCurve(
+                walk,
+                thighLeft,
+                "m_LocalPosition.y");
+            AnimationCurve rightLift = RequireCurve(
+                walk,
+                thighRight,
+                "m_LocalPosition.y");
+            Assert.Greater(
+                leftLift.Evaluate(firstPeak) - leftLift.Evaluate(0f),
+                0.20f,
+                "The first step does not lift the left thigh.");
+            Assert.Greater(
+                rightLift.Evaluate(secondPeak) - rightLift.Evaluate(0f),
+                0.20f,
+                "The second step does not lift the right thigh.");
+
+            Assert.Greater(
+                Mathf.Abs(
+                    RequireCurve(
+                            walk,
+                            upperArmLeft,
+                            "localEulerAnglesRaw.z")
+                        .Evaluate(firstPeak) -
+                    RequireCurve(
+                            walk,
+                            upperArmLeft,
+                            "localEulerAnglesRaw.z")
+                        .Evaluate(secondPeak)),
+                35f,
+                "The left arm does not counter-swing across the gait cycle.");
+            Assert.Greater(
+                Mathf.Abs(
+                    RequireCurve(
+                            walk,
+                            upperArmRight,
+                            "localEulerAnglesRaw.z")
+                        .Evaluate(firstPeak) -
+                    RequireCurve(
+                            walk,
+                            upperArmRight,
+                            "localEulerAnglesRaw.z")
+                        .Evaluate(secondPeak)),
+                35f,
+                "The right arm does not counter-swing across the gait cycle.");
+
+            AnimationCurve rootSway = AnimationUtility.GetEditorCurve(
+                walk,
+                EditorCurveBinding.FloatCurve(
+                    visual,
+                    typeof(Transform),
+                    "m_LocalPosition.x"));
+            Assert.IsNull(
+                rootSway,
+                "Walk must not fake locomotion with side-to-side root sway.");
+        }
+
+        private static AnimationCurve RequireCurve(
+            AnimationClip clip,
+            string path,
+            string property)
+        {
+            AnimationCurve curve = AnimationUtility.GetEditorCurve(
+                clip,
+                EditorCurveBinding.FloatCurve(
+                    path,
+                    typeof(Transform),
+                    property));
+            Assert.NotNull(
+                curve,
+                "Missing animation curve: " + path + " :: " + property);
+            return curve;
         }
 
         private static IReadOnlyList<string> GetStrings(

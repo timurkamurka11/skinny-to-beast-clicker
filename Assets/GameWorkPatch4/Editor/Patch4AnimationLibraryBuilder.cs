@@ -23,9 +23,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const string ClavicleL = SpineUpper + "/ClavicleL";
         private const string UpperArmL = ClavicleL + "/UpperArmL";
         private const string ForearmL = UpperArmL + "/ForearmL";
+        private const string HandL = ForearmL + "/HandL";
         private const string ClavicleR = SpineUpper + "/ClavicleR";
         private const string UpperArmR = ClavicleR + "/UpperArmR";
         private const string ForearmR = UpperArmR + "/ForearmR";
+        private const string HandR = ForearmR + "/HandR";
         private const string ThighL = Pelvis + "/ThighL";
         private const string ShinL = ThighL + "/ShinL";
         private const string FootL = ShinL + "/FootL";
@@ -198,29 +200,53 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 BellyTip,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.12f, 1.06f),
-                new Keyframe(0.32f, 0.97f),
+                new Keyframe(0.12f, 1.018f),
+                new Keyframe(0.32f, 0.992f),
                 new Keyframe(duration, 1f));
             SetCurve(
                 clip,
                 BellyTip,
                 "m_LocalScale.y",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.12f, 0.91f),
-                new Keyframe(0.32f, 1.05f),
+                new Keyframe(0.12f, 0.982f),
+                new Keyframe(0.32f, 1.012f),
                 new Keyframe(duration, 1f));
             SetReactionRotation(
                 clip,
                 UpperArmL,
                 duration,
-                -6f,
-                2f);
+                -14f,
+                5f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                6f,
-                -2f);
+                14f,
+                -5f);
+            SetReactionRotation(
+                clip,
+                ForearmL,
+                duration,
+                18f,
+                -6f);
+            SetReactionRotation(
+                clip,
+                ForearmR,
+                duration,
+                -18f,
+                6f);
+            SetReactionRotation(
+                clip,
+                HandL,
+                duration,
+                -7f,
+                3f);
+            SetReactionRotation(
+                clip,
+                HandR,
+                duration,
+                7f,
+                -3f);
             SetReactionRotation(
                 clip,
                 Head,
@@ -257,14 +283,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                -8f,
-                3f);
+                -18f,
+                6f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                8f,
-                -3f);
+                18f,
+                -6f);
             SetReactionRotation(
                 clip,
                 SpineUpper,
@@ -275,14 +301,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 ForearmL,
                 duration,
-                10f,
-                -3f);
+                24f,
+                -8f);
             SetReactionRotation(
                 clip,
                 ForearmR,
                 duration,
-                -10f,
+                -24f,
+                8f);
+            SetReactionRotation(
+                clip,
+                HandL,
+                duration,
+                -9f,
                 3f);
+            SetReactionRotation(
+                clip,
+                HandR,
+                duration,
+                9f,
+                -3f);
             return clip;
         }
 
@@ -296,101 +334,160 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             SetCyclePosition(
                 clip,
                 Visual,
-                "m_LocalPosition.x",
-                duration,
-                0.04f,
-                -0.04f);
-            SetCyclePosition(
-                clip,
-                Visual,
                 "m_LocalPosition.y",
                 duration,
-                0.08f,
-                0.08f);
+                0.045f,
+                0.045f);
             SetAlternatingRotation(
                 clip,
                 Pelvis,
                 duration,
-                -1.5f,
-                1.5f);
+                -2.2f,
+                2.2f);
             SetAlternatingRotation(
                 clip,
                 SpineLower,
                 duration,
-                0.8f,
-                -0.8f);
-            SetAlternatingRotation(
+                1.1f,
+                -1.1f);
+
+            // A front-facing gait cannot read from root sway alone. Each half
+            // cycle now has one lifted articulated leg and one planted leg.
+            // These are absolute local positions from Patch4PrefabBuilder's
+            // bind skeleton; the curve always returns to the exact bind pose.
+            SetFourPhasePosition(
+                clip,
+                ThighL,
+                "m_LocalPosition.x",
+                duration,
+                -0.72f,
+                -0.80f,
+                -0.68f);
+            SetFourPhasePosition(
+                clip,
+                ThighL,
+                "m_LocalPosition.y",
+                duration,
+                -0.40f,
+                -0.17f,
+                -0.46f);
+            SetFourPhasePosition(
+                clip,
+                ThighR,
+                "m_LocalPosition.x",
+                duration,
+                0.72f,
+                0.68f,
+                0.80f);
+            SetFourPhasePosition(
+                clip,
+                ThighR,
+                "m_LocalPosition.y",
+                duration,
+                -0.40f,
+                -0.46f,
+                -0.17f);
+            SetFourPhaseRotation(
                 clip,
                 ThighL,
                 duration,
-                -14f,
-                14f);
-            SetAlternatingRotation(
+                -22f,
+                12f);
+            SetFourPhaseRotation(
                 clip,
                 ThighR,
                 duration,
-                -14f,
-                14f);
-            SetAlternatingRotation(
+                -12f,
+                22f);
+            SetFourPhaseRotation(
                 clip,
                 ShinL,
                 duration,
-                18f,
-                -6f);
-            SetAlternatingRotation(
+                34f,
+                -5f);
+            SetFourPhaseRotation(
                 clip,
                 ShinR,
                 duration,
-                6f,
-                -18f);
-            SetAlternatingRotation(
+                5f,
+                -34f);
+            SetFourPhaseRotation(
                 clip,
                 FootL,
                 duration,
-                -10f,
-                5f);
-            SetAlternatingRotation(
+                -18f,
+                6f);
+            SetFourPhaseRotation(
                 clip,
                 FootR,
                 duration,
-                -5f,
-                10f);
-            SetAlternatingRotation(
+                -6f,
+                18f);
+
+            SetFourPhasePosition(
+                clip,
+                UpperArmL,
+                "m_LocalPosition.y",
+                duration,
+                -0.25f,
+                -0.18f,
+                -0.33f);
+            SetFourPhasePosition(
+                clip,
+                UpperArmR,
+                "m_LocalPosition.y",
+                duration,
+                -0.25f,
+                -0.33f,
+                -0.18f);
+            SetFourPhaseRotation(
                 clip,
                 UpperArmL,
                 duration,
-                12f,
-                -12f);
-            SetAlternatingRotation(
+                22f,
+                -18f);
+            SetFourPhaseRotation(
                 clip,
                 UpperArmR,
                 duration,
-                12f,
-                -12f);
-            SetAlternatingRotation(
+                18f,
+                -22f);
+            SetFourPhaseRotation(
                 clip,
                 ForearmL,
                 duration,
-                -5f,
-                6f);
-            SetAlternatingRotation(
+                -18f,
+                12f);
+            SetFourPhaseRotation(
                 clip,
                 ForearmR,
                 duration,
-                -6f,
-                5f);
+                -12f,
+                18f);
+            SetFourPhaseRotation(
+                clip,
+                HandL,
+                duration,
+                7f,
+                -5f);
+            SetFourPhaseRotation(
+                clip,
+                HandR,
+                duration,
+                5f,
+                -7f);
             SetAlternatingRotation(
                 clip,
                 SpineUpper,
                 duration,
-                2.5f,
-                -2.5f);
+                1.5f,
+                -1.5f);
             SetAlternatingRotation(
                 clip,
                 Head,
                 duration,
-                -2f,
-                2f);
+                -0.8f,
+                0.8f);
             return clip;
         }
 
@@ -537,41 +634,53 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalScale.x",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.2f, 1.035f),
-                new Keyframe(0.48f, 0.98f),
+                new Keyframe(0.2f, 1.015f),
+                new Keyframe(0.48f, 0.992f),
                 new Keyframe(duration, 1f));
             SetCurve(
                 clip,
                 Visual,
                 "m_LocalScale.y",
                 new Keyframe(0f, 1f),
-                new Keyframe(0.2f, 1.035f),
-                new Keyframe(0.48f, 0.98f),
+                new Keyframe(0.2f, 1.015f),
+                new Keyframe(0.48f, 0.992f),
                 new Keyframe(duration, 1f));
             SetReactionRotation(
                 clip,
                 UpperArmL,
                 duration,
-                -8f,
-                3f);
+                -22f,
+                7f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                8f,
-                -3f);
+                22f,
+                -7f);
             SetReactionRotation(
                 clip,
                 ForearmL,
                 duration,
-                -6f,
-                2f);
+                -30f,
+                10f);
             SetReactionRotation(
                 clip,
                 ForearmR,
                 duration,
-                6f,
-                -2f);
+                30f,
+                -10f);
+            SetReactionRotation(
+                clip,
+                HandL,
+                duration,
+                12f,
+                -4f);
+            SetReactionRotation(
+                clip,
+                HandR,
+                duration,
+                -12f,
+                4f);
             SetReactionRotation(
                 clip,
                 SpineUpper,
@@ -869,6 +978,41 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 new Keyframe(duration * 0.5f, 0f),
                 new Keyframe(duration * 0.75f, second),
                 new Keyframe(duration, 0f));
+        }
+
+        private static void SetFourPhasePosition(
+            AnimationClip clip,
+            string path,
+            string property,
+            float duration,
+            float rest,
+            float first,
+            float second)
+        {
+            SetCurve(
+                clip,
+                path,
+                property,
+                new Keyframe(0f, rest),
+                new Keyframe(duration * 0.25f, first),
+                new Keyframe(duration * 0.5f, rest),
+                new Keyframe(duration * 0.75f, second),
+                new Keyframe(duration, rest));
+        }
+
+        private static void SetFourPhaseRotation(
+            AnimationClip clip,
+            string path,
+            float duration,
+            float first,
+            float second)
+        {
+            SetAlternatingRotation(
+                clip,
+                path,
+                duration,
+                first,
+                second);
         }
 
         private static void SetReactionRotation(

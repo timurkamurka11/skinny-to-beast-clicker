@@ -54,6 +54,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public float rightArmMotionCoverage;
             public float leftLegMotionCoverage;
             public float rightLegMotionCoverage;
+            public float leftHandRelativeDisplacement;
+            public float rightHandRelativeDisplacement;
+            public float leftFootRelativeDisplacement;
+            public float rightFootRelativeDisplacement;
+            public float minimumHandRelativeDisplacement;
+            public float minimumFootRelativeDisplacement;
+            public bool relativeLimbPosePassed;
             public bool allLimbRegionsPassed;
             public bool limbArticulationPassed;
             public bool visibleMotionPassed;
@@ -114,9 +121,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MaximumNeutralHeightExpansion = 1.12f;
         private const float MaximumNeutralAreaExpansion = 1.20f;
         private const float MinimumBlinkFaceMotionCoverage = 0.015f;
-        private const float MinimumWalkLimbMotionCoverage = 0.10f;
-        private const float MinimumWalkArmMotionCoverage = 0.08f;
-        private const float MinimumWalkLegMotionCoverage = 0.10f;
+        private const float MinimumWalkLimbMotionCoverage = 0.04f;
+        private const float MinimumWalkArmMotionCoverage = 0.035f;
+        private const float MinimumWalkLegMotionCoverage = 0.04f;
+        private const float MinimumWalkHandRelativeDisplacement = 0.68f;
+        private const float MinimumWalkFootRelativeDisplacement = 0.60f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -148,6 +157,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private int neutralSilhouetteHeight;
         private int neutralSilhouetteArea;
         private bool neutralReferenceCaptured;
+        private bool walkJointStartCaptured;
+        private Vector3 walkStartLeftHandFromClavicle;
+        private Vector3 walkStartRightHandFromClavicle;
+        private Vector3 walkStartLeftFootFromPelvis;
+        private Vector3 walkStartRightFootFromPelvis;
         private string currentClip = string.Empty;
         private bool started;
         private bool logCaptureRegistered;
@@ -313,6 +327,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int clipIndex)
         {
             currentClip = clip.name;
+            walkJointStartCaptured = false;
             ConfigureFaceForClip(clip.name);
 
             float reviewDuration = Mathf.Clamp(
@@ -351,6 +366,22 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     report.error,
                     clip.name +
                     ": start-pose capture failed.");
+                animator.speed = 1f;
+                yield break;
+            }
+
+            if (string.Equals(
+                    clip.name,
+                    "FatMan_Walk_InRoom",
+                    StringComparison.Ordinal) &&
+                !CaptureWalkJointStartPose())
+            {
+                clipReport.captured = false;
+                report.error = AppendError(
+                    report.error,
+                    clip.name +
+                    ": the four limb endpoint bind vectors could not be " +
+                    "captured.");
                 animator.speed = 1f;
                 yield break;
             }
@@ -1199,7 +1230,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 screenHeight,
                 expected,
                 .205f,
-                .375f,
+                .348f,
                 .245f,
                 .555f,
                 clipReport.globalAlignmentX,
@@ -1212,7 +1243,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 screenWidth,
                 screenHeight,
                 expected,
-                .625f,
+                .652f,
                 .795f,
                 .245f,
                 .555f,
@@ -1226,7 +1257,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 screenWidth,
                 screenHeight,
                 expected,
-                .265f,
+                .285f,
                 .495f,
                 .535f,
                 .815f,
@@ -1241,7 +1272,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 screenHeight,
                 expected,
                 .505f,
-                .735f,
+                .715f,
                 .535f,
                 .815f,
                 clipReport.globalAlignmentX,
@@ -1269,6 +1300,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             clipReport.limbReferencePixelCount = reference;
             clipReport.limbMotionCoverage =
                 reference > 0 ? changed / (float)reference : 0f;
+            clipReport.minimumHandRelativeDisplacement =
+                MinimumWalkHandRelativeDisplacement;
+            clipReport.minimumFootRelativeDisplacement =
+                MinimumWalkFootRelativeDisplacement;
+            clipReport.relativeLimbPosePassed =
+                MeasureWalkJointArticulation(clipReport);
             clipReport.allLimbRegionsPassed =
                 leftArmMeasured &&
                 rightArmMeasured &&
@@ -1277,7 +1314,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 leftArmCoverage >= MinimumWalkArmMotionCoverage &&
                 rightArmCoverage >= MinimumWalkArmMotionCoverage &&
                 leftLegCoverage >= MinimumWalkLegMotionCoverage &&
-                rightLegCoverage >= MinimumWalkLegMotionCoverage;
+                rightLegCoverage >= MinimumWalkLegMotionCoverage &&
+                clipReport.relativeLimbPosePassed;
             clipReport.limbArticulationPassed =
                 reference > 0 &&
                 clipReport.limbMotionCoverage >=
@@ -1300,8 +1338,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     leftLegCoverage.ToString("0.000") +
                     "/" +
                     rightLegCoverage.ToString("0.000") +
-                    "). Every arm and leg must move after whole-body sway is " +
-                    "removed; a body bob cannot pass.");
+                    "; hand endpoints " +
+                    clipReport.leftHandRelativeDisplacement.ToString("0.00") +
+                    "/" +
+                    clipReport.rightHandRelativeDisplacement.ToString("0.00") +
+                    ", foot endpoints " +
+                    clipReport.leftFootRelativeDisplacement.ToString("0.00") +
+                    "/" +
+                    clipReport.rightFootRelativeDisplacement.ToString("0.00") +
+                    "). Every arm and leg must change its silhouette and move " +
+                    "relative to its shoulder or pelvis; body bob and texture " +
+                    "shimmer cannot pass.");
             }
 
             return clipReport.limbArticulationPassed;
@@ -1352,17 +1399,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 for (int x = xMin; x < xMax; x++)
                 {
                     int index = row + x;
-                    Color32 start = clipStartPixels[index];
-                    Color32 clean = backgroundPixels[index];
-                    int foregroundDelta =
-                        Math.Abs(start.r - clean.r) +
-                        Math.Abs(start.g - clean.g) +
-                        Math.Abs(start.b - clean.b);
-                    if (foregroundDelta < PixelDifferenceThreshold)
-                    {
-                        continue;
-                    }
-
                     reference++;
                     int alignedX = Mathf.Clamp(
                         x + alignmentX,
@@ -1372,13 +1408,21 @@ namespace SkinnyToBeast.Gameplay.Patch4
                         y + alignmentY,
                         0,
                         screenHeight - 1);
-                    Color32 after = current[
-                        alignedY * screenWidth + alignedX];
-                    int motionDelta =
-                        Math.Abs(after.r - start.r) +
-                        Math.Abs(after.g - start.g) +
-                        Math.Abs(after.b - start.b);
-                    if (motionDelta >= MotionPixelDifferenceThreshold)
+                    int alignedIndex =
+                        alignedY * screenWidth + alignedX;
+                    bool startForeground = IsForeground(
+                        clipStartPixels[index],
+                        backgroundPixels[index]);
+                    bool afterForeground = IsForeground(
+                        current[alignedIndex],
+                        backgroundPixels[alignedIndex]);
+                    if (!startForeground && !afterForeground)
+                    {
+                        reference--;
+                        continue;
+                    }
+
+                    if (startForeground != afterForeground)
                     {
                         changed++;
                     }
@@ -1389,6 +1433,108 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 ? changed / (float)reference
                 : 0f;
             return reference > 0;
+        }
+
+        private bool CaptureWalkJointStartPose()
+        {
+            walkJointStartCaptured =
+                TryGetRigRelativeVector(
+                    "ClavicleL",
+                    "HandL",
+                    out walkStartLeftHandFromClavicle) &&
+                TryGetRigRelativeVector(
+                    "ClavicleR",
+                    "HandR",
+                    out walkStartRightHandFromClavicle) &&
+                TryGetRigRelativeVector(
+                    "Pelvis",
+                    "FootL",
+                    out walkStartLeftFootFromPelvis) &&
+                TryGetRigRelativeVector(
+                    "Pelvis",
+                    "FootR",
+                    out walkStartRightFootFromPelvis);
+            return walkJointStartCaptured;
+        }
+
+        private bool MeasureWalkJointArticulation(ClipReview clipReport)
+        {
+            if (!walkJointStartCaptured || clipReport == null ||
+                !TryGetRigRelativeVector(
+                    "ClavicleL",
+                    "HandL",
+                    out Vector3 leftHand) ||
+                !TryGetRigRelativeVector(
+                    "ClavicleR",
+                    "HandR",
+                    out Vector3 rightHand) ||
+                !TryGetRigRelativeVector(
+                    "Pelvis",
+                    "FootL",
+                    out Vector3 leftFoot) ||
+                !TryGetRigRelativeVector(
+                    "Pelvis",
+                    "FootR",
+                    out Vector3 rightFoot))
+            {
+                return false;
+            }
+
+            clipReport.leftHandRelativeDisplacement = Vector3.Distance(
+                walkStartLeftHandFromClavicle,
+                leftHand);
+            clipReport.rightHandRelativeDisplacement = Vector3.Distance(
+                walkStartRightHandFromClavicle,
+                rightHand);
+            clipReport.leftFootRelativeDisplacement = Vector3.Distance(
+                walkStartLeftFootFromPelvis,
+                leftFoot);
+            clipReport.rightFootRelativeDisplacement = Vector3.Distance(
+                walkStartRightFootFromPelvis,
+                rightFoot);
+            return
+                clipReport.leftHandRelativeDisplacement >=
+                    MinimumWalkHandRelativeDisplacement &&
+                clipReport.rightHandRelativeDisplacement >=
+                    MinimumWalkHandRelativeDisplacement &&
+                clipReport.leftFootRelativeDisplacement >=
+                    MinimumWalkFootRelativeDisplacement &&
+                clipReport.rightFootRelativeDisplacement >=
+                    MinimumWalkFootRelativeDisplacement;
+        }
+
+        private bool TryGetRigRelativeVector(
+            string originBoneName,
+            string endpointBoneName,
+            out Vector3 relative)
+        {
+            relative = Vector3.zero;
+            if (rigController == null || rigController.RigRoot == null)
+            {
+                return false;
+            }
+
+            Transform origin = rigController.GetBone(originBoneName);
+            Transform endpoint = rigController.GetBone(endpointBoneName);
+            if (origin == null || endpoint == null)
+            {
+                return false;
+            }
+
+            Transform rigRoot = rigController.RigRoot;
+            relative =
+                rigRoot.InverseTransformPoint(endpoint.position) -
+                rigRoot.InverseTransformPoint(origin.position);
+            return true;
+        }
+
+        private static bool IsForeground(Color32 pixel, Color32 background)
+        {
+            int delta =
+                Math.Abs(pixel.r - background.r) +
+                Math.Abs(pixel.g - background.g) +
+                Math.Abs(pixel.b - background.b);
+            return delta >= PixelDifferenceThreshold;
         }
 
         private void ResolveGlobalAlignment(

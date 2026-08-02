@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "anatomical-limb-stride-review-v13";
+            "articulated-gait-silhouette-review-v14";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -64,13 +64,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "replacements, rebuilding the locked runtime prefab with a " +
                     "96 x 144 silhouette-constrained anatomical deformation " +
                     "grid with torso-excluding arm weights and separated leg " +
-                    "ownership, " +
+                    "ownership, explicit hip lift, knee bend, foot plant and " +
+                    "counter-swinging shoulder, elbow and hand phases, " +
                     "uncropped Canvas UVs and " +
                     "frozen bind anchors, then " +
                     "running the corrected ten-clip library. " +
                     "After 4/4, Unity will review all ten clips in the real room, " +
                     "block chopped reference layers, whole-body sway disguised " +
-                    "as motion, weak motion in any individual arm or leg, " +
+                    "as motion, weak silhouette change in any individual arm " +
+                    "or leg, weak hand-to-shoulder or foot-to-pelvis motion, " +
                     "weak focused blink motion, collapsed or over-stretched " +
                     "silhouettes or Console errors, " +
                     "wait until Test Runner has fully returned to Edit " +

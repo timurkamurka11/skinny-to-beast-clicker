@@ -872,6 +872,35 @@ also drove both sides outward/inward together instead of alternating.
 - Keep production readiness false, Patch 3.5 active and all protected paths
   unchanged.
 
+### P4.0-U real Unity rejection
+
+Unity `6000.3.19f1` completed the fresh P4.0-U contact sheet with zero reported
+review errors, but human review rejected it. The exact body and face stayed
+intact, while the character mostly twitched or rocked in place. Arms and legs
+did not form a readable articulated gait and `FatMan_Walk_InRoom` did not read
+as walking. Broad region colour/pixel changes still let the technical review
+print `PASSED` without proving joint movement.
+
+## P4.0-V explicit joint gait and truthful motion QA
+
+- Keep the exact `1024 × 1536` repository master as the sole neutral artwork
+  and retain the `96 × 144` continuous Canvas grid.
+- Remove horizontal translation of the complete walk Visual.
+- Author four explicit walk phases with alternating thigh lift, knee bend, foot
+  plant, shoulder counter-swing, elbow follow-through and hand motion.
+- Reduce body/belly scaling in reaction and upgrade clips to limit vacuum-like
+  expansion.
+- Replace colour-difference limb coverage with aligned binary foreground-
+  silhouette XOR in narrower independent left/right arm and leg regions.
+- Require both hand-to-clavicle and both foot-to-pelvis relative displacements
+  in addition to the four silhouette checks.
+- Add an EditMode gait contract for thigh lift, opposing arm phases and the
+  absence of whole-character horizontal sway.
+- Advance automatic continuation to
+  `articulated-gait-silhouette-review-v14`.
+- Keep production readiness false, Patch 3.5 active and all protected paths
+  unchanged.
+
 ## Production dashboard
 
 Open in Unity:
@@ -931,7 +960,7 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-U anatomical limb/stride correction into Unity
+1. Pull the P4.0-V explicit joint-gait correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
@@ -942,8 +971,9 @@ Until every condition passes, Patch 3.5 remains visible.
    after Test Runner cleanup, then enter a separate Play Mode session, create
    the real room, freeze the Canvas bind anchors, pause the old walk routine
    and cycle all ten corrected clips on the intact body.
-5. Let the driver align away whole-body sway and reject weak motion in any
-   individual arm or leg, weak focused blink, silhouette loss or excessive
+5. Let the driver align away whole-body sway and reject weak silhouette motion
+   in any individual arm or leg, insufficient hand-to-clavicle or foot-to-
+   pelvis displacement, weak focused blink, silhouette loss or excessive
    expansion; then capture the review sheet, restore Patch 3.5 and return to
    Edit Mode.
 6. Confirm that the Console has zero errors and inspect the automatically
@@ -995,9 +1025,12 @@ Detailed verification instructions:
 - P4.0-T completed in Unity and was rejected: the exact face passed human
   review, but limbs remained unreadable, walk was a body sway and reaction
   wedges remained while the old combined limb metric falsely passed.
-- P4.0-U source and static guards are complete, but its `96 × 144` anatomical
-  weights, alternating stride and per-limb aligned QA have not yet completed
-  the user's Unity `6000.3.19f1` room review.
+- P4.0-U completed in Unity and was rejected: the intact face/body improved,
+  but motion remained a mostly static twitch/rock and the technical QA falsely
+  accepted broad region changes as articulation.
+- P4.0-V source and static guards are complete, but its explicit four-phase
+  joint gait and silhouette-plus-relative-joint QA have not yet completed the
+  user's Unity `6000.3.19f1` room review.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

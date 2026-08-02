@@ -93,7 +93,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "one intact continuous Canvas body, constrained anatomical " +
                     "weights and frozen bind anchors. Every peak retained the " +
                     "neutral silhouette without excessive expansion, and the " +
-                    "walk also passed focused arm/leg articulation. The legacy " +
+                    "walk also passed independent silhouette motion plus " +
+                    "shoulder-relative hand and pelvis-relative foot " +
+                    "articulation. The legacy " +
                     "robot-like footstep was " +
                     "paused only during this review and restored afterward. " +
                     "Human review is still required and activation remains " +

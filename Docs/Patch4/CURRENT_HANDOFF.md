@@ -626,7 +626,7 @@ The leg centerlines were likewise biased toward the crotch. The walk also used
 mirrored left/right rotations, which spread or closed both limbs together
 instead of creating an alternating frontal stride.
 
-## Current P4.0-U anatomical limb and stride correction
+## P4.0-U anatomical limb and stride correction
 
 - The intact full-master body remains the sole neutral artwork; no anatomical
   cutout layers are re-enabled.
@@ -658,9 +658,48 @@ instead of creating an alternating frontal stride.
 - Readiness remains locked, Patch 3.5 remains active and protected paths remain
   unchanged.
 
+## P4.0-U real Unity result and visual rejection
+
+Unity `6000.3.19f1` completed the fresh P4.0-U run with zero reported review
+errors, but the contact sheet and live motion failed human review:
+
+- the exact body and face remained intact, but the character mostly twitched or
+  rocked in place;
+- the arms and legs did not show a readable shoulder/elbow/hip/knee gait;
+- `FatMan_Walk_InRoom` did not read as walking;
+- small body and texture changes inside broad screen regions were still enough
+  for the technical review to report `PASSED`.
+
+The P4.0-U result is rejected. A green technical message is not production
+approval and Patch 4 remains locked.
+
+## Current P4.0-V explicit joint-gait correction
+
+- Preserve the exact `1024 × 1536` repository master and the existing
+  `96 × 144` continuous Canvas grid; no generated or redrawn raster parts are
+  substituted for the approved source.
+- Remove the remaining full-body horizontal walk curve. Walking must come from
+  the articulated skeleton, not from translating the complete character.
+- Author four explicit gait phases with alternating thigh lift, knee bend,
+  foot plant, shoulder counter-swing, elbow follow-through and hand motion.
+- Reduce whole-body and belly scaling in tap/upgrade reactions so those clips
+  cannot recreate vacuum-like expansion.
+- Measure binary foreground-silhouette change after global alignment in four
+  narrower independent arm/leg regions. Texture shimmer and shirt-colour
+  changes no longer count as limb motion.
+- Additionally require both hands to move relative to their clavicles and both
+  feet to move relative to the pelvis. Root bob or body sway cannot satisfy
+  this joint-space gate.
+- Add an EditMode regression test that requires thigh lift, counter-swinging
+  arms and the absence of whole-body horizontal walk translation.
+- Automatic continuation advances to
+  `articulated-gait-silhouette-review-v14`.
+- Readiness remains locked, Patch 3.5 remains active and protected paths remain
+  unchanged.
+
 ## Exact next action
 
-After the P4.0-U correction is present on `patch-4.0`, run only:
+After the P4.0-V correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -685,8 +724,9 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
     cleanup, then enter a separate Play Mode session and create the actual room;
 12. capture a clean background and neutral reference, then play all ten clips;
     align away whole-body translation and require independent left/right arm
-    and leg motion, focused blink motion, a retained non-expanded silhouette
-    and zero Console errors while the legacy robot-like footstep stays paused;
+    and leg silhouette motion plus hand-to-clavicle and foot-to-pelvis joint
+    displacement, focused blink motion, a retained non-expanded silhouette and
+    zero Console errors while the legacy robot-like footstep stays paused;
 13. write a token-matched fresh report and contact sheet, restore Patch 3.5,
     exit Play Mode and open the read-only review windows.
 
@@ -709,7 +749,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-U automatic room review
+## Work after the P4.0-V automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

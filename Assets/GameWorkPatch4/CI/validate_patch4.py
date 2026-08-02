@@ -268,7 +268,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"anatomical-limb-stride-review-v13"',
+            '"articulated-gait-silhouette-review-v14"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -512,6 +512,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AnalyzeVisibleMotion(",
             "AnalyzeFocusedFaceMotion(",
             "AnalyzeWalkLimbMotion(",
+            "CaptureWalkJointStartPose(",
+            "MeasureWalkJointArticulation(",
             "MeasureAlignedRegionMotion(",
             "ResolveGlobalAlignment(",
             "TryMeasureForegroundCentroid(",
@@ -521,10 +523,18 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "focusedFaceMotionPassed",
             "limbArticulationPassed",
             "allLimbRegionsPassed",
+            "relativeLimbPosePassed",
             "leftArmMotionCoverage",
             "rightArmMotionCoverage",
             "leftLegMotionCoverage",
             "rightLegMotionCoverage",
+            "leftHandRelativeDisplacement",
+            "rightHandRelativeDisplacement",
+            "leftFootRelativeDisplacement",
+            "rightFootRelativeDisplacement",
+            "MinimumWalkHandRelativeDisplacement",
+            "MinimumWalkFootRelativeDisplacement",
+            "IsForeground(",
             "neutralWidthRetention",
             "MaximumNeutralWidthExpansion",
             "MaximumNeutralWidthExpansion = 1.16f",
@@ -565,7 +575,11 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "SetAlternatingRotation(",
             "SetReactionRotation(",
             "SetCyclePosition(",
+            "SetFourPhasePosition(",
+            "SetFourPhaseRotation(",
             "AddFloatTransition(",
+            "HandL",
+            "HandR",
             '"FatMan_Turn"',
             "new Keyframe(0.2f, 0.94f)",
         ):
@@ -603,6 +617,41 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 "Animation clips must not translate Head independently; the "
                 "continuous body and sparse face replacements share its matrix",
             )
+        walk_start = animation_builder.find(
+            "private static AnimationClip BuildWalk()")
+        walk_end = animation_builder.find(
+            "private static AnimationClip BuildTurn()")
+        if walk_start < 0 or walk_end <= walk_start:
+            fail(errors, "Patch 4 animation library is missing BuildWalk")
+        else:
+            walk_source = animation_builder[walk_start:walk_end]
+            if re.search(
+                r'SetCurve\(\s*clip,\s*Visual,\s*"m_LocalPosition\.x"',
+                walk_source,
+            ):
+                fail(
+                    errors,
+                    "FatMan_Walk_InRoom must articulate limbs instead of "
+                    "moving the complete body sideways",
+                )
+
+    contract_tests = read_text(
+        root,
+        "Assets/GameWorkPatch4/Tests/EditMode/Patch4ContractEditModeTests.cs",
+        errors,
+    )
+    if contract_tests:
+        for snippet in (
+            "AssertWalkClipHasArticulatedGait()",
+            "FatMan_Walk_InRoom.anim",
+            '"m_LocalPosition.x"',
+            "RequireCurve(",
+        ):
+            if snippet not in contract_tests:
+                fail(
+                    errors,
+                    "EditMode gait regression coverage is missing: " + snippet,
+                )
 
     room_review = read_text(
         root,

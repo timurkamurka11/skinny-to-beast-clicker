@@ -438,5 +438,29 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Advance automatic continuation to
   `anatomical-limb-stride-review-v13`.
 - [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
-- [ ] Confirm P4.0-U in Unity `6000.3.19f1`: `4/4`, no vacuum wedges, visible
-  independent arm/leg stride, stable face and zero Console errors.
+- [x] Exercise P4.0-U in Unity `6000.3.19f1`; confirm the exact face/body stays
+  intact and the fresh review reports zero Console errors.
+- [x] Reject P4.0-U: walk remains a mostly static twitch/rock, arms and legs do
+  not read as an articulated gait, and broad region pixel changes falsely pass
+  the technical check.
+
+## 2026-08-02 — P4.0-V explicit joint gait and truthful motion QA
+
+- [x] Remove horizontal movement of the complete walk Visual.
+- [x] Author four explicit gait phases with alternating thigh lift, knee bend,
+  foot plant, shoulder counter-swing, elbow follow-through and hand motion.
+- [x] Reduce reaction and upgrade body/belly scaling that can create vacuum-like
+  expansion.
+- [x] Replace colour-change limb coverage with aligned binary foreground-
+  silhouette XOR in four narrower independent limb regions.
+- [x] Require both hands to move relative to their clavicles and both feet to
+  move relative to the pelvis.
+- [x] Add an EditMode regression check for thigh lift, opposing arm phases and
+  absence of whole-body horizontal walk sway.
+- [x] Advance automatic continuation to
+  `articulated-gait-silhouette-review-v14`.
+- [x] Keep the exact master, menu, video, music, settings, readiness lock and
+  Patch 3.5 rollback state unchanged.
+- [ ] Confirm P4.0-V in Unity `6000.3.19f1`: `4/4`, visibly articulated arms
+  and legs, readable in-place walk cycle, stable face/body and zero Console
+  errors.
