@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -326,6 +327,58 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     report,
                     "ANIMATION_SET_INCOMPLETE",
                     "Missing clips: " + string.Join(", ", missing));
+            }
+
+            AnimatorController controller =
+                animator.runtimeAnimatorController as AnimatorController;
+            if (controller == null || controller.layers.Length == 0)
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_STATE_MACHINE_MISSING",
+                    "The generated controller has no inspectable base layer.");
+                return;
+            }
+
+            AnimatorControllerLayer layer = controller.layers[0];
+            AnimatorStateMachine machine = layer.stateMachine;
+            if (machine == null)
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_STATE_MACHINE_MISSING",
+                    "The generated base layer has no root state machine.");
+                return;
+            }
+
+            if (!string.Equals(
+                    machine.name,
+                    layer.name,
+                    StringComparison.Ordinal))
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_STATE_PATH_MISMATCH",
+                    "Animator layer '" + layer.name +
+                    "' owns a differently named root state machine '" +
+                    machine.name + "'. Full-path state playback would fail.");
+            }
+
+            HashSet<string> stateNames = new(
+                machine.states
+                    .Where(child => child.state != null)
+                    .Select(child => child.state.name),
+                StringComparer.Ordinal);
+            List<string> missingStates = Patch4RigContract.RequiredClipNames
+                .Where(name => !stateNames.Contains(name))
+                .ToList();
+            if (missingStates.Count > 0)
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_STATES_INCOMPLETE",
+                    "Missing root states: " +
+                    string.Join(", ", missingStates));
             }
         }
 

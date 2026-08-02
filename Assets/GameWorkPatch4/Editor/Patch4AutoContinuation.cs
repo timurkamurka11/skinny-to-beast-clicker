@@ -13,7 +13,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "verified-full-path-motion-review-v15";
+            "normalized-controller-state-path-review-v16";
         private const string SessionKeyPrefix =
             "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
 
@@ -66,7 +66,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "grid with torso-excluding arm weights and separated leg " +
                     "ownership, explicit hip lift, knee bend, foot plant and " +
                     "counter-swinging shoulder, elbow and hand phases, " +
-                    "verified full-path Animator state entry and exact " +
+                    "a root Animator state machine normalized to its actual " +
+                    "layer name, verified full-path state entry and exact " +
                     "start/peak state sampling, " +
                     "uncropped Canvas UVs and " +
                     "frozen bind anchors, then " +

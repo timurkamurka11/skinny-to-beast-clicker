@@ -482,6 +482,25 @@ The verification source code is committed, but Unity has not physically compiled
   `verified-full-path-motion-review-v15`.
 - [x] Keep the exact master, menu, video, music, settings, readiness lock and
   Patch 3.5 rollback state unchanged.
-- [ ] Confirm P4.0-W in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
-  `4 passed`, all ten state hashes verified, readable limb articulation and
-  zero Console errors.
+- [x] Exercise P4.0-W in Unity `6000.3.19f1`; EditMode passed and PlayMode
+  correctly stopped before room review because
+  `Base Layer.FatMan_Walk_InRoom` was not exposed by the generated controller.
+
+## 2026-08-02 — P4.0-X canonical Animator root paths
+
+- [x] Trace the v15 `HasState` failure to the builder renaming only the root
+  state machine while leaving its owning layer named `Base Layer`.
+- [x] Keep the generated root state-machine name identical to its actual layer.
+- [x] Repair the same invariant in the controller sanitizer.
+- [x] Make Editor smoke validation reject mismatched root paths and missing
+  direct required states.
+- [x] Extend the existing EditMode contract without changing the four-test
+  count.
+- [x] Keep the v15 PlayMode full-path and relative-limb regression intact.
+- [x] Advance automatic continuation to
+  `normalized-controller-state-path-review-v16`.
+- [x] Keep the exact master, animation curves, mesh weights, menu, video,
+  music, audio, settings, readiness lock and Patch 3.5 unchanged.
+- [ ] Confirm P4.0-X in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, all ten canonical state hashes verified, readable limb
+  articulation and zero Console errors.

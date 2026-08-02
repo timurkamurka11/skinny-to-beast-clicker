@@ -925,8 +925,40 @@ P4.0-W therefore:
   `verified-full-path-motion-review-v15`.
 
 No artwork, protected menu/video/music/settings path or readiness state changes
-in this correction. Unity compilation and the fresh v15 visual run remain
-pending.
+in this correction.
+
+### P4.0-W real Unity stop and P4.0-X root-path correction
+
+Unity `6000.3.19f1` ran the fresh v15 automatic sequence. EditMode passed, but
+PlayMode stopped at
+`Patch4RuntimeInstallationPlayModeTests.LivingGameplayRoomGetsLockedRollbackInstance`
+before the actual-room review. The first failed assertion reported that the
+runtime controller did not expose
+`Base Layer.FatMan_Walk_InRoom` (`Expected: True`, `But was: False`).
+
+The v15 guard therefore identified a controller construction mismatch rather
+than another motion or art failure. Unity's controller factory creates both
+the layer and its top-level state machine as `Base Layer`.
+`Patch4AnimationLibraryBuilder` then renamed only the state machine to
+`Patch 4 Locomotion`. Because a full Animator state path begins with the
+top-level state-machine path, composing it from the still-correct runtime layer
+name could not address those states.
+
+P4.0-X therefore:
+
+- keeps the generated root state-machine name identical to the owning layer;
+- repairs that invariant in `Patch4AnimatorControllerSanitizer` as a defensive
+  migration for an existing generated asset;
+- makes Editor smoke validation reject a mismatched root path or any missing
+  direct required state;
+- extends the existing EditMode contract without adding a fifth test;
+- retains the v15 PlayMode full-path and limb-displacement regression;
+- advances automatic continuation to
+  `normalized-controller-state-path-review-v16`;
+- changes no artwork, mesh weight, authored animation curve, protected path or
+  readiness state.
+
+Unity compilation, PlayMode and the fresh v16 visual run remain pending.
 
 ## Production dashboard
 
@@ -987,7 +1019,7 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-W verified Animator-state correction into Unity
+1. Pull the P4.0-X canonical Animator root-path correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
@@ -1059,9 +1091,11 @@ Detailed verification instructions:
 - P4.0-V completed and was correctly rejected by its new relative-joint gate;
   the room driver had not reliably entered the requested full-path Animator
   state, so the sheet still sampled the default idle chain.
-- P4.0-W source and static guards are complete, but its verified full-path
-  state entry and runtime joint-displacement contract have not yet run in the
-  user's Unity `6000.3.19f1` project.
+- P4.0-W reached the user's Unity `6000.3.19f1` project, but its new PlayMode
+  guard correctly stopped before room review because the controller layer and
+  root state-machine names did not match.
+- P4.0-X source and static guards normalize that path; its PlayMode and fresh
+  actual-room review have not yet run in Unity.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

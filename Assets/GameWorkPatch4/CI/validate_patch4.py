@@ -55,6 +55,9 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4AnimationLibraryBuilder.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4AnimatorControllerSanitizer.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4EditorSmokeValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
     REPOSITORY_MASTER,
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
@@ -268,7 +271,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"verified-full-path-motion-review-v15"',
+            '"normalized-controller-state-path-review-v16"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -590,6 +593,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "SetFourPhasePosition(",
             "SetFourPhaseRotation(",
             "AddFloatTransition(",
+            "AnimatorControllerLayer layer = controller.layers[0];",
+            "machine.name = layer.name;",
             "HandL",
             "HandR",
             '"FatMan_Turn"',
@@ -613,6 +618,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 errors,
                 "The float Speed parameter must use a float transition, not a "
                 "bool transition",
+            )
+        if 'machine.name = "Patch 4 Locomotion"' in animation_builder:
+            fail(
+                errors,
+                "The root Animator state-machine name must match its layer; "
+                "a private hard-coded name breaks full-path state hashes",
             )
         if "EyeL" in animation_builder or "EyeR" in animation_builder:
             fail(
@@ -647,6 +658,43 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     "moving the complete body sideways",
                 )
 
+    animator_sanitizer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AnimatorControllerSanitizer.cs",
+        errors,
+    )
+    if animator_sanitizer:
+        for snippet in (
+            "AnimatorControllerLayer layer = controller.layers[0];",
+            "machine.name = layer.name;",
+            "StringComparison.Ordinal",
+        ):
+            if snippet not in animator_sanitizer:
+                fail(
+                    errors,
+                    "Animator Controller sanitizer does not repair canonical "
+                    "root state paths: " + snippet,
+                )
+
+    smoke_validator = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4EditorSmokeValidator.cs",
+        errors,
+    )
+    if smoke_validator:
+        for snippet in (
+            "ANIMATOR_STATE_PATH_MISMATCH",
+            "ANIMATOR_STATES_INCOMPLETE",
+            "machine.name",
+            "layer.name",
+        ):
+            if snippet not in smoke_validator:
+                fail(
+                    errors,
+                    "Editor smoke validation does not enforce canonical "
+                    "Animator state paths: " + snippet,
+                )
+
     contract_tests = read_text(
         root,
         "Assets/GameWorkPatch4/Tests/EditMode/Patch4ContractEditModeTests.cs",
@@ -658,6 +706,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "FatMan_Walk_InRoom.anim",
             '"m_LocalPosition.x"',
             "RequireCurve(",
+            "AssertAnimatorControllerHasCanonicalRootStatePaths(clips)",
+            "layer.name",
+            "machine.name",
         ):
             if snippet not in contract_tests:
                 fail(

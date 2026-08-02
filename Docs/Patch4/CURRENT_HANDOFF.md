@@ -713,7 +713,7 @@ state. The default Idle/Shift chain continued while the independent face
 controller changed expressions, which explains the static body and changing
 face in the fresh sheet.
 
-## Current P4.0-W verified Animator-state correction
+## P4.0-W verified Animator-state correction
 
 - Resolve every review state as `<actual layer name>.<clip name>` and convert
   that path to a hash.
@@ -736,9 +736,51 @@ face in the fresh sheet.
 - Readiness remains locked, Patch 3.5 remains active and protected menu, video,
   music and settings paths remain unchanged.
 
+## P4.0-W real Unity test stop
+
+Unity `6000.3.19f1` imported P4.0-W and ran the automatic tests. EditMode
+passed, but PlayMode stopped at
+`Patch4RuntimeInstallationPlayModeTests.LivingGameplayRoomGetsLockedRollbackInstance`
+before the separate animation-room review began. The first assertion was:
+
+```text
+The runtime controller does not expose Base Layer.FatMan_Walk_InRoom.
+Expected: True
+But was: False
+```
+
+This is fresh evidence that the v15 state-entry guard worked and that no new
+animation frame was sampled. Repository inspection then found the exact
+controller construction error: Unity creates layer `Base Layer` and a root
+state machine with the same name, but `Patch4AnimationLibraryBuilder` renamed
+only that root state machine to `Patch 4 Locomotion`. Full-path hashes begin
+with the top-level state-machine path, while the runtime correctly composed the
+request from the actual layer name. The two names no longer described the same
+state path, so `HasState` correctly returned false.
+
+## Current P4.0-X canonical Animator root-path correction
+
+- Build the generated root state machine with exactly the owning layer name.
+- Repair any already-generated mismatched controller in the existing
+  sanitizer before the prefab is saved.
+- Make Editor smoke validation reject a layer/root-name mismatch and reject any
+  required clip that is not exposed as a direct root state.
+- Extend the existing EditMode contract test without changing the `4`-test
+  count: all ten states must be direct children and the root name must equal the
+  layer name.
+- Retain the P4.0-W PlayMode `HasState`, `fullPathHash` and relative-limb
+  regression unchanged; it now exercises the canonical
+  `Base Layer.FatMan_Walk_InRoom` path.
+- Advance automatic continuation to
+  `normalized-controller-state-path-review-v16`.
+- Keep the exact master, all layer art, mesh weights and authored v14 gait
+  curves unchanged so v16 still isolates state execution.
+- Keep readiness locked, Patch 3.5 active and protected menu, video, music,
+  audio and settings paths unchanged.
+
 ## Exact next action
 
-After the P4.0-W correction is present on `patch-4.0`, run only:
+After the P4.0-X correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -789,7 +831,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-W automatic room review
+## Work after the P4.0-X automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

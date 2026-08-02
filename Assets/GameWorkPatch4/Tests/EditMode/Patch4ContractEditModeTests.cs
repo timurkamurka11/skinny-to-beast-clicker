@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEngine;
 
 namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
@@ -133,6 +134,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Blink replacement must bind open-eye layers as well as lids.");
 
             AssertWalkClipHasArticulatedGait();
+            AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
         }
 
         [Test]
@@ -319,6 +321,45 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.IsNull(
                 rootSway,
                 "Walk must not fake locomotion with side-to-side root sway.");
+        }
+
+        private static void AssertAnimatorControllerHasCanonicalRootStatePaths(
+            IReadOnlyList<string> requiredStateNames)
+        {
+            const string controllerPath =
+                "Assets/GameWorkPatch4/Animations/FatMan_Patch4.controller";
+            AnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                    controllerPath);
+            Assert.NotNull(
+                controller,
+                "The generated Patch 4 Animator Controller is missing.");
+            Assert.Greater(
+                controller.layers.Length,
+                0,
+                "The generated Animator Controller has no layer.");
+
+            AnimatorControllerLayer layer = controller.layers[0];
+            AnimatorStateMachine machine = layer.stateMachine;
+            Assert.NotNull(
+                machine,
+                "The generated Animator layer has no root state machine.");
+            Assert.AreEqual(
+                layer.name,
+                machine.name,
+                "The root state-machine name must match its layer so " +
+                "<layer>.<state> hashes resolve at runtime.");
+
+            HashSet<string> stateNames = new(
+                machine.states
+                    .Where(child => child.state != null)
+                    .Select(child => child.state.name),
+                StringComparer.Ordinal);
+            CollectionAssert.IsSubsetOf(
+                requiredStateNames,
+                stateNames,
+                "The controller does not expose every required clip as a " +
+                "direct root state.");
         }
 
         private static AnimationCurve RequireCurve(

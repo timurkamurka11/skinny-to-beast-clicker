@@ -718,8 +718,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             controller.AddParameter("Tap", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Upgrade", AnimatorControllerParameterType.Trigger);
 
-            AnimatorStateMachine machine = controller.layers[0].stateMachine;
-            machine.name = "Patch 4 Locomotion";
+            AnimatorControllerLayer layer = controller.layers[0];
+            AnimatorStateMachine machine = layer.stateMachine;
+            // Animator full-path hashes start with the top-level state-machine
+            // name. Keep it identical to the owning layer so runtime paths such
+            // as "Base Layer.FatMan_Walk_InRoom" resolve through HasState and
+            // Animator.Play.
+            machine.name = layer.name;
+            EditorUtility.SetDirty(machine);
 
             AnimatorState idle = AddState(machine, clips["FatMan_Idle_Breathe"]);
             AnimatorState shift = AddState(machine, clips["FatMan_Idle_ShiftWeight"]);

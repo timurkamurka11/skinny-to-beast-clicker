@@ -52,7 +52,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     return;
                 }
 
-                AnimatorStateMachine machine = controller.layers[0].stateMachine;
+                AnimatorControllerLayer layer = controller.layers[0];
+                AnimatorStateMachine machine = layer.stateMachine;
+                if (!string.Equals(
+                        machine.name,
+                        layer.name,
+                        StringComparison.Ordinal))
+                {
+                    machine.name = layer.name;
+                    EditorUtility.SetDirty(machine);
+                }
+
                 AnimatorState idle = FindState(machine, "FatMan_Idle_Breathe");
                 AnimatorState walk = FindState(machine, "FatMan_Walk_InRoom");
                 if (idle == null || walk == null)
