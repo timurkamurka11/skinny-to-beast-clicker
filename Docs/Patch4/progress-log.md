@@ -461,6 +461,27 @@ The verification source code is committed, but Unity has not physically compiled
   `articulated-gait-silhouette-review-v14`.
 - [x] Keep the exact master, menu, video, music, settings, readiness lock and
   Patch 3.5 rollback state unchanged.
-- [ ] Confirm P4.0-V in Unity `6000.3.19f1`: `4/4`, visibly articulated arms
-  and legs, readable in-place walk cycle, stable face/body and zero Console
-  errors.
+- [x] Exercise P4.0-V in Unity `6000.3.19f1`; its stricter joint contract
+  correctly rejected the almost-static walk before human acceptance.
+
+## 2026-08-02 — P4.0-W verified Animator-state execution
+
+- [x] Exercise P4.0-V in Unity and reject its almost-static contact sheet with
+  the new joint-space failure measurements.
+- [x] Trace the false clip execution to short-name `Animator.Play` calls that
+  did not verify entry into `Base Layer.<clip>`.
+- [x] Replace short-name playback with layer-qualified state hashes.
+- [x] Require `HasState` plus matching start/peak `fullPathHash` and record the
+  evidence per clip.
+- [x] Hold Walk, Look and Sit parameters during direct review so immediate
+  return transitions cannot replace the requested state.
+- [x] Deterministically resample each authored peak after live playback.
+- [x] Add a PlayMode runtime contract for full-path walk entry and real
+  left/right hand and foot displacement relative to clavicles/pelvis.
+- [x] Advance automatic continuation to
+  `verified-full-path-motion-review-v15`.
+- [x] Keep the exact master, menu, video, music, settings, readiness lock and
+  Patch 3.5 rollback state unchanged.
+- [ ] Confirm P4.0-W in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, all ten state hashes verified, readable limb articulation and
+  zero Console errors.

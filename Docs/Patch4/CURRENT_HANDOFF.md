@@ -697,9 +697,48 @@ approval and Patch 4 remains locked.
 - Readiness remains locked, Patch 3.5 remains active and protected paths remain
   unchanged.
 
+## P4.0-V real Unity result and state-entry diagnosis
+
+Unity `6000.3.19f1` completed a fresh P4.0-V review and the stricter joint gate
+correctly rejected it. The walk reported only `0.170` total arm/leg coverage,
+left/right arm coverage `0.190 / 0.114`, left/right leg coverage
+`0.231 / 0.136`, hand endpoint displacement `0.18 / 0.17` and foot endpoint
+displacement `0.15 / 0.17`. The contact sheet remained visually close to Idle.
+
+The authored gait curves were present, but the room driver called
+`Animator.Play(clip.name, 0, 0f)`. Unity Animator states are addressed by their
+full layer path; the generated controller keeps the layer name `Base Layer`.
+The short-name request therefore did not prove or reliably enter the requested
+state. The default Idle/Shift chain continued while the independent face
+controller changed expressions, which explains the static body and changing
+face in the fresh sheet.
+
+## Current P4.0-W verified Animator-state correction
+
+- Resolve every review state as `<actual layer name>.<clip name>` and convert
+  that path to a hash.
+- Require `Animator.HasState(0, hash)` before sampling and require the current
+  `fullPathHash` to equal that hash both at the start and at the peak.
+- Hold the controller parameters that would otherwise immediately return Walk,
+  Look or Sit to Idle.
+- Play each clip live, then deterministically resample its exact authored peak
+  before the screenshot and relative-joint measurements.
+- Record requested and observed state hashes in the JSON report. A missing or
+  lost state now blocks the whole technical review.
+- Extend the existing runtime PlayMode installation test to enter
+  `Base Layer.FatMan_Walk_InRoom`, sample `0.00` and `0.25`, and require both
+  hands to move relative to their clavicles and both feet relative to the
+  pelvis.
+- Automatic continuation advances to
+  `verified-full-path-motion-review-v15`.
+- The exact master, layer art, mesh weights and authored v14 curves are
+  unchanged so this run isolates state execution from art changes.
+- Readiness remains locked, Patch 3.5 remains active and protected menu, video,
+  music and settings paths remain unchanged.
+
 ## Exact next action
 
-After the P4.0-V correction is present on `patch-4.0`, run only:
+After the P4.0-W correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -722,7 +761,8 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 10. enter Play Mode and run all PlayMode tests;
 11. after `4/4`, require a stable quiescent Edit Mode interval after Test Runner
     cleanup, then enter a separate Play Mode session and create the actual room;
-12. capture a clean background and neutral reference, then play all ten clips;
+12. capture a clean background and neutral reference, then enter every clip by
+    its verified full-path Animator hash and play all ten clips;
     align away whole-body translation and require independent left/right arm
     and leg silhouette motion plus hand-to-clavicle and foot-to-pelvis joint
     displacement, focused blink motion, a retained non-expanded silhouette and
@@ -749,7 +789,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-V automatic room review
+## Work after the P4.0-W automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

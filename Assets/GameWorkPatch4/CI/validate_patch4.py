@@ -268,7 +268,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"articulated-gait-silhouette-review-v14"',
+            '"verified-full-path-motion-review-v15"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -544,6 +544,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "MinimumWalkLegMotionCoverage",
             "visualSanityPassed",
             "visibleMotionPassed",
+            "animatorStateBindingPassed",
+            'animator.GetLayerName(0) + "." + clipName',
+            "Animator.StringToHash(",
+            "animator.HasState(",
+            "GetCurrentAnimatorStateInfo(0)",
+            "ConfigureAnimatorParametersForClip(",
+            "PlayVerifiedAnimatorState(",
             "legacyRoutine.enabled = false",
             "legacySignalBridge.enabled = false",
             "source.Stop()",
@@ -564,6 +571,11 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             )
         if "SetPatch4Enabled(true)" in review_driver:
             fail(errors, "Locked room review must never pass the production gate")
+        if "animator.Play(clip.name" in review_driver:
+            fail(
+                errors,
+                "Room review must address Animator states by verified full-path hash",
+            )
 
     animation_builder = read_text(
         root,
@@ -735,6 +747,21 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Unity's internal source Sprite vertex-array cardinality",
         )
     if playmode_tests:
+        for snippet in (
+            "AssertWalkAnimatorStateProducesArticulation(",
+            "animator.HasState(0, stateHash)",
+            "GetCurrentAnimatorStateInfo(0).fullPathHash",
+            "MinimumWalkHandDisplacement",
+            "MinimumWalkFootDisplacement",
+            "animator.Play(stateHash, 0, 0.25f)",
+        ):
+            if snippet not in playmode_tests:
+                fail(
+                    errors,
+                    "PlayMode full-path gait regression coverage is missing: "
+                    + snippet,
+                )
+
         neutral_master_fields = (
             "eyeWhiteLeft",
             "eyeWhiteRight",

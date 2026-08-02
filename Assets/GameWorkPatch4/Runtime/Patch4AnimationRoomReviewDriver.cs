@@ -23,6 +23,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public string clipName = string.Empty;
             public float sourceLength;
             public float reviewDuration;
+            public string animatorStatePath = string.Empty;
+            public int animatorStateHash;
+            public int startStateFullPathHash;
+            public int peakStateFullPathHash;
+            public bool animatorStateAvailable;
+            public bool startStateEntered;
+            public bool peakStateEntered;
+            public bool animatorStateBindingPassed;
             public bool captured;
             public bool visualSanityPassed;
             public int changedPixelCount;
@@ -86,6 +94,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool legacyRigStayedLogicallyActive;
             public bool visualSanityPassed;
             public bool visibleMotionPassed;
+            public bool animatorStateBindingPassed;
             public bool legacyRoutinePausedForReview;
             public bool legacyRoutineRestored;
             public bool legacySignalBridgePausedForReview;
@@ -300,6 +309,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.allTenClipsReviewed;
             report.visibleMotionPassed =
                 report.allTenClipsReviewed;
+            report.animatorStateBindingPassed =
+                report.allTenClipsReviewed;
             for (int i = 0; i < report.clips.Count; i++)
             {
                 report.allTenClipsReviewed &=
@@ -308,17 +319,22 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     report.clips[i].visualSanityPassed;
                 report.visibleMotionPassed &=
                     report.clips[i].visibleMotionPassed;
+                report.animatorStateBindingPassed &=
+                    report.clips[i].animatorStateBindingPassed;
             }
 
             Finish(
                 report.allTenClipsReviewed &&
                 report.visualSanityPassed &&
-                report.visibleMotionPassed,
+                report.visibleMotionPassed &&
+                report.animatorStateBindingPassed,
                 report.visualSanityPassed &&
-                report.visibleMotionPassed
+                report.visibleMotionPassed &&
+                report.animatorStateBindingPassed
                     ? string.Empty
-                    : "One or more animation clips collapsed or failed the " +
-                      "visible start-to-peak motion check.");
+                    : "One or more animation clips did not enter the required " +
+                      "Animator state, collapsed or failed the visible " +
+                      "start-to-peak motion check.");
         }
 
         private IEnumerator ReviewClip(
@@ -334,9 +350,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clip.length,
                 0.55f,
                 2.4f);
-            float captureAt =
-                reviewDuration *
+            float captureNormalizedTime =
                 ResolveCaptureNormalizedTime(clip.name);
+            float captureAt =
+                reviewDuration * captureNormalizedTime;
             if (string.Equals(
                     clip.name,
                     "FatMan_Blink_Random",
@@ -344,21 +361,56 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 reviewDuration = 0.55f;
                 captureAt = 0.09f;
+                captureNormalizedTime = captureAt / reviewDuration;
             }
 
             clipReport.reviewDuration = reviewDuration;
             clipReport.minimumMotionCoverage =
                 ResolveMinimumMotionCoverage(clip.name);
-            animator.speed =
+            clipReport.animatorStatePath =
+                ResolveAnimatorStatePath(clip.name);
+            clipReport.animatorStateHash = Animator.StringToHash(
+                clipReport.animatorStatePath);
+            clipReport.animatorStateAvailable = animator.HasState(
+                0,
+                clipReport.animatorStateHash);
+            if (!clipReport.animatorStateAvailable)
+            {
+                FailAnimatorStateBinding(
+                    clipReport,
+                    "the controller has no state at " +
+                    clipReport.animatorStatePath + ".");
+                yield break;
+            }
+
+            float playbackSpeed =
                 clip.length > 0.001f
                     ? clip.length / reviewDuration
                     : 1f;
-            animator.Play(clip.name, 0, 0f);
-            animator.Update(0f);
+            ConfigureAnimatorParametersForClip(clip.name);
+            animator.speed = 0f;
+            clipReport.startStateEntered = PlayVerifiedAnimatorState(
+                clipReport.animatorStateHash,
+                0f,
+                out int startStateHash);
+            clipReport.startStateFullPathHash = startStateHash;
             Canvas.ForceUpdateCanvases();
 
             yield return null;
             yield return new WaitForEndOfFrame();
+            clipReport.startStateEntered &= VerifyCurrentAnimatorState(
+                clipReport.animatorStateHash,
+                out startStateHash);
+            clipReport.startStateFullPathHash = startStateHash;
+            if (!clipReport.startStateEntered)
+            {
+                FailAnimatorStateBinding(
+                    clipReport,
+                    "the requested start state was not active after Canvas " +
+                    "deformation updated.");
+                yield break;
+            }
+
             if (!CaptureClipStartPose(clipIndex))
             {
                 clipReport.captured = false;
@@ -366,7 +418,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     report.error,
                     clip.name +
                     ": start-pose capture failed.");
-                animator.speed = 1f;
+                RestoreAnimatorAfterClip();
                 yield break;
             }
 
@@ -382,7 +434,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     clip.name +
                     ": the four limb endpoint bind vectors could not be " +
                     "captured.");
-                animator.speed = 1f;
+                RestoreAnimatorAfterClip();
                 yield break;
             }
 
@@ -394,36 +446,169 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 faceController.BlinkNow();
             }
 
+            animator.speed = playbackSpeed;
             float elapsed = 0f;
-            bool captured = false;
+            while (elapsed < captureAt)
+            {
+                elapsed += Mathf.Max(
+                    0.001f,
+                    Time.unscaledDeltaTime);
+                yield return null;
+            }
+
+            animator.speed = 0f;
+            clipReport.peakStateEntered = PlayVerifiedAnimatorState(
+                clipReport.animatorStateHash,
+                captureNormalizedTime,
+                out int peakStateHash);
+            clipReport.peakStateFullPathHash = peakStateHash;
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            clipReport.peakStateEntered &= VerifyCurrentAnimatorState(
+                clipReport.animatorStateHash,
+                out peakStateHash);
+            clipReport.peakStateFullPathHash = peakStateHash;
+            clipReport.animatorStateBindingPassed =
+                clipReport.startStateEntered &&
+                clipReport.peakStateEntered;
+            if (!clipReport.animatorStateBindingPassed)
+            {
+                FailAnimatorStateBinding(
+                    clipReport,
+                    "the requested peak state was not active at normalized " +
+                    captureNormalizedTime.ToString("0.000") + ".");
+                yield break;
+            }
+
+            clipReport.captured = CaptureCurrentRoomFrame(
+                clipIndex,
+                clipReport);
+            animator.speed = playbackSpeed;
             while (elapsed < reviewDuration)
             {
                 elapsed += Mathf.Max(
                     0.001f,
                     Time.unscaledDeltaTime);
-                if (!captured && elapsed >= captureAt)
-                {
-                    yield return new WaitForEndOfFrame();
-                    captured = CaptureCurrentRoomFrame(
-                        clipIndex,
-                        clipReport);
-                }
-
                 yield return null;
             }
 
-            if (!captured)
-            {
-                yield return new WaitForEndOfFrame();
-                captured = CaptureCurrentRoomFrame(
-                    clipIndex,
-                    clipReport);
-            }
-
-            clipReport.captured = captured;
             faceController.SetMouth(
                 Patch4FaceController.MouthPose.Closed);
-            animator.speed = 1f;
+            RestoreAnimatorAfterClip();
+        }
+
+        private string ResolveAnimatorStatePath(string clipName)
+        {
+            return animator.GetLayerName(0) + "." + clipName;
+        }
+
+        private void ConfigureAnimatorParametersForClip(string clipName)
+        {
+            AnimatorControllerParameter[] parameters = animator.parameters;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                AnimatorControllerParameter parameter = parameters[i];
+                switch (parameter.type)
+                {
+                    case AnimatorControllerParameterType.Bool:
+                        bool enabled =
+                            (string.Equals(
+                                 parameter.name,
+                                 "Look",
+                                 StringComparison.Ordinal) &&
+                             string.Equals(
+                                 clipName,
+                                 "FatMan_LookAround",
+                                 StringComparison.Ordinal)) ||
+                            (string.Equals(
+                                 parameter.name,
+                                 "Sit",
+                                 StringComparison.Ordinal) &&
+                             string.Equals(
+                                 clipName,
+                                 "FatMan_SitOrLean",
+                                 StringComparison.Ordinal));
+                        animator.SetBool(parameter.nameHash, enabled);
+                        break;
+                    case AnimatorControllerParameterType.Float:
+                        float value =
+                            string.Equals(
+                                parameter.name,
+                                "Speed",
+                                StringComparison.Ordinal) &&
+                            string.Equals(
+                                clipName,
+                                "FatMan_Walk_InRoom",
+                                StringComparison.Ordinal)
+                                ? 1f
+                                : 0f;
+                        animator.SetFloat(parameter.nameHash, value);
+                        break;
+                    case AnimatorControllerParameterType.Int:
+                        animator.SetInteger(parameter.nameHash, 0);
+                        break;
+                    case AnimatorControllerParameterType.Trigger:
+                        animator.ResetTrigger(parameter.nameHash);
+                        break;
+                }
+            }
+        }
+
+        private bool PlayVerifiedAnimatorState(
+            int stateHash,
+            float normalizedTime,
+            out int currentFullPathHash)
+        {
+            animator.Play(
+                stateHash,
+                0,
+                Mathf.Clamp01(normalizedTime));
+            animator.Update(0f);
+            return VerifyCurrentAnimatorState(
+                stateHash,
+                out currentFullPathHash);
+        }
+
+        private bool VerifyCurrentAnimatorState(
+            int expectedStateHash,
+            out int currentFullPathHash)
+        {
+            AnimatorStateInfo current =
+                animator.GetCurrentAnimatorStateInfo(0);
+            currentFullPathHash = current.fullPathHash;
+            return currentFullPathHash == expectedStateHash &&
+                   !animator.IsInTransition(0);
+        }
+
+        private void FailAnimatorStateBinding(
+            ClipReview clipReport,
+            string reason)
+        {
+            clipReport.animatorStateBindingPassed = false;
+            clipReport.visibleMotionPassed = false;
+            clipReport.captured = false;
+            report.error = AppendError(
+                report.error,
+                clipReport.clipName +
+                ": Animator state binding failed: " +
+                reason);
+            RestoreAnimatorAfterClip();
+        }
+
+        private void RestoreAnimatorAfterClip()
+        {
+            if (animator != null)
+            {
+                ConfigureAnimatorParametersForClip(string.Empty);
+                animator.speed = 1f;
+            }
+
+            if (faceController != null)
+            {
+                faceController.SetMouth(
+                    Patch4FaceController.MouthPose.Closed);
+            }
         }
 
         private bool CaptureClipStartPose(int clipIndex)
@@ -1842,6 +2027,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.legacyRigStayedLogicallyActive &&
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
+                report.animatorStateBindingPassed &&
                 report.legacyRoutinePausedForReview &&
                 report.legacyRoutineRestored &&
                 report.legacySignalBridgePausedForReview &&

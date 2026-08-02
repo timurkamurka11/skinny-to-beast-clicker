@@ -901,6 +901,33 @@ print `PASSED` without proving joint movement.
 - Keep production readiness false, Patch 3.5 active and all protected paths
   unchanged.
 
+## P4.0-V Unity rejection and P4.0-W Animator state correction
+
+The fresh P4.0-V room report correctly failed its new relative-joint gate. Its
+contact sheet still resembled Idle and measured only `0.18 / 0.17` hand and
+`0.15 / 0.17` foot endpoint displacement. Inspection isolated the execution
+fault: the room driver passed only `clip.name` to `Animator.Play`, while direct
+state playback requires the layer-qualified path. The default Idle/Shift chain
+was sampled instead of the requested ten states.
+
+P4.0-W therefore:
+
+- resolves the actual layer name and hashes `<layer>.<clip>`;
+- requires `HasState` and matching current `fullPathHash` at start and peak;
+- holds Walk/Look/Sit parameters so an immediate return transition cannot
+  replace the state under review;
+- samples the exact normalized peak after live playback;
+- stores per-clip state-path evidence and blocks the review on any mismatch;
+- adds a PlayMode runtime regression that samples the full-path walk at
+  normalized `0.00 / 0.25` and measures both hands and both feet relative to
+  their parent body joints;
+- advances automatic continuation to
+  `verified-full-path-motion-review-v15`.
+
+No artwork, protected menu/video/music/settings path or readiness state changes
+in this correction. Unity compilation and the fresh v15 visual run remain
+pending.
+
 ## Production dashboard
 
 Open in Unity:
@@ -960,7 +987,7 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-V explicit joint-gait correction into Unity
+1. Pull the P4.0-W verified Animator-state correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
@@ -969,8 +996,9 @@ Until every condition passes, Patch 3.5 remains visible.
    `4 passed`.
 4. Let the Editor-only continuation wait for a genuinely quiescent Edit Mode
    after Test Runner cleanup, then enter a separate Play Mode session, create
-   the real room, freeze the Canvas bind anchors, pause the old walk routine
-   and cycle all ten corrected clips on the intact body.
+   the real room, freeze the Canvas bind anchors, pause the old walk routine,
+   verify each layer-qualified Animator state and cycle all ten corrected clips
+   on the intact body.
 5. Let the driver align away whole-body sway and reject weak silhouette motion
    in any individual arm or leg, insufficient hand-to-clavicle or foot-to-
    pelvis displacement, weak focused blink, silhouette loss or excessive
@@ -1028,9 +1056,12 @@ Detailed verification instructions:
 - P4.0-U completed in Unity and was rejected: the intact face/body improved,
   but motion remained a mostly static twitch/rock and the technical QA falsely
   accepted broad region changes as articulation.
-- P4.0-V source and static guards are complete, but its explicit four-phase
-  joint gait and silhouette-plus-relative-joint QA have not yet completed the
-  user's Unity `6000.3.19f1` room review.
+- P4.0-V completed and was correctly rejected by its new relative-joint gate;
+  the room driver had not reliably entered the requested full-path Animator
+  state, so the sheet still sampled the default idle chain.
+- P4.0-W source and static guards are complete, but its verified full-path
+  state entry and runtime joint-displacement contract have not yet run in the
+  user's Unity `6000.3.19f1` project.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

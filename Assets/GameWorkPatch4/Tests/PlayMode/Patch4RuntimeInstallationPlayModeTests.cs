@@ -15,6 +15,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             "UI/Gameplay/Living/CharacterRig2D";
         private const string Patch4PrefabResourcePath = "FatMan_Patch4";
         private const string Patch4InstanceName = "FatMan_Patch4_Instance";
+        private const float MinimumWalkHandDisplacement = 0.68f;
+        private const float MinimumWalkFootDisplacement = 0.60f;
 
         [UnityTest]
         public IEnumerator LivingGameplayRoomGetsLockedRollbackInstance()
@@ -367,11 +369,158 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.AreSame(
                     rollbackVisual.gameObject,
                     GetPrivateField(visibility, "patch35RollbackRoot"));
+
+                AssertWalkAnimatorStateProducesArticulation(
+                    patchInstance,
+                    patchVisual,
+                    patchRig);
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(room);
             }
+        }
+
+        private static void AssertWalkAnimatorStateProducesArticulation(
+            Transform patchInstance,
+            Transform patchVisual,
+            Component patchRig)
+        {
+            Animator animator = patchInstance.GetComponent<Animator>();
+            Assert.NotNull(
+                animator,
+                "The generated Patch 4 prefab has no Animator.");
+
+            bool visualWasActive = patchVisual.gameObject.activeSelf;
+            float previousAnimatorSpeed = animator.speed;
+            string layerName = animator.GetLayerName(0);
+            string statePath = layerName + ".FatMan_Walk_InRoom";
+            int stateHash = Animator.StringToHash(statePath);
+            int idleStateHash = Animator.StringToHash(
+                layerName + ".FatMan_Idle_Breathe");
+
+            try
+            {
+                patchVisual.gameObject.SetActive(true);
+                animator.Rebind();
+                animator.Update(0f);
+                Assert.IsTrue(
+                    animator.HasState(0, stateHash),
+                    "The runtime controller does not expose " + statePath + ".");
+
+                animator.SetBool("Look", false);
+                animator.SetBool("Turn", false);
+                animator.SetBool("Sit", false);
+                animator.SetFloat("Speed", 1f);
+                animator.speed = 0f;
+                animator.Play(stateHash, 0, 0f);
+                animator.Update(0f);
+                Assert.AreEqual(
+                    stateHash,
+                    animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
+                    "Animator.Play must enter the full-path walk state.");
+
+                Vector3 startLeftHand = GetRigRelativeVector(
+                    patchRig,
+                    "ClavicleL",
+                    "HandL");
+                Vector3 startRightHand = GetRigRelativeVector(
+                    patchRig,
+                    "ClavicleR",
+                    "HandR");
+                Vector3 startLeftFoot = GetRigRelativeVector(
+                    patchRig,
+                    "Pelvis",
+                    "FootL");
+                Vector3 startRightFoot = GetRigRelativeVector(
+                    patchRig,
+                    "Pelvis",
+                    "FootR");
+
+                animator.Play(stateHash, 0, 0.25f);
+                animator.Update(0f);
+                Assert.AreEqual(
+                    stateHash,
+                    animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
+                    "The full-path walk state was lost before peak sampling.");
+
+                Assert.GreaterOrEqual(
+                    Vector3.Distance(
+                        startLeftHand,
+                        GetRigRelativeVector(
+                            patchRig,
+                            "ClavicleL",
+                            "HandL")),
+                    MinimumWalkHandDisplacement,
+                    "The left hand did not articulate relative to its shoulder.");
+                Assert.GreaterOrEqual(
+                    Vector3.Distance(
+                        startRightHand,
+                        GetRigRelativeVector(
+                            patchRig,
+                            "ClavicleR",
+                            "HandR")),
+                    MinimumWalkHandDisplacement,
+                    "The right hand did not articulate relative to its shoulder.");
+                Assert.GreaterOrEqual(
+                    Vector3.Distance(
+                        startLeftFoot,
+                        GetRigRelativeVector(
+                            patchRig,
+                            "Pelvis",
+                            "FootL")),
+                    MinimumWalkFootDisplacement,
+                    "The left foot did not articulate relative to the pelvis.");
+                Assert.GreaterOrEqual(
+                    Vector3.Distance(
+                        startRightFoot,
+                        GetRigRelativeVector(
+                            patchRig,
+                            "Pelvis",
+                            "FootR")),
+                    MinimumWalkFootDisplacement,
+                    "The right foot did not articulate relative to the pelvis.");
+            }
+            finally
+            {
+                animator.SetFloat("Speed", 0f);
+                animator.speed = 0f;
+                if (animator.HasState(0, idleStateHash))
+                {
+                    animator.Play(idleStateHash, 0, 0f);
+                    animator.Update(0f);
+                }
+
+                animator.speed = previousAnimatorSpeed;
+                patchVisual.gameObject.SetActive(visualWasActive);
+            }
+        }
+
+        private static Vector3 GetRigRelativeVector(
+            Component patchRig,
+            string originBoneName,
+            string endpointBoneName)
+        {
+            MethodInfo getBone = patchRig.GetType().GetMethod(
+                "GetBone",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(getBone, "Patch 4 rig does not expose GetBone.");
+
+            Transform origin = getBone.Invoke(
+                patchRig,
+                new object[] { originBoneName }) as Transform;
+            Transform endpoint = getBone.Invoke(
+                patchRig,
+                new object[] { endpointBoneName }) as Transform;
+            Transform rigRoot =
+                GetObjectProperty(patchRig, "RigRoot") as Transform;
+            Assert.NotNull(origin, originBoneName);
+            Assert.NotNull(endpoint, endpointBoneName);
+            Assert.NotNull(rigRoot, "Patch 4 rig root is missing.");
+
+            return
+                rigRoot.InverseTransformPoint(endpoint.position) -
+                rigRoot.InverseTransformPoint(origin.position);
         }
 
         private static Component BuildLegacyRig(GameObject root)
