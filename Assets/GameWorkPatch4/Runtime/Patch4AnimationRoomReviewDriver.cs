@@ -37,6 +37,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public int motionChangedPixelCount;
             public float motionCoverage;
             public float minimumMotionCoverage;
+            public int globalAlignmentX;
+            public int globalAlignmentY;
             public bool focusedFaceMotionRequired;
             public int faceMotionChangedPixelCount;
             public int faceReferencePixelCount;
@@ -48,6 +50,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public int limbReferencePixelCount;
             public float limbMotionCoverage;
             public float minimumLimbMotionCoverage;
+            public float leftArmMotionCoverage;
+            public float rightArmMotionCoverage;
+            public float leftLegMotionCoverage;
+            public float rightLegMotionCoverage;
+            public bool allLimbRegionsPassed;
             public bool limbArticulationPassed;
             public bool visibleMotionPassed;
         }
@@ -103,11 +110,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumNeutralWidthRetention = 0.72f;
         private const float MinimumNeutralHeightRetention = 0.78f;
         private const float MinimumNeutralAreaRetention = 0.58f;
-        private const float MaximumNeutralWidthExpansion = 1.32f;
-        private const float MaximumNeutralHeightExpansion = 1.18f;
-        private const float MaximumNeutralAreaExpansion = 1.38f;
+        private const float MaximumNeutralWidthExpansion = 1.16f;
+        private const float MaximumNeutralHeightExpansion = 1.12f;
+        private const float MaximumNeutralAreaExpansion = 1.20f;
         private const float MinimumBlinkFaceMotionCoverage = 0.015f;
-        private const float MinimumWalkLimbMotionCoverage = 0.08f;
+        private const float MinimumWalkLimbMotionCoverage = 0.10f;
+        private const float MinimumWalkArmMotionCoverage = 0.08f;
+        private const float MinimumWalkLegMotionCoverage = 0.10f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -1057,6 +1066,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 yMin + 1,
                 screenshot.height);
             int changed = 0;
+            ResolveGlobalAlignment(
+                current,
+                screenshot.width,
+                screenshot.height,
+                out int alignmentX,
+                out int alignmentY);
+            clipReport.globalAlignmentX = alignmentX;
+            clipReport.globalAlignmentY = alignmentY;
 
             for (int y = yMin; y < yMax; y++)
             {
@@ -1065,7 +1082,26 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 {
                     int index = row + x;
                     Color32 before = clipStartPixels[index];
-                    Color32 after = current[index];
+                    Color32 clean = backgroundPixels[index];
+                    int foregroundDelta =
+                        Math.Abs(before.r - clean.r) +
+                        Math.Abs(before.g - clean.g) +
+                        Math.Abs(before.b - clean.b);
+                    if (foregroundDelta < PixelDifferenceThreshold)
+                    {
+                        continue;
+                    }
+
+                    int alignedX = Mathf.Clamp(
+                        x + alignmentX,
+                        0,
+                        screenshot.width - 1);
+                    int alignedY = Mathf.Clamp(
+                        y + alignmentY,
+                        0,
+                        screenshot.height - 1);
+                    Color32 after = current[
+                        alignedY * screenshot.width + alignedX];
                     int delta =
                         Math.Abs(after.r - before.r) +
                         Math.Abs(after.g - before.g) +
@@ -1157,6 +1193,249 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             Rect expected = neutralExpectedScreenRect;
+            bool leftArmMeasured = MeasureAlignedRegionMotion(
+                current,
+                screenWidth,
+                screenHeight,
+                expected,
+                .205f,
+                .375f,
+                .245f,
+                .555f,
+                clipReport.globalAlignmentX,
+                clipReport.globalAlignmentY,
+                out int leftArmChanged,
+                out int leftArmReference,
+                out float leftArmCoverage);
+            bool rightArmMeasured = MeasureAlignedRegionMotion(
+                current,
+                screenWidth,
+                screenHeight,
+                expected,
+                .625f,
+                .795f,
+                .245f,
+                .555f,
+                clipReport.globalAlignmentX,
+                clipReport.globalAlignmentY,
+                out int rightArmChanged,
+                out int rightArmReference,
+                out float rightArmCoverage);
+            bool leftLegMeasured = MeasureAlignedRegionMotion(
+                current,
+                screenWidth,
+                screenHeight,
+                expected,
+                .265f,
+                .495f,
+                .535f,
+                .815f,
+                clipReport.globalAlignmentX,
+                clipReport.globalAlignmentY,
+                out int leftLegChanged,
+                out int leftLegReference,
+                out float leftLegCoverage);
+            bool rightLegMeasured = MeasureAlignedRegionMotion(
+                current,
+                screenWidth,
+                screenHeight,
+                expected,
+                .505f,
+                .735f,
+                .535f,
+                .815f,
+                clipReport.globalAlignmentX,
+                clipReport.globalAlignmentY,
+                out int rightLegChanged,
+                out int rightLegReference,
+                out float rightLegCoverage);
+
+            int changed =
+                leftArmChanged +
+                rightArmChanged +
+                leftLegChanged +
+                rightLegChanged;
+            int reference =
+                leftArmReference +
+                rightArmReference +
+                leftLegReference +
+                rightLegReference;
+            clipReport.leftArmMotionCoverage = leftArmCoverage;
+            clipReport.rightArmMotionCoverage = rightArmCoverage;
+            clipReport.leftLegMotionCoverage = leftLegCoverage;
+            clipReport.rightLegMotionCoverage = rightLegCoverage;
+
+            clipReport.limbMotionChangedPixelCount = changed;
+            clipReport.limbReferencePixelCount = reference;
+            clipReport.limbMotionCoverage =
+                reference > 0 ? changed / (float)reference : 0f;
+            clipReport.allLimbRegionsPassed =
+                leftArmMeasured &&
+                rightArmMeasured &&
+                leftLegMeasured &&
+                rightLegMeasured &&
+                leftArmCoverage >= MinimumWalkArmMotionCoverage &&
+                rightArmCoverage >= MinimumWalkArmMotionCoverage &&
+                leftLegCoverage >= MinimumWalkLegMotionCoverage &&
+                rightLegCoverage >= MinimumWalkLegMotionCoverage;
+            clipReport.limbArticulationPassed =
+                reference > 0 &&
+                clipReport.limbMotionCoverage >=
+                    clipReport.minimumLimbMotionCoverage &&
+                clipReport.allLimbRegionsPassed;
+            if (!clipReport.limbArticulationPassed)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": arm/leg articulation is too small (" +
+                    clipReport.limbMotionCoverage.ToString("0.000") +
+                    ", minimum " +
+                    clipReport.minimumLimbMotionCoverage.ToString("0.000") +
+                    "; left/right arms " +
+                    leftArmCoverage.ToString("0.000") +
+                    "/" +
+                    rightArmCoverage.ToString("0.000") +
+                    ", left/right legs " +
+                    leftLegCoverage.ToString("0.000") +
+                    "/" +
+                    rightLegCoverage.ToString("0.000") +
+                    "). Every arm and leg must move after whole-body sway is " +
+                    "removed; a body bob cannot pass.");
+            }
+
+            return clipReport.limbArticulationPassed;
+        }
+
+        private bool MeasureAlignedRegionMotion(
+            IReadOnlyList<Color32> current,
+            int screenWidth,
+            int screenHeight,
+            Rect expected,
+            float normalizedXMin,
+            float normalizedXMax,
+            float topYMin,
+            float topYMax,
+            int alignmentX,
+            int alignmentY,
+            out int changed,
+            out int reference,
+            out float coverage)
+        {
+            changed = 0;
+            reference = 0;
+            coverage = 0f;
+            int xMin = Mathf.Clamp(
+                Mathf.FloorToInt(
+                    expected.xMin + expected.width * normalizedXMin),
+                0,
+                screenWidth - 1);
+            int xMax = Mathf.Clamp(
+                Mathf.CeilToInt(
+                    expected.xMin + expected.width * normalizedXMax),
+                xMin + 1,
+                screenWidth);
+            int yMin = Mathf.Clamp(
+                Mathf.FloorToInt(
+                    expected.yMax - expected.height * topYMax),
+                0,
+                screenHeight - 1);
+            int yMax = Mathf.Clamp(
+                Mathf.CeilToInt(
+                    expected.yMax - expected.height * topYMin),
+                yMin + 1,
+                screenHeight);
+
+            for (int y = yMin; y < yMax; y++)
+            {
+                int row = y * screenWidth;
+                for (int x = xMin; x < xMax; x++)
+                {
+                    int index = row + x;
+                    Color32 start = clipStartPixels[index];
+                    Color32 clean = backgroundPixels[index];
+                    int foregroundDelta =
+                        Math.Abs(start.r - clean.r) +
+                        Math.Abs(start.g - clean.g) +
+                        Math.Abs(start.b - clean.b);
+                    if (foregroundDelta < PixelDifferenceThreshold)
+                    {
+                        continue;
+                    }
+
+                    reference++;
+                    int alignedX = Mathf.Clamp(
+                        x + alignmentX,
+                        0,
+                        screenWidth - 1);
+                    int alignedY = Mathf.Clamp(
+                        y + alignmentY,
+                        0,
+                        screenHeight - 1);
+                    Color32 after = current[
+                        alignedY * screenWidth + alignedX];
+                    int motionDelta =
+                        Math.Abs(after.r - start.r) +
+                        Math.Abs(after.g - start.g) +
+                        Math.Abs(after.b - start.b);
+                    if (motionDelta >= MotionPixelDifferenceThreshold)
+                    {
+                        changed++;
+                    }
+                }
+            }
+
+            coverage = reference > 0
+                ? changed / (float)reference
+                : 0f;
+            return reference > 0;
+        }
+
+        private void ResolveGlobalAlignment(
+            IReadOnlyList<Color32> current,
+            int screenWidth,
+            int screenHeight,
+            out int alignmentX,
+            out int alignmentY)
+        {
+            alignmentX = 0;
+            alignmentY = 0;
+            if (!TryMeasureForegroundCentroid(
+                    clipStartPixels,
+                    screenWidth,
+                    screenHeight,
+                    out Vector2 startCentroid) ||
+                !TryMeasureForegroundCentroid(
+                    current,
+                    screenWidth,
+                    screenHeight,
+                    out Vector2 currentCentroid))
+            {
+                return;
+            }
+
+            alignmentX = Mathf.RoundToInt(
+                currentCentroid.x - startCentroid.x);
+            alignmentY = Mathf.RoundToInt(
+                currentCentroid.y - startCentroid.y);
+        }
+
+        private bool TryMeasureForegroundCentroid(
+            IReadOnlyList<Color32> pixels,
+            int screenWidth,
+            int screenHeight,
+            out Vector2 centroid)
+        {
+            centroid = Vector2.zero;
+            if (pixels == null ||
+                pixels.Count != screenWidth * screenHeight ||
+                backgroundPixels == null ||
+                backgroundPixels.Length != pixels.Count)
+            {
+                return false;
+            }
+
+            Rect expected = neutralExpectedScreenRect;
             int xMin = Mathf.Clamp(
                 Mathf.FloorToInt(expected.xMin),
                 0,
@@ -1173,84 +1452,42 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Mathf.CeilToInt(expected.yMax),
                 yMin + 1,
                 screenHeight);
-            int changed = 0;
-            int reference = 0;
+            long sumX = 0;
+            long sumY = 0;
+            int count = 0;
 
             for (int y = yMin; y < yMax; y++)
             {
-                float topY =
-                    (expected.yMax - y) /
-                    Mathf.Max(1f, expected.height);
                 int row = y * screenWidth;
                 for (int x = xMin; x < xMax; x++)
                 {
-                    float normalizedX =
-                        (x - expected.xMin) /
-                        Mathf.Max(1f, expected.width);
-                    bool armRegion =
-                        topY >= .27f &&
-                        topY <= .55f &&
-                        ((normalizedX >= .20f &&
-                          normalizedX <= .39f) ||
-                         (normalizedX >= .61f &&
-                          normalizedX <= .80f));
-                    bool legRegion =
-                        topY >= .54f &&
-                        topY <= .82f &&
-                        ((normalizedX >= .27f &&
-                          normalizedX <= .49f) ||
-                         (normalizedX >= .51f &&
-                          normalizedX <= .73f));
-                    if (!armRegion && !legRegion)
+                    int index = row + x;
+                    Color32 pixel = pixels[index];
+                    Color32 clean = backgroundPixels[index];
+                    int foregroundDelta =
+                        Math.Abs(pixel.r - clean.r) +
+                        Math.Abs(pixel.g - clean.g) +
+                        Math.Abs(pixel.b - clean.b);
+                    if (foregroundDelta < PixelDifferenceThreshold)
                     {
                         continue;
                     }
 
-                    int index = row + x;
-                    Color32 start = clipStartPixels[index];
-                    Color32 clean = backgroundPixels[index];
-                    int foregroundDelta =
-                        Math.Abs(start.r - clean.r) +
-                        Math.Abs(start.g - clean.g) +
-                        Math.Abs(start.b - clean.b);
-                    if (foregroundDelta >= PixelDifferenceThreshold)
-                    {
-                        reference++;
-                    }
-
-                    Color32 after = current[index];
-                    int motionDelta =
-                        Math.Abs(after.r - start.r) +
-                        Math.Abs(after.g - start.g) +
-                        Math.Abs(after.b - start.b);
-                    if (motionDelta >= MotionPixelDifferenceThreshold)
-                    {
-                        changed++;
-                    }
+                    sumX += x;
+                    sumY += y;
+                    count++;
                 }
             }
 
-            clipReport.limbMotionChangedPixelCount = changed;
-            clipReport.limbReferencePixelCount = reference;
-            clipReport.limbMotionCoverage =
-                reference > 0 ? changed / (float)reference : 0f;
-            clipReport.limbArticulationPassed =
-                reference > 0 &&
-                clipReport.limbMotionCoverage >=
-                    clipReport.minimumLimbMotionCoverage;
-            if (!clipReport.limbArticulationPassed)
+            if (count <= 0)
             {
-                report.error = AppendError(
-                    report.error,
-                    clipReport.clipName +
-                    ": arm/leg articulation is too small (" +
-                    clipReport.limbMotionCoverage.ToString("0.000") +
-                    ", minimum " +
-                    clipReport.minimumLimbMotionCoverage.ToString("0.000") +
-                    "). A body bob without a readable stride cannot pass.");
+                return false;
             }
 
-            return clipReport.limbArticulationPassed;
+            centroid = new Vector2(
+                sumX / (float)count,
+                sumY / (float)count);
+            return true;
         }
 
         private bool AnalyzeFocusedFaceMotion(

@@ -34,8 +34,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         [SerializeField] private string contractPath = string.Empty;
         [SerializeField] private Sprite sourceSprite;
-        [SerializeField, Range(1, 64)] private int gridColumns = 8;
-        [SerializeField, Range(1, 96)] private int gridRows = 12;
+        [SerializeField, Range(1, 96)] private int gridColumns = 8;
+        [SerializeField, Range(1, 144)] private int gridRows = 12;
         [SerializeField, Range(1.25f, 4f)]
         private float weightFalloff = 2.35f;
         [SerializeField] private List<BoneBinding> boneBindings = new();
@@ -78,8 +78,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             contractPath = layerContractPath ?? string.Empty;
             sourceSprite = sprite;
-            gridColumns = Mathf.Clamp(columns, 1, 64);
-            gridRows = Mathf.Clamp(rows, 1, 96);
+            gridColumns = Mathf.Clamp(columns, 1, 96);
+            gridRows = Mathf.Clamp(rows, 1, 144);
             boneBindings.Clear();
             bindPoseCaptured = false;
             skinMatrices = Array.Empty<Matrix4x4>();
@@ -392,18 +392,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 float radius = ArmRadius(topY);
                 float centerlineInfluence =
                     1f - SmoothRange(
-                        radius * .62f,
-                        radius,
+                        radius * .75f,
+                        radius * 1.12f,
                         Mathf.Abs(sideX - centerX));
                 float torsoBoundary = ArmTorsoBoundary(topY);
                 float outsideTorso =
                     1f - SmoothRange(
-                        torsoBoundary - .025f,
-                        torsoBoundary + .004f,
+                        torsoBoundary - .018f,
+                        torsoBoundary + .002f,
                         sideX);
                 float verticalInfluence =
-                    SmoothRange(.255f, .295f, topY) *
-                    (1f - SmoothRange(.52f, .55f, topY));
+                    SmoothRange(.245f, .272f, topY) *
+                    (1f - SmoothRange(.525f, .55f, topY));
                 float armInfluence =
                     centerlineInfluence *
                     outsideTorso *
@@ -432,11 +432,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 float radius = LegRadius(topY);
                 float centerlineInfluence =
                     1f - SmoothRange(
-                        radius * .68f,
-                        radius,
+                        radius * .86f,
+                        radius * 1.08f,
                         Mathf.Abs(sideX - centerX));
                 float centerSeparation =
-                    1f - SmoothRange(.465f, .495f, sideX);
+                    1f - SmoothRange(.468f, .493f, sideX);
                 float verticalInfluence =
                     SmoothRange(.515f, .575f, topY);
                 float legInfluence =
@@ -668,71 +668,111 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (topY <= .315f)
             {
                 return Mathf.Lerp(
-                    .365f,
-                    .345f,
-                    Mathf.InverseLerp(.255f, .315f, topY));
+                    .340f,
+                    .325f,
+                    Mathf.InverseLerp(.245f, .315f, topY));
             }
 
             if (topY <= .425f)
             {
                 return Mathf.Lerp(
-                    .345f,
-                    .293f,
+                    .325f,
+                    .275f,
                     Mathf.InverseLerp(.315f, .425f, topY));
             }
 
             return Mathf.Lerp(
-                .293f,
-                .262f,
-                Mathf.InverseLerp(.425f, .53f, topY));
+                .275f,
+                .255f,
+                Mathf.InverseLerp(.425f, .535f, topY));
         }
 
         private static float ArmRadius(float topY)
         {
+            if (topY <= .315f)
+            {
+                return Mathf.Lerp(
+                    .050f,
+                    .045f,
+                    Mathf.InverseLerp(.245f, .315f, topY));
+            }
+
+            if (topY <= .425f)
+            {
+                return Mathf.Lerp(
+                    .045f,
+                    .050f,
+                    Mathf.InverseLerp(.315f, .425f, topY));
+            }
+
             return Mathf.Lerp(
-                .086f,
-                .052f,
-                Mathf.InverseLerp(.27f, .53f, topY));
+                .050f,
+                .055f,
+                Mathf.InverseLerp(.425f, .535f, topY));
         }
 
         private static float ArmTorsoBoundary(float topY)
         {
+            if (topY <= .315f)
+            {
+                return Mathf.Lerp(
+                    .360f,
+                    .355f,
+                    Mathf.InverseLerp(.245f, .315f, topY));
+            }
+
+            if (topY <= .425f)
+            {
+                return Mathf.Lerp(
+                    .355f,
+                    .312f,
+                    Mathf.InverseLerp(.315f, .425f, topY));
+            }
+
             return Mathf.Lerp(
-                .397f,
-                .305f,
-                Mathf.InverseLerp(.27f, .52f, topY));
+                .312f,
+                .300f,
+                Mathf.InverseLerp(.425f, .535f, topY));
         }
 
         private static float LegCenterX(float topY)
         {
-            if (topY <= .68f)
+            if (topY <= .625f)
             {
                 return Mathf.Lerp(
-                    .43f,
-                    .405f,
-                    Mathf.InverseLerp(.54f, .68f, topY));
+                    .415f,
+                    .398f,
+                    Mathf.InverseLerp(.54f, .625f, topY));
+            }
+
+            if (topY <= .71f)
+            {
+                return Mathf.Lerp(
+                    .398f,
+                    .380f,
+                    Mathf.InverseLerp(.625f, .71f, topY));
             }
 
             return Mathf.Lerp(
-                .405f,
-                .39f,
-                Mathf.InverseLerp(.68f, .79f, topY));
+                .380f,
+                .355f,
+                Mathf.InverseLerp(.71f, .80f, topY));
         }
 
         private static float LegRadius(float topY)
         {
-            if (topY <= .68f)
+            if (topY <= .625f)
             {
                 return Mathf.Lerp(
-                    .115f,
+                    .098f,
                     .088f,
-                    Mathf.InverseLerp(.54f, .68f, topY));
+                    Mathf.InverseLerp(.54f, .625f, topY));
             }
 
             return Mathf.Lerp(
                 .088f,
-                .098f,
-                Mathf.InverseLerp(.68f, .79f, topY));
+                .084f,
+                Mathf.InverseLerp(.625f, .80f, topY));
         }
 
         private Sprite ResolveSprite()

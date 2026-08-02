@@ -213,14 +213,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                -14f,
-                5f);
+                -6f,
+                2f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                14f,
-                -5f);
+                6f,
+                -2f);
             SetReactionRotation(
                 clip,
                 Head,
@@ -257,14 +257,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                -18f,
-                7f);
+                -8f,
+                3f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                18f,
-                -7f);
+                8f,
+                -3f);
             SetReactionRotation(
                 clip,
                 SpineUpper,
@@ -298,87 +298,87 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalPosition.x",
                 duration,
-                0.22f,
-                -0.22f);
+                0.04f,
+                -0.04f);
             SetCyclePosition(
                 clip,
                 Visual,
                 "m_LocalPosition.y",
                 duration,
-                0.14f,
-                0.14f);
+                0.08f,
+                0.08f);
             SetAlternatingRotation(
                 clip,
                 Pelvis,
                 duration,
-                -4.5f,
-                4.5f);
+                -1.5f,
+                1.5f);
             SetAlternatingRotation(
                 clip,
                 SpineLower,
                 duration,
-                3.5f,
-                -3.5f);
+                0.8f,
+                -0.8f);
             SetAlternatingRotation(
                 clip,
                 ThighL,
                 duration,
-                -22f,
-                22f);
+                -14f,
+                14f);
             SetAlternatingRotation(
                 clip,
                 ThighR,
                 duration,
-                22f,
-                -22f);
+                -14f,
+                14f);
             SetAlternatingRotation(
                 clip,
                 ShinL,
                 duration,
-                24f,
-                -28f);
+                18f,
+                -6f);
             SetAlternatingRotation(
                 clip,
                 ShinR,
                 duration,
-                -28f,
-                24f);
+                6f,
+                -18f);
             SetAlternatingRotation(
                 clip,
                 FootL,
                 duration,
-                -13f,
-                14f);
+                -10f,
+                5f);
             SetAlternatingRotation(
                 clip,
                 FootR,
                 duration,
-                14f,
-                -13f);
+                -5f,
+                10f);
             SetAlternatingRotation(
                 clip,
                 UpperArmL,
                 duration,
-                18f,
-                -18f);
+                12f,
+                -12f);
             SetAlternatingRotation(
                 clip,
                 UpperArmR,
                 duration,
-                -18f,
-                18f);
+                12f,
+                -12f);
             SetAlternatingRotation(
                 clip,
                 ForearmL,
                 duration,
-                -6f,
-                8f);
+                -5f,
+                6f);
             SetAlternatingRotation(
                 clip,
                 ForearmR,
                 duration,
-                8f,
-                -6f);
+                -6f,
+                5f);
             SetAlternatingRotation(
                 clip,
                 SpineUpper,
@@ -552,26 +552,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                -26f,
-                10f);
+                -8f,
+                3f);
             SetReactionRotation(
                 clip,
                 UpperArmR,
                 duration,
-                26f,
-                -10f);
+                8f,
+                -3f);
             SetReactionRotation(
                 clip,
                 ForearmL,
                 duration,
-                -18f,
-                6f);
+                -6f,
+                2f);
             SetReactionRotation(
                 clip,
                 ForearmR,
                 duration,
-                18f,
-                -6f);
+                6f,
+                -2f);
             SetReactionRotation(
                 clip,
                 SpineUpper,

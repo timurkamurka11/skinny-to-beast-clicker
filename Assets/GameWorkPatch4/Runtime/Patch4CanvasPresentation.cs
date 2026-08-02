@@ -151,7 +151,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                             deformer.ContractPath))
                     {
                         return deformer.UsesContinuousBodyWeights &&
-                               deformer.ExpectedVertexCount >= 6000;
+                               deformer.ExpectedVertexCount >= 13000;
                     }
                 }
 
@@ -493,8 +493,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 contractPath))
             {
                 return new SkinProfile(
-                    64,
                     96,
+                    144,
                     "CharacterRoot",
                     "Pelvis",
                     "SpineLower",

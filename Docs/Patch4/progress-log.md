@@ -413,5 +413,30 @@ The verification source code is committed, but Unity has not physically compiled
 - [x] Keep the P4.0-S art, mesh weights, animation curves and validation gates
   unchanged.
 - [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
-- [ ] Confirm P4.0-T in Unity `6000.3.19f1`: `4/4`, exact neutral face, no
-  vacuum stretch, readable limbs/walk and zero Console errors.
+- [x] Exercise P4.0-T in Unity `6000.3.19f1`; confirm the exact neutral face and
+  fresh token-matched room sheet.
+- [x] Reject P4.0-T: the walk remained a side sway, arms/legs lacked readable
+  articulation and reaction poses retained vacuum-like wedges despite the
+  technical pass.
+
+## 2026-08-02 — P4.0-U anatomical limb and stride correction
+
+- [x] Measure the exact master rows and isolate arm/leg envelopes that were
+  still centered inside shirt/crotch pixels.
+- [x] Increase the intact full-master body grid from `64 × 96` to `96 × 144`.
+- [x] Fit narrow full-weight arm envelopes to the painted skin and explicitly
+  stop them at the tank-top edge.
+- [x] Shift leg envelopes outward and narrow the crotch seam so thigh, shin and
+  shoe pixels follow their real bones.
+- [x] Replace the symmetric spread/squat walk phase with alternating frontal
+  thigh, knee, foot and counter-arm articulation; reduce root sway.
+- [x] Reduce tap/upgrade arm extremes that amplified the old ownership error.
+- [x] Align away whole-body translation before pixel comparison and count only
+  start-pose foreground pixels.
+- [x] Require separate passing motion coverage for both arms and both legs.
+- [x] Tighten maximum width, height and area expansion limits.
+- [x] Advance automatic continuation to
+  `anatomical-limb-stride-review-v13`.
+- [x] Keep readiness locked, Patch 3.5 active and protected paths untouched.
+- [ ] Confirm P4.0-U in Unity `6000.3.19f1`: `4/4`, no vacuum wedges, visible
+  independent arm/leg stride, stable face and zero Console errors.

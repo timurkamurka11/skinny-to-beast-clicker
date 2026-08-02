@@ -834,6 +834,44 @@ this result says nothing yet about the P4.0-S motion or deformation quality.
 - Production readiness remains locked, Patch 3.5 remains active and protected
   paths remain untouched.
 
+### P4.0-T real Unity rejection
+
+Unity `6000.3.19f1` completed the fresh P4.0-T tests and actual-room sheet. The
+exact neutral face was present, but the result remained visually unacceptable:
+
+- arms and legs showed little readable articulation;
+- the walk was primarily a side-to-side body rock;
+- tap/upgrade extremes retained vacuum-like side wedges;
+- the combined focused-limb metric falsely passed because it counted global
+  body displacement and changed background pixels inside broad limb boxes.
+
+Measurements on the exact master confirmed that the arm envelopes were still
+centered inside the shirt and were much wider than the painted arms. Leg
+envelopes were centered too close to the crotch. Mirrored frontal walk curves
+also drove both sides outward/inward together instead of alternating.
+
+## P4.0-U anatomical limb and stride correction
+
+- Keep one intact exact-master neutral body and all hidden reference layers.
+- Increase its grid to `96 × 144`.
+- Fit arm centerlines/radii to the measured skin silhouette and stop ownership
+  at the shirt edge.
+- Shift leg centerlines outward through thigh, shin and shoe; narrow the center
+  seam and give interior limb pixels a full-weight plateau.
+- Reduce global walk sway to `±0.04` and author same-sign frontal thigh phases
+  with independent knee, foot and counter-arm curves.
+- Reduce reaction arm extremes that previously exposed the broad weight error.
+- Align current/start foreground centroids before measuring motion and ignore
+  background pixels.
+- Require independent left arm, right arm, left leg and right leg coverage for
+  the walk.
+- Tighten neutral width/height/area expansion limits to
+  `1.16 / 1.12 / 1.20`.
+- Advance automatic continuation to
+  `anatomical-limb-stride-review-v13`.
+- Keep production readiness false, Patch 3.5 active and all protected paths
+  unchanged.
+
 ## Production dashboard
 
 Open in Unity:
@@ -893,20 +931,21 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-T face-binding test correction into Unity
+1. Pull the P4.0-U anatomical limb/stride correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
    one exact intact visible full-master body, rebuild the locked constrained
-   `64 × 96` grid prefab, validate and complete EditMode `4 passed`, PlayMode
+   `96 × 144` grid prefab, validate and complete EditMode `4 passed`, PlayMode
    `4 passed`.
 4. Let the Editor-only continuation wait for a genuinely quiescent Edit Mode
    after Test Runner cleanup, then enter a separate Play Mode session, create
    the real room, freeze the Canvas bind anchors, pause the old walk routine
    and cycle all ten corrected clips on the intact body.
-5. Let the driver reject weak body, focused blink or focused walk-limb motion,
-   silhouette loss or excessive expansion, capture the review sheet, restore
-   Patch 3.5 and its routine, then return to Edit Mode.
+5. Let the driver align away whole-body sway and reject weak motion in any
+   individual arm or leg, weak focused blink, silhouette loss or excessive
+   expansion; then capture the review sheet, restore Patch 3.5 and return to
+   Edit Mode.
 6. Confirm that the Console has zero errors and inspect the automatically
    focused 5 × 2 room-animation contact sheet.
 7. Revise any exposed joint, detached paint, extreme stretch, foot slide or
@@ -953,8 +992,11 @@ Detailed verification instructions:
   remained weak despite the minimum-only technical pass.
 - P4.0-S reached real Unity Test Runner, but a stale eye-white `NotNull`
   assertion stopped PlayMode before any room animation was sampled.
-- P4.0-T source and static guards are complete, but its corrected PlayMode
-  contract and the P4.0-S exact face/constrained warp have not yet completed
+- P4.0-T completed in Unity and was rejected: the exact face passed human
+  review, but limbs remained unreadable, walk was a body sway and reaction
+  wedges remained while the old combined limb metric falsely passed.
+- P4.0-U source and static guards are complete, but its `96 × 144` anatomical
+  weights, alternating stride and per-limb aligned QA have not yet completed
   the user's Unity `6000.3.19f1` room review.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.

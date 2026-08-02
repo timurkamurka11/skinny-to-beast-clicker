@@ -472,7 +472,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         Patch4RigContract.IsRuntimeContinuousBodyLayer(
                             deformer.ContractPath) &&
                         deformer.UsesContinuousBodyWeights &&
-                        deformer.ExpectedVertexCount >= 6000);
+                        deformer.ExpectedVertexCount >= 13000);
             bool runtimeRigidLayersReady =
                 Patch4RigContract.RuntimeRigidLayerPaths.All(
                     path => HasRigidSkin(

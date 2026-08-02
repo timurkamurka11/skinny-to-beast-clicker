@@ -590,7 +590,7 @@ visibility checks but accidentally retained the older P4.0-R `Assert.NotNull`
 requirements for the two eye-white fields. Test Runner therefore stopped before
 the separate ten-clip room session.
 
-## Current P4.0-T exact-master face-binding test correction
+## P4.0-T exact-master face-binding test correction
 
 - The fourth PlayMode test now requires all five obsolete neutral face-object
   bindings to be `null`.
@@ -606,9 +606,61 @@ the separate ten-clip room session.
 - Readiness remains locked, Patch 3.5 remains active and protected paths remain
   unchanged.
 
+## P4.0-T real Unity result and visual rejection
+
+Unity `6000.3.19f1` completed the fresh token-matched P4.0-T room review. The
+exact neutral face was restored and the earlier chopped rectangular body parts
+did not return, but human review rejected the motion:
+
+- the arms and especially the legs still did not produce a readable stride;
+- the character mostly rocked from side to side in place;
+- reaction frames still pulled skin/shirt pixels into vacuum-like side wedges;
+- the technical review incorrectly reported a pass because its combined limb
+  region counted whole-character translation and background pixels as limb
+  motion.
+
+Source inspection and row measurements against the exact `1024 × 1536` master
+confirmed that the P4.0-S arm centerline remained about 20–40 pixels too far
+inside the shirt and its feather band was nearly twice the painted arm width.
+The leg centerlines were likewise biased toward the crotch. The walk also used
+mirrored left/right rotations, which spread or closed both limbs together
+instead of creating an alternating frontal stride.
+
+## Current P4.0-U anatomical limb and stride correction
+
+- The intact full-master body remains the sole neutral artwork; no anatomical
+  cutout layers are re-enabled.
+- The continuous mesh increases from `64 × 96` to `96 × 144` so shoulder,
+  elbow, hip, knee and ankle transitions resolve at roughly 10.7 source pixels
+  instead of 16.
+- Arm centerlines and radii now follow the measured skin silhouette. The inner
+  boundary starts near `x = 0.36` at the shoulder and reaches `x = 0.30` at the
+  hand, explicitly excluding the tank top from arm ownership.
+- Leg centerlines move outward from hip to shoe and use a narrow center seam;
+  most painted limb pixels receive full limb motion instead of a broad blend
+  back to the torso.
+- Walk root sway is reduced from `±0.22` to `±0.04`. Both thigh curves now use
+  the same alternating sign in frontal space, while knees, feet and both arms
+  receive distinct counter-motion, so the peak is a stride rather than a
+  symmetric squat/sway.
+- Tap and upgrade arm extremes are reduced; the stricter mesh ownership carries
+  the actual arms without pulling a wide strip of shirt.
+- Motion QA first aligns the peak to the start-pose foreground centroid and
+  then compares only start-pose foreground pixels. Pure whole-body translation
+  can no longer count as deformation.
+- Walk QA measures left arm, right arm, left leg and right leg separately and
+  requires every region to pass. A combined changed-pixel total can no longer
+  hide one or more static limbs.
+- Maximum allowed width, height and area expansion are tightened to
+  `1.16 / 1.12 / 1.20` of neutral.
+- Automatic continuation advances to
+  `anatomical-limb-stride-review-v13`.
+- Readiness remains locked, Patch 3.5 remains active and protected paths remain
+  unchanged.
+
 ## Exact next action
 
-After the P4.0-T correction is present on `patch-4.0`, run only:
+After the P4.0-U correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -621,7 +673,7 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 3. create one exact intact visible full-master body while preserving all 40
    reference/alternate layers;
 4. import every layer as FullRect and rebuild the locked Canvas prefab with a
-   dense silhouette-constrained `64 × 96` body grid and Head-bound face states;
+   dense silhouette-constrained `96 × 144` body grid and Head-bound face states;
 5. assemble and compare the locked one-layer exact neutral runtime pose;
 6. write the neutral and four-expression review images;
 7. validate all 40 bindings, frozen bind anchors, full-canvas UVs, the dense
@@ -631,10 +683,10 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 10. enter Play Mode and run all PlayMode tests;
 11. after `4/4`, require a stable quiescent Edit Mode interval after Test Runner
     cleanup, then enter a separate Play Mode session and create the actual room;
-12. capture a clean background and neutral reference, then play all ten clips
-    and block weak start-to-peak motion, weak focused blink or walk-limb motion,
-    a collapsed or over-stretched silhouette, or any Console error while the
-    legacy robot-like footstep stays paused;
+12. capture a clean background and neutral reference, then play all ten clips;
+    align away whole-body translation and require independent left/right arm
+    and leg motion, focused blink motion, a retained non-expanded silhouette
+    and zero Console errors while the legacy robot-like footstep stays paused;
 13. write a token-matched fresh report and contact sheet, restore Patch 3.5,
     exit Play Mode and open the read-only review windows.
 
@@ -657,7 +709,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-T automatic room review
+## Work after the P4.0-U automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

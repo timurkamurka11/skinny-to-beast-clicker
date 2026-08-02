@@ -191,7 +191,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     GetIntProperty(
                         continuousBodySkin,
                         "ExpectedVertexCount"),
-                    6000,
+                    13000,
                     "The intact body needs enough vertices for smooth joint " +
                     "transitions instead of rectangular limb cuts.");
 
