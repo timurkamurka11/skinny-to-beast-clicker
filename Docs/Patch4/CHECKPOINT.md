@@ -958,7 +958,46 @@ P4.0-X therefore:
 - changes no artwork, mesh weight, authored animation curve, protected path or
   readiness state.
 
-Unity compilation, PlayMode and the fresh v16 visual run remain pending.
+### P4.0-X real Unity rejection and P4.0-Y gait-sequence correction
+
+Unity `6000.3.19f1` reached the fresh v16 actual-room review with canonical
+Animator paths and zero room-review Console errors. Human review rejected it:
+the character still appeared to stand in place and twitch instead of walking.
+
+Source tracing isolated two separate facts that v16 had conflated:
+
+- normal gameplay traversal is performed by
+  `CharacterRoutineController.WalkTo` on the legacy parent root, so the Patch 4
+  child inherits real room movement without owning a duplicate locomotion
+  system;
+- the locked animation review pauses that legacy routine and its old one-shot
+  footstep, but v16 neither supplied silent review travel nor sampled more than
+  one Walk peak.
+
+P4.0-Y therefore:
+
+- removes thigh and upper-arm local-position curves that translated weighted
+  regions and produced rubber/vacuum deformation;
+- preserves fixed hip and shoulder bind anchors and reduces pelvis/spine rock;
+- authors a mirror-correct two-step cycle with asymmetric thigh, knee, foot,
+  upper-arm, elbow and hand bends;
+- samples eight consecutive Walk phases and moves only the locked review root
+  monotonically across the actual room while the legacy routine remains
+  paused;
+- restores the exact review-root position after Walk and before Edit Mode;
+- writes a separate `patch4-walk-cycle-review.png` strip;
+- blocks a technical pass unless the strip is complete, root travel is large
+  enough and left/right hand plus foot deltas oppose in anatomical mirrored
+  coordinates;
+- updates the PlayMode gait regression to sample both `0.25 / 0.75` peaks,
+  distinguish leading and planted feet at contact, and require both sides to
+  reverse across the full cycle;
+- advances automatic continuation to
+  `opposing-gait-room-travel-review-v17`;
+- keeps the exact master, face, protected paths, readiness lock and Patch 3.5
+  rollback state unchanged.
+
+Unity compilation, PlayMode and the fresh v17 visual run remain pending.
 
 ## Production dashboard
 
@@ -1019,7 +1058,7 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-X canonical Animator root-path correction into Unity
+1. Pull the P4.0-Y complete gait and room-travel review correction into Unity
    `6000.3.19f1`.
 2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
 3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
@@ -1031,16 +1070,18 @@ Until every condition passes, Patch 3.5 remains visible.
    the real room, freeze the Canvas bind anchors, pause the old walk routine,
    verify each layer-qualified Animator state and cycle all ten corrected clips
    on the intact body.
-5. Let the driver align away whole-body sway and reject weak silhouette motion
-   in any individual arm or leg, insufficient hand-to-clavicle or foot-to-
-   pelvis displacement, weak focused blink, silhouette loss or excessive
-   expansion; then capture the review sheet, restore Patch 3.5 and return to
-   Edit Mode.
-6. Confirm that the Console has zero errors and inspect the automatically
-   focused 5 × 2 room-animation contact sheet.
-7. Revise any exposed joint, detached paint, extreme stretch, foot slide or
+5. Let the driver sample eight Walk phases, move the locked review instance
+   silently across the room, and reject missing/retrograde travel or
+   non-alternating hand/foot endpoint motion.
+6. Let the driver align away whole-body displacement for limb-shape checks and
+   reject weak silhouette motion in any arm or leg, insufficient joint-space
+   displacement, weak blink, silhouette loss or excessive expansion; then
+   restore Patch 3.5 and return to Edit Mode.
+7. Confirm that the Console has zero errors and inspect the automatically
+   focused eight-phase Walk strip above the 5 × 2 room-animation sheet.
+8. Revise any exposed joint, detached paint, extreme stretch, foot slide or
    collapsing body/clothing region while the readiness gate stays locked.
-8. Only after successful technical and human motion review, consider approving
+9. Only after successful technical and human motion review, consider approving
    the readiness asset for the exact master SHA.
 
 Detailed art instructions:
@@ -1094,8 +1135,12 @@ Detailed verification instructions:
 - P4.0-W reached the user's Unity `6000.3.19f1` project, but its new PlayMode
   guard correctly stopped before room review because the controller layer and
   root state-machine names did not match.
-- P4.0-X source and static guards normalize that path; its PlayMode and fresh
-  actual-room review have not yet run in Unity.
+- P4.0-X normalized the path and reached the fresh v16 room review, but human
+  review rejected its standing twitch because one sampled peak did not prove a
+  gait sequence or room travel.
+- P4.0-Y source adds mirror-correct fixed-anchor gait curves, an eight-phase
+  Walk strip and silent review-only room travel; its fresh v17 Unity run is
+  pending.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

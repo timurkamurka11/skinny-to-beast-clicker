@@ -271,7 +271,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"normalized-controller-state-path-review-v16"',
+            '"opposing-gait-room-travel-review-v17"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -537,6 +537,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "rightFootRelativeDisplacement",
             "MinimumWalkHandRelativeDisplacement",
             "MinimumWalkFootRelativeDisplacement",
+            "MinimumWalkPlantedFootRelativeDisplacement",
             "IsForeground(",
             "neutralWidthRetention",
             "MaximumNeutralWidthExpansion",
@@ -548,6 +549,15 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "visualSanityPassed",
             "visibleMotionPassed",
             "animatorStateBindingPassed",
+            "WalkPhaseCount = 8",
+            "WalkCycleFileName",
+            "ReviewWalkCycle(",
+            "CaptureWalkPhaseFrame(",
+            "SetWalkReviewTravel(",
+            "MirrorLeftSideDelta(",
+            "walkCycleCaptured",
+            "walkRootTravelPassed",
+            "walkPhaseAlternationPassed",
             'animator.GetLayerName(0) + "." + clipName',
             "Animator.StringToHash(",
             "animator.HasState(",
@@ -590,7 +600,6 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "SetAlternatingRotation(",
             "SetReactionRotation(",
             "SetCyclePosition(",
-            "SetFourPhasePosition(",
             "SetFourPhaseRotation(",
             "AddFloatTransition(",
             "AnimatorControllerLayer layer = controller.layers[0];",
@@ -738,6 +747,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "HasFreshRoomArtifacts()",
             "hasFreshRoomArtifacts",
             "Patch4AnimationRoomReviewWindow.Open()",
+            "WalkCyclePath",
         ):
             if snippet not in room_review:
                 fail(errors, f"Actual-room review automation is missing: {snippet}")
@@ -757,6 +767,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "passedTechnicalChecks",
             "No fresh completed animation-room report is available",
             "An older contact sheet is deliberately blocked",
+            "Patch4AnimationRoomReview.WalkCyclePath",
+            "DrawWalkLabels(",
         ):
             if snippet not in review_window:
                 fail(
@@ -804,7 +816,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "GetCurrentAnimatorStateInfo(0).fullPathHash",
             "MinimumWalkHandDisplacement",
             "MinimumWalkFootDisplacement",
+            "MinimumWalkPlantedFootDisplacement",
             "animator.Play(stateHash, 0, 0.25f)",
+            "animator.Play(stateHash, 0, 0.75f)",
+            "MirroredLimbDot(",
         ):
             if snippet not in playmode_tests:
                 fail(

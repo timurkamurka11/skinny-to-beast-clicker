@@ -68,9 +68,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public float rightFootRelativeDisplacement;
             public float minimumHandRelativeDisplacement;
             public float minimumFootRelativeDisplacement;
+            public float minimumPlantedFootRelativeDisplacement;
             public bool relativeLimbPosePassed;
             public bool allLimbRegionsPassed;
             public bool limbArticulationPassed;
+            public int walkPhaseCount;
+            public float walkRootTravelPixels;
+            public float minimumWalkRootTravelPixels;
+            public float walkArmAlternationDot;
+            public float walkLegAlternationDot;
+            public bool walkRootTravelPassed;
+            public bool walkPhaseAlternationPassed;
+            public bool walkCycleCaptured;
             public bool visibleMotionPassed;
         }
 
@@ -95,6 +104,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool visualSanityPassed;
             public bool visibleMotionPassed;
             public bool animatorStateBindingPassed;
+            public bool walkCycleCaptured;
+            public bool walkRootTravelPassed;
+            public bool walkPhaseAlternationPassed;
             public bool legacyRoutinePausedForReview;
             public bool legacyRoutineRestored;
             public bool legacySignalBridgePausedForReview;
@@ -104,6 +116,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool humanReviewRequired = true;
             public bool activationAllowed;
             public string contactSheetPath = string.Empty;
+            public string walkCyclePath = string.Empty;
             public string error = string.Empty;
             public List<string> reviewConsoleErrors = new();
             public List<ClipReview> clips = new();
@@ -113,11 +126,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
             "patch4-animation-room-review.json";
         public const string ContactSheetFileName =
             "patch4-animation-room-review.png";
+        public const string WalkCycleFileName =
+            "patch4-walk-cycle-review.png";
 
         private const int ContactColumns = 5;
         private const int ContactRows = 2;
         private const int ThumbnailWidth = 300;
         private const int ThumbnailHeight = 420;
+        private const int WalkPhaseCount = 8;
+        private const int WalkContactPhaseIndex = 2;
+        private const int WalkOppositePhaseIndex = 6;
+        private const int WalkThumbnailWidth = 220;
+        private const int WalkThumbnailHeight = 310;
         private const int PixelDifferenceThreshold = 42;
         private const int MotionPixelDifferenceThreshold = 34;
         private const float MinimumSilhouetteWidthCoverage = 0.36f;
@@ -135,6 +155,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumWalkLegMotionCoverage = 0.04f;
         private const float MinimumWalkHandRelativeDisplacement = 0.68f;
         private const float MinimumWalkFootRelativeDisplacement = 0.60f;
+        private const float MinimumWalkPlantedFootRelativeDisplacement = 0.25f;
+        private const float MinimumWalkTravelWidthRatio = 0.55f;
+        private const float MaximumOpposingLimbDot = -0.20f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -147,6 +170,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private string outputDirectory = string.Empty;
         private string reviewRunToken = string.Empty;
         private Texture2D contactSheet;
+        private Texture2D walkCycleSheet;
         private Color32[] backgroundPixels = Array.Empty<Color32>();
         private int backgroundWidth;
         private int backgroundHeight;
@@ -171,6 +195,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Vector3 walkStartRightHandFromClavicle;
         private Vector3 walkStartLeftFootFromPelvis;
         private Vector3 walkStartRightFootFromPelvis;
+        private Vector3 reviewBaseLocalPosition;
+        private bool reviewBasePositionCaptured;
+        private float reviewTravelLocalDistance;
+        private readonly Vector3[] walkPhaseLeftHands =
+            new Vector3[WalkPhaseCount];
+        private readonly Vector3[] walkPhaseRightHands =
+            new Vector3[WalkPhaseCount];
+        private readonly Vector3[] walkPhaseLeftFeet =
+            new Vector3[WalkPhaseCount];
+        private readonly Vector3[] walkPhaseRightFeet =
+            new Vector3[WalkPhaseCount];
+        private readonly float[] walkPhaseRootScreenX =
+            new float[WalkPhaseCount];
         private string currentClip = string.Empty;
         private bool started;
         private bool logCaptureRegistered;
@@ -267,6 +304,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             PrepareLockedReview();
             InitializeContactSheet();
+            InitializeWalkCycleSheet();
 
             yield return null;
             yield return new WaitForEndOfFrame();
@@ -311,6 +349,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.allTenClipsReviewed;
             report.animatorStateBindingPassed =
                 report.allTenClipsReviewed;
+            report.walkCycleCaptured = false;
+            report.walkRootTravelPassed = false;
+            report.walkPhaseAlternationPassed = false;
             for (int i = 0; i < report.clips.Count; i++)
             {
                 report.allTenClipsReviewed &=
@@ -321,20 +362,39 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     report.clips[i].visibleMotionPassed;
                 report.animatorStateBindingPassed &=
                     report.clips[i].animatorStateBindingPassed;
+                if (string.Equals(
+                        report.clips[i].clipName,
+                        "FatMan_Walk_InRoom",
+                        StringComparison.Ordinal))
+                {
+                    report.walkCycleCaptured =
+                        report.clips[i].walkCycleCaptured;
+                    report.walkRootTravelPassed =
+                        report.clips[i].walkRootTravelPassed;
+                    report.walkPhaseAlternationPassed =
+                        report.clips[i].walkPhaseAlternationPassed;
+                }
             }
 
             Finish(
                 report.allTenClipsReviewed &&
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
-                report.animatorStateBindingPassed,
+                report.animatorStateBindingPassed &&
+                report.walkCycleCaptured &&
+                report.walkRootTravelPassed &&
+                report.walkPhaseAlternationPassed,
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
-                report.animatorStateBindingPassed
+                report.animatorStateBindingPassed &&
+                report.walkCycleCaptured &&
+                report.walkRootTravelPassed &&
+                report.walkPhaseAlternationPassed
                     ? string.Empty
                     : "One or more animation clips did not enter the required " +
                       "Animator state, collapsed or failed the visible " +
-                      "start-to-peak motion check.");
+                      "motion check, or the walk did not show eight " +
+                      "opposing limb phases with real room travel.");
         }
 
         private IEnumerator ReviewClip(
@@ -345,6 +405,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             currentClip = clip.name;
             walkJointStartCaptured = false;
             ConfigureFaceForClip(clip.name);
+            bool isWalk = string.Equals(
+                clip.name,
+                "FatMan_Walk_InRoom",
+                StringComparison.Ordinal);
 
             float reviewDuration = Mathf.Clamp(
                 clip.length,
@@ -387,6 +451,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clip.length > 0.001f
                     ? clip.length / reviewDuration
                     : 1f;
+            if (isWalk)
+            {
+                PrepareWalkReviewTravel();
+                SetWalkReviewTravel(0f);
+            }
+
             ConfigureAnimatorParametersForClip(clip.name);
             animator.speed = 0f;
             clipReport.startStateEntered = PlayVerifiedAnimatorState(
@@ -422,11 +492,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 yield break;
             }
 
-            if (string.Equals(
-                    clip.name,
-                    "FatMan_Walk_InRoom",
-                    StringComparison.Ordinal) &&
-                !CaptureWalkJointStartPose())
+            if (isWalk && !CaptureWalkJointStartPose())
             {
                 clipReport.captured = false;
                 report.error = AppendError(
@@ -434,6 +500,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     clip.name +
                     ": the four limb endpoint bind vectors could not be " +
                     "captured.");
+                RestoreAnimatorAfterClip();
+                yield break;
+            }
+
+            if (isWalk)
+            {
+                yield return ReviewWalkCycle(
+                    clipReport,
+                    clipIndex,
+                    reviewDuration,
+                    playbackSpeed);
+                faceController.SetMouth(
+                    Patch4FaceController.MouthPose.Closed);
                 RestoreAnimatorAfterClip();
                 yield break;
             }
@@ -496,6 +575,239 @@ namespace SkinnyToBeast.Gameplay.Patch4
             faceController.SetMouth(
                 Patch4FaceController.MouthPose.Closed);
             RestoreAnimatorAfterClip();
+        }
+
+        private IEnumerator ReviewWalkCycle(
+            ClipReview clipReport,
+            int clipIndex,
+            float reviewDuration,
+            float playbackSpeed)
+        {
+            bool phaseFramesCaptured = true;
+            bool phaseVectorsCaptured = true;
+            bool contactFrameCaptured = false;
+            float elapsed = 0f;
+            float lastCaptureNormalizedTime =
+                (WalkPhaseCount - 1f) / WalkPhaseCount;
+
+            for (int phaseIndex = 0;
+                 phaseIndex < WalkPhaseCount;
+                 phaseIndex++)
+            {
+                float normalizedTime =
+                    phaseIndex / (float)WalkPhaseCount;
+                float captureAt = reviewDuration * normalizedTime;
+                animator.speed = playbackSpeed;
+                while (elapsed < captureAt)
+                {
+                    elapsed += Mathf.Max(
+                        0.001f,
+                        Time.unscaledDeltaTime);
+                    float liveNormalizedTime = Mathf.Clamp01(
+                        elapsed / Mathf.Max(0.001f, reviewDuration));
+                    SetWalkReviewTravel(
+                        liveNormalizedTime /
+                        lastCaptureNormalizedTime);
+                    yield return null;
+                }
+
+                animator.speed = 0f;
+                float travelProgress =
+                    phaseIndex / (float)(WalkPhaseCount - 1);
+                SetWalkReviewTravel(travelProgress);
+
+                bool stateEntered = PlayVerifiedAnimatorState(
+                    clipReport.animatorStateHash,
+                    normalizedTime,
+                    out int stateHash);
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+                yield return new WaitForEndOfFrame();
+                stateEntered &= VerifyCurrentAnimatorState(
+                    clipReport.animatorStateHash,
+                    out stateHash);
+                if (!stateEntered)
+                {
+                    FailAnimatorStateBinding(
+                        clipReport,
+                        "the walk state was lost while sampling phase " +
+                        (phaseIndex + 1) + " of " + WalkPhaseCount + ".");
+                    yield break;
+                }
+
+                phaseFramesCaptured &= CaptureWalkPhaseFrame(phaseIndex);
+                phaseVectorsCaptured &= CaptureWalkPhaseVectors(phaseIndex);
+                Rect currentRect = ResolveExpectedScreenRect(
+                    backgroundWidth,
+                    backgroundHeight);
+                walkPhaseRootScreenX[phaseIndex] = currentRect.center.x;
+
+                if (phaseIndex == WalkContactPhaseIndex)
+                {
+                    clipReport.peakStateEntered = true;
+                    clipReport.peakStateFullPathHash = stateHash;
+                    contactFrameCaptured = CaptureCurrentRoomFrame(
+                        clipIndex,
+                        clipReport);
+                }
+            }
+
+            // Let the final planted foot settle back to the loop seam while
+            // the character remains at the review destination. This makes the
+            // live Game view show one continuous step cycle rather than eight
+            // disconnected diagnostic poses.
+            animator.speed = playbackSpeed;
+            while (elapsed < reviewDuration)
+            {
+                elapsed += Mathf.Max(
+                    0.001f,
+                    Time.unscaledDeltaTime);
+                SetWalkReviewTravel(1f);
+                yield return null;
+            }
+            animator.speed = 0f;
+
+            clipReport.animatorStateBindingPassed =
+                clipReport.startStateEntered &&
+                clipReport.peakStateEntered;
+            clipReport.walkPhaseCount = WalkPhaseCount;
+            clipReport.walkCycleCaptured =
+                phaseFramesCaptured &&
+                phaseVectorsCaptured;
+            AnalyzeWalkSequence(clipReport);
+            clipReport.captured =
+                contactFrameCaptured &&
+                clipReport.walkCycleCaptured;
+            clipReport.visibleMotionPassed &=
+                clipReport.walkRootTravelPassed &&
+                clipReport.walkPhaseAlternationPassed;
+        }
+
+        private bool CaptureWalkPhaseVectors(int phaseIndex)
+        {
+            if (phaseIndex < 0 || phaseIndex >= WalkPhaseCount)
+            {
+                return false;
+            }
+
+            return
+                TryGetRigRelativeVector(
+                    "ClavicleL",
+                    "HandL",
+                    out walkPhaseLeftHands[phaseIndex]) &&
+                TryGetRigRelativeVector(
+                    "ClavicleR",
+                    "HandR",
+                    out walkPhaseRightHands[phaseIndex]) &&
+                TryGetRigRelativeVector(
+                    "Pelvis",
+                    "FootL",
+                    out walkPhaseLeftFeet[phaseIndex]) &&
+                TryGetRigRelativeVector(
+                    "Pelvis",
+                    "FootR",
+                    out walkPhaseRightFeet[phaseIndex]);
+        }
+
+        private void AnalyzeWalkSequence(ClipReview clipReport)
+        {
+            clipReport.walkRootTravelPixels = Mathf.Abs(
+                walkPhaseRootScreenX[WalkPhaseCount - 1] -
+                walkPhaseRootScreenX[0]);
+            clipReport.minimumWalkRootTravelPixels = Mathf.Max(
+                48f,
+                neutralSilhouetteWidth * MinimumWalkTravelWidthRatio);
+            bool monotonicTravel = true;
+            for (int i = 1; i < WalkPhaseCount; i++)
+            {
+                monotonicTravel &=
+                    walkPhaseRootScreenX[i] >=
+                    walkPhaseRootScreenX[i - 1] - 0.5f;
+            }
+
+            clipReport.walkRootTravelPassed =
+                monotonicTravel &&
+                clipReport.walkRootTravelPixels >=
+                clipReport.minimumWalkRootTravelPixels;
+
+            Vector3 leftArmDelta =
+                walkPhaseLeftHands[WalkOppositePhaseIndex] -
+                walkPhaseLeftHands[WalkContactPhaseIndex];
+            Vector3 rightArmDelta =
+                walkPhaseRightHands[WalkOppositePhaseIndex] -
+                walkPhaseRightHands[WalkContactPhaseIndex];
+            Vector3 leftLegDelta =
+                walkPhaseLeftFeet[WalkOppositePhaseIndex] -
+                walkPhaseLeftFeet[WalkContactPhaseIndex];
+            Vector3 rightLegDelta =
+                walkPhaseRightFeet[WalkOppositePhaseIndex] -
+                walkPhaseRightFeet[WalkContactPhaseIndex];
+
+            clipReport.walkArmAlternationDot = DirectionDot(
+                MirrorLeftSideDelta(leftArmDelta),
+                rightArmDelta);
+            clipReport.walkLegAlternationDot = DirectionDot(
+                MirrorLeftSideDelta(leftLegDelta),
+                rightLegDelta);
+            clipReport.walkPhaseAlternationPassed =
+                leftArmDelta.magnitude >=
+                    MinimumWalkHandRelativeDisplacement &&
+                rightArmDelta.magnitude >=
+                    MinimumWalkHandRelativeDisplacement &&
+                leftLegDelta.magnitude >=
+                    MinimumWalkFootRelativeDisplacement &&
+                rightLegDelta.magnitude >=
+                    MinimumWalkFootRelativeDisplacement &&
+                clipReport.walkArmAlternationDot <=
+                    MaximumOpposingLimbDot &&
+                clipReport.walkLegAlternationDot <=
+                    MaximumOpposingLimbDot;
+
+            if (!clipReport.walkRootTravelPassed)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": the eight-phase walk stayed in place (" +
+                    clipReport.walkRootTravelPixels.ToString("0.0") +
+                    " px, minimum " +
+                    clipReport.minimumWalkRootTravelPixels.ToString("0.0") +
+                    " px with monotonic room travel).");
+            }
+
+            if (!clipReport.walkPhaseAlternationPassed)
+            {
+                report.error = AppendError(
+                    report.error,
+                    clipReport.clipName +
+                    ": left/right limbs did not reverse across opposing " +
+                    "walk phases (arm dot " +
+                    clipReport.walkArmAlternationDot.ToString("0.000") +
+                    ", leg dot " +
+                    clipReport.walkLegAlternationDot.ToString("0.000") +
+                    "; both must be <= " +
+                    MaximumOpposingLimbDot.ToString("0.000") + ").");
+            }
+        }
+
+        private static float DirectionDot(Vector3 first, Vector3 second)
+        {
+            if (first.sqrMagnitude < 0.000001f ||
+                second.sqrMagnitude < 0.000001f)
+            {
+                return 1f;
+            }
+
+            return Vector3.Dot(first.normalized, second.normalized);
+        }
+
+        private static Vector3 MirrorLeftSideDelta(Vector3 value)
+        {
+            // The authored left and right chains are mirrored in X. Convert
+            // the left endpoint delta into the right limb's anatomical frame
+            // before checking that the two sides move in opposite gait phases.
+            value.x = -value.x;
+            return value;
         }
 
         private string ResolveAnimatorStatePath(string clipName)
@@ -598,6 +910,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void RestoreAnimatorAfterClip()
         {
+            RestoreWalkReviewTravel();
             if (animator != null)
             {
                 ConfigureAnimatorParametersForClip(string.Empty);
@@ -814,6 +1127,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void PrepareLockedReview()
         {
+            reviewBaseLocalPosition = rigController.transform.localPosition;
+            reviewBasePositionCaptured = true;
+            reviewTravelLocalDistance = 0f;
             rigController.SetPatch4Enabled(false);
             visibilityGuard.enabled = false;
             patch35RollbackRoot.SetActive(true);
@@ -843,6 +1159,71 @@ namespace SkinnyToBeast.Gameplay.Patch4
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             Canvas.ForceUpdateCanvases();
+        }
+
+        private void PrepareWalkReviewTravel()
+        {
+            Transform target =
+                rigController != null ? rigController.transform : null;
+            Transform parent = target != null ? target.parent : null;
+            if (target == null || parent == null)
+            {
+                reviewTravelLocalDistance = 0f;
+                return;
+            }
+
+            Canvas canvas =
+                canvasPresentation != null
+                    ? canvasPresentation.HostCanvas
+                    : null;
+            Camera camera =
+                canvas != null &&
+                canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                    ? canvas.worldCamera
+                    : null;
+            Vector2 screenOrigin =
+                RectTransformUtility.WorldToScreenPoint(
+                    camera,
+                    parent.TransformPoint(Vector3.zero));
+            Vector2 screenUnit =
+                RectTransformUtility.WorldToScreenPoint(
+                    camera,
+                    parent.TransformPoint(Vector3.right));
+            float pixelsPerLocalUnit = Mathf.Abs(
+                screenUnit.x - screenOrigin.x);
+            if (pixelsPerLocalUnit < 0.001f)
+            {
+                pixelsPerLocalUnit = 1f;
+            }
+
+            float targetTravelPixels = Mathf.Clamp(
+                neutralSilhouetteWidth * 0.72f,
+                64f,
+                180f);
+            reviewTravelLocalDistance =
+                targetTravelPixels / pixelsPerLocalUnit;
+        }
+
+        private void SetWalkReviewTravel(float progress)
+        {
+            if (rigController == null || !reviewBasePositionCaptured)
+            {
+                return;
+            }
+
+            Vector3 position = reviewBaseLocalPosition;
+            position.x += reviewTravelLocalDistance *
+                Mathf.Clamp01(progress);
+            rigController.transform.localPosition = position;
+        }
+
+        private void RestoreWalkReviewTravel()
+        {
+            if (rigController != null && reviewBasePositionCaptured)
+            {
+                rigController.transform.localPosition =
+                    reviewBaseLocalPosition;
+            }
         }
 
         private void PauseLegacyMotionAndFootsteps()
@@ -971,6 +1352,89 @@ namespace SkinnyToBeast.Gameplay.Patch4
             contactSheet.SetPixels32(background);
         }
 
+        private void InitializeWalkCycleSheet()
+        {
+            walkCycleSheet = new Texture2D(
+                WalkPhaseCount * WalkThumbnailWidth,
+                WalkThumbnailHeight,
+                TextureFormat.RGBA32,
+                false,
+                false)
+            {
+                name = "Patch4WalkCycleReview",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            Color32[] background = new Color32[
+                walkCycleSheet.width * walkCycleSheet.height];
+            Color32 fill = new(20, 24, 30, 255);
+            for (int i = 0; i < background.Length; i++)
+            {
+                background[i] = fill;
+            }
+
+            walkCycleSheet.SetPixels32(background);
+        }
+
+        private bool CaptureWalkPhaseFrame(int phaseIndex)
+        {
+            Texture2D screenshot = null;
+            Texture2D thumbnail = null;
+            try
+            {
+                if (walkCycleSheet == null ||
+                    phaseIndex < 0 ||
+                    phaseIndex >= WalkPhaseCount)
+                {
+                    return false;
+                }
+
+                screenshot = ScreenCapture.CaptureScreenshotAsTexture(1);
+                if (screenshot == null)
+                {
+                    return false;
+                }
+
+                thumbnail = BuildThumbnail(
+                    screenshot,
+                    WalkThumbnailWidth,
+                    WalkThumbnailHeight);
+                if (thumbnail == null)
+                {
+                    return false;
+                }
+
+                walkCycleSheet.SetPixels32(
+                    phaseIndex * WalkThumbnailWidth,
+                    0,
+                    WalkThumbnailWidth,
+                    WalkThumbnailHeight,
+                    thumbnail.GetPixels32());
+                return true;
+            }
+            catch (Exception exception)
+            {
+                report.error = AppendError(
+                    report.error,
+                    "Walk phase " + (phaseIndex + 1) + ": " +
+                    exception.Message);
+                return false;
+            }
+            finally
+            {
+                if (screenshot != null)
+                {
+                    Destroy(screenshot);
+                }
+
+                if (thumbnail != null)
+                {
+                    Destroy(thumbnail);
+                }
+            }
+        }
+
         private bool CaptureReviewBackground()
         {
             Texture2D screenshot = null;
@@ -1083,11 +1547,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             Color32[] current = screenshot.GetPixels32();
-            Rect expected = neutralReferenceCaptured
-                ? neutralExpectedScreenRect
-                : ResolveExpectedScreenRect(
-                    screenshot.width,
-                    screenshot.height);
+            // The walk review intentionally advances the generated character
+            // through the room. Measure the silhouette at its current Canvas
+            // bounds; using the neutral start rectangle would crop legitimate
+            // travel and could turn locomotion into a false collapse.
+            Rect expected = ResolveExpectedScreenRect(
+                screenshot.width,
+                screenshot.height);
             if (!MeasureSilhouette(
                     current,
                     screenshot.width,
@@ -1489,6 +1955,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 MinimumWalkHandRelativeDisplacement;
             clipReport.minimumFootRelativeDisplacement =
                 MinimumWalkFootRelativeDisplacement;
+            clipReport.minimumPlantedFootRelativeDisplacement =
+                MinimumWalkPlantedFootRelativeDisplacement;
             clipReport.relativeLimbPosePassed =
                 MeasureWalkJointArticulation(clipReport);
             clipReport.allLimbRegionsPassed =
@@ -1531,6 +1999,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     clipReport.leftFootRelativeDisplacement.ToString("0.00") +
                     "/" +
                     clipReport.rightFootRelativeDisplacement.ToString("0.00") +
+                    "; leading/planted minimum " +
+                    MinimumWalkFootRelativeDisplacement.ToString("0.00") +
+                    "/" +
+                    MinimumWalkPlantedFootRelativeDisplacement.ToString("0.00") +
                     "). Every arm and leg must change its silhouette and move " +
                     "relative to its shoulder or pelvis; body bob and texture " +
                     "shimmer cannot pass.");
@@ -1677,15 +2149,21 @@ namespace SkinnyToBeast.Gameplay.Patch4
             clipReport.rightFootRelativeDisplacement = Vector3.Distance(
                 walkStartRightFootFromPelvis,
                 rightFoot);
+            float leadingFootDisplacement = Mathf.Max(
+                clipReport.leftFootRelativeDisplacement,
+                clipReport.rightFootRelativeDisplacement);
+            float plantedFootDisplacement = Mathf.Min(
+                clipReport.leftFootRelativeDisplacement,
+                clipReport.rightFootRelativeDisplacement);
             return
                 clipReport.leftHandRelativeDisplacement >=
                     MinimumWalkHandRelativeDisplacement &&
                 clipReport.rightHandRelativeDisplacement >=
                     MinimumWalkHandRelativeDisplacement &&
-                clipReport.leftFootRelativeDisplacement >=
+                leadingFootDisplacement >=
                     MinimumWalkFootRelativeDisplacement &&
-                clipReport.rightFootRelativeDisplacement >=
-                    MinimumWalkFootRelativeDisplacement;
+                plantedFootDisplacement >=
+                    MinimumWalkPlantedFootRelativeDisplacement;
         }
 
         private bool TryGetRigRelativeVector(
@@ -1957,9 +2435,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private static Texture2D BuildThumbnail(Texture2D source)
         {
-            RenderTexture target = RenderTexture.GetTemporary(
+            return BuildThumbnail(
+                source,
                 ThumbnailWidth,
-                ThumbnailHeight,
+                ThumbnailHeight);
+        }
+
+        private static Texture2D BuildThumbnail(
+            Texture2D source,
+            int targetWidth,
+            int targetHeight)
+        {
+            RenderTexture target = RenderTexture.GetTemporary(
+                targetWidth,
+                targetHeight,
                 0,
                 RenderTextureFormat.ARGB32,
                 RenderTextureReadWrite.sRGB);
@@ -1969,7 +2458,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 float sourceAspect =
                     source.width / (float)source.height;
                 float targetAspect =
-                    ThumbnailWidth / (float)ThumbnailHeight;
+                    targetWidth / (float)targetHeight;
                 Vector2 scale = Vector2.one;
                 Vector2 offset = Vector2.zero;
 
@@ -1987,8 +2476,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Graphics.Blit(source, target, scale, offset);
                 RenderTexture.active = target;
                 Texture2D thumbnail = new(
-                    ThumbnailWidth,
-                    ThumbnailHeight,
+                    targetWidth,
+                    targetHeight,
                     TextureFormat.RGBA32,
                     false,
                     false);
@@ -1996,8 +2485,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     new Rect(
                         0f,
                         0f,
-                        ThumbnailWidth,
-                        ThumbnailHeight),
+                        targetWidth,
+                        targetHeight),
                     0,
                     0,
                     false);
@@ -2028,6 +2517,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
                 report.animatorStateBindingPassed &&
+                report.walkCycleCaptured &&
+                report.walkRootTravelPassed &&
+                report.walkPhaseAlternationPassed &&
                 report.legacyRoutinePausedForReview &&
                 report.legacyRoutineRestored &&
                 report.legacySignalBridgePausedForReview &&
@@ -2048,11 +2540,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             string contactPath = Path.Combine(
                 outputDirectory,
                 ContactSheetFileName);
+            string walkCyclePath = Path.Combine(
+                outputDirectory,
+                WalkCycleFileName);
             string reportPath = Path.Combine(
                 outputDirectory,
                 ReportFileName);
             report.contactSheetPath =
                 contactPath.Replace('\\', '/');
+            report.walkCyclePath =
+                walkCyclePath.Replace('\\', '/');
 
             try
             {
@@ -2062,6 +2559,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     File.WriteAllBytes(
                         contactPath,
                         contactSheet.EncodeToPNG());
+                }
+
+                if (walkCycleSheet != null)
+                {
+                    walkCycleSheet.Apply(false, false);
+                    File.WriteAllBytes(
+                        walkCyclePath,
+                        walkCycleSheet.EncodeToPNG());
                 }
 
                 File.WriteAllText(
@@ -2084,6 +2589,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void CleanupLockedReview()
         {
+            RestoreWalkReviewTravel();
             if (animator != null)
             {
                 animator.speed = 1f;

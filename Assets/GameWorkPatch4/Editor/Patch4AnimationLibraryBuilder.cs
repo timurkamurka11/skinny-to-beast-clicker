@@ -342,140 +342,94 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 Pelvis,
                 duration,
-                -2.2f,
-                2.2f);
+                -0.6f,
+                0.6f);
             SetAlternatingRotation(
                 clip,
                 SpineLower,
                 duration,
-                1.1f,
-                -1.1f);
+                0.3f,
+                -0.3f);
 
-            // A front-facing gait cannot read from root sway alone. Each half
-            // cycle now has one lifted articulated leg and one planted leg.
-            // These are absolute local positions from Patch4PrefabBuilder's
-            // bind skeleton; the curve always returns to the exact bind pose.
-            SetFourPhasePosition(
-                clip,
-                ThighL,
-                "m_LocalPosition.x",
-                duration,
-                -0.72f,
-                -0.80f,
-                -0.68f);
-            SetFourPhasePosition(
-                clip,
-                ThighL,
-                "m_LocalPosition.y",
-                duration,
-                -0.40f,
-                -0.17f,
-                -0.46f);
-            SetFourPhasePosition(
-                clip,
-                ThighR,
-                "m_LocalPosition.x",
-                duration,
-                0.72f,
-                0.68f,
-                0.80f);
-            SetFourPhasePosition(
-                clip,
-                ThighR,
-                "m_LocalPosition.y",
-                duration,
-                -0.40f,
-                -0.46f,
-                -0.17f);
+            // Keep every shoulder and hip at its authored bind anchor. Moving
+            // those anchors translated whole texture regions and produced the
+            // rubber/vacuum motion seen in the v16 human review. Locomotion is
+            // instead a mirror-correct gait. The left and right bind chains
+            // point in opposite X directions, so matching raw rotation signs
+            // create opposing endpoint motion on screen. Giving the leading
+            // limb the larger bend makes each planted/lifted step unambiguous.
             SetFourPhaseRotation(
                 clip,
                 ThighL,
                 duration,
-                -22f,
-                12f);
+                -24f,
+                14f);
             SetFourPhaseRotation(
                 clip,
                 ThighR,
                 duration,
-                -12f,
-                22f);
+                -14f,
+                24f);
             SetFourPhaseRotation(
                 clip,
                 ShinL,
                 duration,
                 34f,
-                -5f);
+                -6f);
             SetFourPhaseRotation(
                 clip,
                 ShinR,
                 duration,
-                5f,
+                6f,
                 -34f);
             SetFourPhaseRotation(
                 clip,
                 FootL,
                 duration,
-                -18f,
+                -16f,
                 6f);
             SetFourPhaseRotation(
                 clip,
                 FootR,
                 duration,
                 -6f,
-                18f);
-
-            SetFourPhasePosition(
-                clip,
-                UpperArmL,
-                "m_LocalPosition.y",
-                duration,
-                -0.25f,
-                -0.18f,
-                -0.33f);
-            SetFourPhasePosition(
-                clip,
-                UpperArmR,
-                "m_LocalPosition.y",
-                duration,
-                -0.25f,
-                -0.33f,
-                -0.18f);
+                16f);
             SetFourPhaseRotation(
                 clip,
                 UpperArmL,
                 duration,
-                22f,
-                -18f);
+                24f,
+                -16f);
             SetFourPhaseRotation(
                 clip,
                 UpperArmR,
                 duration,
-                18f,
-                -22f);
+                16f,
+                -24f);
             SetFourPhaseRotation(
                 clip,
                 ForearmL,
                 duration,
-                -18f,
-                12f);
+                -16f,
+                8f);
             SetFourPhaseRotation(
                 clip,
                 ForearmR,
                 duration,
-                -12f,
-                18f);
+                -8f,
+                16f);
             SetFourPhaseRotation(
                 clip,
                 HandL,
                 duration,
-                7f,
-                -5f);
+                6f,
+                -4f);
             SetFourPhaseRotation(
                 clip,
                 HandR,
                 duration,
-                5f,
-                -7f);
+                4f,
+                -6f);
             SetAlternatingRotation(
                 clip,
                 SpineUpper,
@@ -984,26 +938,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 new Keyframe(duration * 0.5f, 0f),
                 new Keyframe(duration * 0.75f, second),
                 new Keyframe(duration, 0f));
-        }
-
-        private static void SetFourPhasePosition(
-            AnimationClip clip,
-            string path,
-            string property,
-            float duration,
-            float rest,
-            float first,
-            float second)
-        {
-            SetCurve(
-                clip,
-                path,
-                property,
-                new Keyframe(0f, rest),
-                new Keyframe(duration * 0.25f, first),
-                new Keyframe(duration * 0.5f, rest),
-                new Keyframe(duration * 0.75f, second),
-                new Keyframe(duration, rest));
         }
 
         private static void SetFourPhaseRotation(

@@ -253,12 +253,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             const string pelvis = visual + "/Pelvis";
             const string thighLeft = pelvis + "/ThighL";
             const string thighRight = pelvis + "/ThighR";
+            const string shinLeft = thighLeft + "/ShinL";
+            const string shinRight = thighRight + "/ShinR";
+            const string footLeft = shinLeft + "/FootL";
+            const string footRight = shinRight + "/FootR";
             const string spineLower = pelvis + "/SpineLower";
             const string spineUpper = spineLower + "/SpineUpper";
             const string upperArmLeft =
                 spineUpper + "/ClavicleL/UpperArmL";
             const string upperArmRight =
                 spineUpper + "/ClavicleR/UpperArmR";
+            const string forearmLeft = upperArmLeft + "/ForearmL";
+            const string forearmRight = upperArmRight + "/ForearmR";
+            const string handLeft = forearmLeft + "/HandL";
+            const string handRight = forearmRight + "/HandR";
 
             AnimationClip walk =
                 AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
@@ -266,22 +274,95 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             float firstPeak = walk.length * 0.25f;
             float secondPeak = walk.length * 0.75f;
 
-            AnimationCurve leftLift = RequireCurve(
+            string[] anchoredBones =
+            {
+                thighLeft,
+                thighRight,
+                upperArmLeft,
+                upperArmRight
+            };
+            string[] anchoredProperties =
+            {
+                "m_LocalPosition.x",
+                "m_LocalPosition.y"
+            };
+            for (int boneIndex = 0;
+                 boneIndex < anchoredBones.Length;
+                 boneIndex++)
+            {
+                for (int propertyIndex = 0;
+                     propertyIndex < anchoredProperties.Length;
+                     propertyIndex++)
+                {
+                    Assert.IsNull(
+                        AnimationUtility.GetEditorCurve(
+                            walk,
+                            EditorCurveBinding.FloatCurve(
+                                anchoredBones[boneIndex],
+                                typeof(Transform),
+                                anchoredProperties[propertyIndex])),
+                        "Walk must keep shoulder and hip anchors fixed; " +
+                        anchoredBones[boneIndex] + " animates " +
+                        anchoredProperties[propertyIndex] + ".");
+                }
+            }
+
+            AnimationCurve leftThighRotation = RequireCurve(
                 walk,
                 thighLeft,
-                "m_LocalPosition.y");
-            AnimationCurve rightLift = RequireCurve(
+                "localEulerAnglesRaw.z");
+            AnimationCurve rightThighRotation = RequireCurve(
                 walk,
                 thighRight,
-                "m_LocalPosition.y");
+                "localEulerAnglesRaw.z");
             Assert.Greater(
-                leftLift.Evaluate(firstPeak) - leftLift.Evaluate(0f),
-                0.20f,
-                "The first step does not lift the left thigh.");
+                leftThighRotation.Evaluate(firstPeak) *
+                rightThighRotation.Evaluate(firstPeak),
+                0f,
+                "Mirrored legs need matching raw rotation signs at the first " +
+                "gait peak so their endpoints move anatomically opposite.");
             Assert.Greater(
-                rightLift.Evaluate(secondPeak) - rightLift.Evaluate(0f),
-                0.20f,
-                "The second step does not lift the right thigh.");
+                leftThighRotation.Evaluate(secondPeak) *
+                rightThighRotation.Evaluate(secondPeak),
+                0f,
+                "Mirrored legs need matching raw rotation signs at the second " +
+                "gait peak so their endpoints move anatomically opposite.");
+            Assert.Greater(
+                Mathf.Abs(leftThighRotation.Evaluate(firstPeak)),
+                Mathf.Abs(rightThighRotation.Evaluate(firstPeak)),
+                "The left leg must lead the first step.");
+            Assert.Greater(
+                Mathf.Abs(rightThighRotation.Evaluate(secondPeak)),
+                Mathf.Abs(leftThighRotation.Evaluate(secondPeak)),
+                "The right leg must lead the second step.");
+            AssertCurveSweep(
+                walk,
+                shinLeft,
+                firstPeak,
+                secondPeak,
+                35f,
+                "The left knee does not bend across the gait cycle.");
+            AssertCurveSweep(
+                walk,
+                shinRight,
+                firstPeak,
+                secondPeak,
+                35f,
+                "The right knee does not bend across the gait cycle.");
+            AssertCurveSweep(
+                walk,
+                footLeft,
+                firstPeak,
+                secondPeak,
+                18f,
+                "The left foot does not plant and release.");
+            AssertCurveSweep(
+                walk,
+                footRight,
+                firstPeak,
+                secondPeak,
+                18f,
+                "The right foot does not plant and release.");
 
             Assert.Greater(
                 Mathf.Abs(
@@ -312,6 +393,66 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 35f,
                 "The right arm does not counter-swing across the gait cycle.");
 
+            AnimationCurve leftArmRotation = RequireCurve(
+                walk,
+                upperArmLeft,
+                "localEulerAnglesRaw.z");
+            AnimationCurve rightArmRotation = RequireCurve(
+                walk,
+                upperArmRight,
+                "localEulerAnglesRaw.z");
+            Assert.Greater(
+                leftArmRotation.Evaluate(firstPeak) *
+                rightArmRotation.Evaluate(firstPeak),
+                0f,
+                "Mirrored arms need matching raw rotation signs at the first " +
+                "peak so their endpoints counter-swing.");
+            Assert.Greater(
+                leftArmRotation.Evaluate(secondPeak) *
+                rightArmRotation.Evaluate(secondPeak),
+                0f,
+                "Mirrored arms need matching raw rotation signs at the second " +
+                "peak so their endpoints counter-swing.");
+            AssertCurveSweep(
+                walk,
+                forearmLeft,
+                firstPeak,
+                secondPeak,
+                20f,
+                "The left elbow does not follow the arm swing.");
+            AssertCurveSweep(
+                walk,
+                forearmRight,
+                firstPeak,
+                secondPeak,
+                20f,
+                "The right elbow does not follow the arm swing.");
+            AssertCurveSweep(
+                walk,
+                handLeft,
+                firstPeak,
+                secondPeak,
+                8f,
+                "The left hand remains rigid through the walk.");
+            AssertCurveSweep(
+                walk,
+                handRight,
+                firstPeak,
+                secondPeak,
+                8f,
+                "The right hand remains rigid through the walk.");
+
+            AnimationCurve pelvisBalance = RequireCurve(
+                walk,
+                pelvis,
+                "localEulerAnglesRaw.z");
+            Assert.LessOrEqual(
+                Mathf.Max(
+                    Mathf.Abs(pelvisBalance.Evaluate(firstPeak)),
+                    Mathf.Abs(pelvisBalance.Evaluate(secondPeak))),
+                0.75f,
+                "Pelvis rock is large enough to disguise a static gait.");
+
             AnimationCurve rootSway = AnimationUtility.GetEditorCurve(
                 walk,
                 EditorCurveBinding.FloatCurve(
@@ -321,6 +462,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.IsNull(
                 rootSway,
                 "Walk must not fake locomotion with side-to-side root sway.");
+        }
+
+        private static void AssertCurveSweep(
+            AnimationClip clip,
+            string path,
+            float firstTime,
+            float secondTime,
+            float minimumSweep,
+            string message)
+        {
+            AnimationCurve curve = RequireCurve(
+                clip,
+                path,
+                "localEulerAnglesRaw.z");
+            Assert.Greater(
+                Mathf.Abs(
+                    curve.Evaluate(firstTime) -
+                    curve.Evaluate(secondTime)),
+                minimumSweep,
+                message);
         }
 
         private static void AssertAnimatorControllerHasCanonicalRootStatePaths(

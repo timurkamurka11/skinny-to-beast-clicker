@@ -622,9 +622,10 @@ did not return, but human review rejected the motion:
 Source inspection and row measurements against the exact `1024 × 1536` master
 confirmed that the P4.0-S arm centerline remained about 20–40 pixels too far
 inside the shirt and its feather band was nearly twice the painted arm width.
-The leg centerlines were likewise biased toward the crotch. The walk also used
-mirrored left/right rotations, which spread or closed both limbs together
-instead of creating an alternating frontal stride.
+The leg centerlines were likewise biased toward the crotch. A later endpoint
+trace corrected the provisional rotation diagnosis: because the authored left
+and right bind chains are mirrored in X, matching raw rotation signs are needed
+to produce opposite anatomical endpoint motion in a frontal stride.
 
 ## P4.0-U anatomical limb and stride correction
 
@@ -778,9 +779,65 @@ state path, so `HasState` correctly returned false.
 - Keep readiness locked, Patch 3.5 active and protected menu, video, music,
   audio and settings paths unchanged.
 
+## P4.0-X real Unity result and human rejection
+
+Unity `6000.3.19f1` reached the fresh v16 room review with the canonical state
+paths and reported a technical pass with zero room-review Console errors. The
+user rejected the result after watching it live:
+
+- `FatMan_Walk_InRoom` still read as a character standing in one place and
+  twitching/rocking;
+- the single captured walk peak did not prove an actual step sequence;
+- arms and legs did not alternate clearly over time;
+- the earlier hip and shoulder position curves pulled weighted texture regions
+  and contributed to vacuum-like deformation.
+
+Repository tracing found that production room traversal and the review were
+using different motion owners. `CharacterRoutineController.WalkTo` moves the
+legacy character root, and the Patch 4 instance inherits that parent movement
+in normal gameplay. The locked review deliberately disables the legacy routine
+and old one-shot footstep, but v16 supplied no silent replacement traversal.
+It then judged Walk from only its start and `0.25` peak. A static twitch could
+therefore pass without ever showing a complete walk cycle.
+
+The v16 technical result is rejected. Patch 4 remains locked.
+
+## Current P4.0-Y complete gait and room-travel evidence
+
+- Keep the exact `1024 × 1536` master, the one-piece `96 × 144` Canvas body and
+  all existing face bindings unchanged.
+- Remove local-position curves from both thighs and both upper arms. Hip and
+  shoulder bind anchors remain fixed, so weighted texture regions cannot be
+  dragged like rectangular rubber patches.
+- Reduce pelvis/spine rocking to a small secondary balance motion.
+- Author a mirror-correct two-step gait. Matching raw rotation signs are used
+  on the mirrored chains, with asymmetric thigh/knee/foot and
+  shoulder/elbow/hand bends so the leading side swaps after half a cycle.
+- Keep normal runtime traversal owned by the existing
+  `CharacterRoutineController`; no second gameplay movement system is added.
+- During the silent locked review only, move the generated Patch 4 root through
+  the room while the disabled legacy routine stays paused, then restore the
+  exact bind position before leaving the clip and before returning to Edit
+  Mode.
+- Sample eight consecutive Walk phases (`0.000` through `0.875`) instead of one
+  peak and write `patch4-walk-cycle-review.png`.
+- Require monotonic room travel, measurable travel distance and opposing
+  anatomical hand/foot endpoint deltas after mirroring the left limb into the
+  right limb's coordinate frame. Standing sway cannot pass this gate.
+- Extend the existing PlayMode installation test from one Walk peak to both
+  `0.25 / 0.75` peaks. One planted foot may move less at a contact pose, but
+  both arms and both legs must reverse by the required amount across the full
+  cycle.
+- Show the eight-phase strip above the existing ten-clip contact sheet in the
+  read-only review window.
+- Advance automatic continuation to
+  `opposing-gait-room-travel-review-v17`.
+- Keep readiness locked, Patch 3.5 active and protected menu, video, music,
+  audio and settings paths unchanged.
+
 ## Exact next action
 
-After the P4.0-X correction is present on `patch-4.0`, run only:
+After the P4.0-Y correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -805,12 +862,15 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
     cleanup, then enter a separate Play Mode session and create the actual room;
 12. capture a clean background and neutral reference, then enter every clip by
     its verified full-path Animator hash and play all ten clips;
-    align away whole-body translation and require independent left/right arm
-    and leg silhouette motion plus hand-to-clavicle and foot-to-pelvis joint
-    displacement, focused blink motion, a retained non-expanded silhouette and
-    zero Console errors while the legacy robot-like footstep stays paused;
-13. write a token-matched fresh report and contact sheet, restore Patch 3.5,
-    exit Play Mode and open the read-only review windows.
+13. for Walk, sample eight consecutive phases, advance the Patch 4 review root
+    silently across the actual room, and require opposite anatomical motion of
+    both hands and both feet plus monotonic travel;
+14. require independent left/right limb silhouette motion, focused blink
+    motion, a retained non-expanded silhouette and zero Console errors while
+    the legacy robot-like footstep stays paused;
+15. write a token-matched fresh report, an eight-phase walk strip and the
+    ten-clip contact sheet, restore Patch 3.5, exit Play Mode and open the
+    read-only review windows.
 
 Expected final count:
 
@@ -820,8 +880,9 @@ EditMode: 4 passed; PlayMode: 4 passed.
 
 No Dashboard, Test Runner, Play button or review-window click is required.
 Unity will briefly show the real room while it cycles the clips. Inspect the
-automatically focused 5 × 2 animation contact sheet after Unity returns to Edit
-Mode. The face and neutral windows remain open behind it.
+automatically focused review after Unity returns to Edit Mode. The first strip
+must show eight distinct Walk phases moving from left to right; the 5 × 2 sheet
+below still shows all ten clips. The face and neutral windows remain behind it.
 
 ## Do not do yet
 
@@ -831,7 +892,7 @@ Mode. The face and neutral windows remain open behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-X automatic room review
+## Work after the P4.0-Y automatic room review
 
 - Inspect the actual-room contact sheet and the live ten-clip cycle while
   keeping production activation locked.

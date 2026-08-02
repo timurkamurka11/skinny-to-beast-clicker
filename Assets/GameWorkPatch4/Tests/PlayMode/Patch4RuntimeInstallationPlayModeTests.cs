@@ -17,6 +17,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
         private const string Patch4InstanceName = "FatMan_Patch4_Instance";
         private const float MinimumWalkHandDisplacement = 0.68f;
         private const float MinimumWalkFootDisplacement = 0.60f;
+        private const float MinimumWalkPlantedFootDisplacement = 0.25f;
+        private const float MaximumOpposingLimbDot = -0.20f;
 
         [UnityTest]
         public IEnumerator LivingGameplayRoomGetsLockedRollbackInstance()
@@ -444,42 +446,106 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
                     "The full-path walk state was lost before peak sampling.");
 
+                Vector3 firstLeftHand = GetRigRelativeVector(
+                    patchRig,
+                    "ClavicleL",
+                    "HandL");
+                Vector3 firstRightHand = GetRigRelativeVector(
+                    patchRig,
+                    "ClavicleR",
+                    "HandR");
+                Vector3 firstLeftFoot = GetRigRelativeVector(
+                    patchRig,
+                    "Pelvis",
+                    "FootL");
+                Vector3 firstRightFoot = GetRigRelativeVector(
+                    patchRig,
+                    "Pelvis",
+                    "FootR");
                 Assert.GreaterOrEqual(
                     Vector3.Distance(
                         startLeftHand,
-                        GetRigRelativeVector(
-                            patchRig,
-                            "ClavicleL",
-                            "HandL")),
+                        firstLeftHand),
                     MinimumWalkHandDisplacement,
                     "The left hand did not articulate relative to its shoulder.");
                 Assert.GreaterOrEqual(
                     Vector3.Distance(
                         startRightHand,
-                        GetRigRelativeVector(
-                            patchRig,
-                            "ClavicleR",
-                            "HandR")),
+                        firstRightHand),
                     MinimumWalkHandDisplacement,
                     "The right hand did not articulate relative to its shoulder.");
+                float firstLeftFootDisplacement = Vector3.Distance(
+                    startLeftFoot,
+                    firstLeftFoot);
+                float firstRightFootDisplacement = Vector3.Distance(
+                    startRightFoot,
+                    firstRightFoot);
                 Assert.GreaterOrEqual(
-                    Vector3.Distance(
-                        startLeftFoot,
-                        GetRigRelativeVector(
-                            patchRig,
-                            "Pelvis",
-                            "FootL")),
+                    Mathf.Max(
+                        firstLeftFootDisplacement,
+                        firstRightFootDisplacement),
                     MinimumWalkFootDisplacement,
-                    "The left foot did not articulate relative to the pelvis.");
+                    "Neither foot produced a leading step at the first peak.");
                 Assert.GreaterOrEqual(
-                    Vector3.Distance(
-                        startRightFoot,
-                        GetRigRelativeVector(
-                            patchRig,
-                            "Pelvis",
-                            "FootR")),
+                    Mathf.Min(
+                        firstLeftFootDisplacement,
+                        firstRightFootDisplacement),
+                    MinimumWalkPlantedFootDisplacement,
+                    "The planted foot remained completely rigid at the first " +
+                    "walk peak.");
+
+                animator.Play(stateHash, 0, 0.75f);
+                animator.Update(0f);
+                Assert.AreEqual(
+                    stateHash,
+                    animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
+                    "The full-path walk state was lost before opposite-peak " +
+                    "sampling.");
+
+                Vector3 secondLeftHand = GetRigRelativeVector(
+                    patchRig,
+                    "ClavicleL",
+                    "HandL");
+                Vector3 secondRightHand = GetRigRelativeVector(
+                    patchRig,
+                    "ClavicleR",
+                    "HandR");
+                Vector3 secondLeftFoot = GetRigRelativeVector(
+                    patchRig,
+                    "Pelvis",
+                    "FootL");
+                Vector3 secondRightFoot = GetRigRelativeVector(
+                    patchRig,
+                    "Pelvis",
+                    "FootR");
+                Vector3 leftArmDelta = secondLeftHand - firstLeftHand;
+                Vector3 rightArmDelta = secondRightHand - firstRightHand;
+                Vector3 leftLegDelta = secondLeftFoot - firstLeftFoot;
+                Vector3 rightLegDelta = secondRightFoot - firstRightFoot;
+                Assert.GreaterOrEqual(
+                    leftArmDelta.magnitude,
+                    MinimumWalkHandDisplacement,
+                    "The left arm did not reverse across the gait cycle.");
+                Assert.GreaterOrEqual(
+                    rightArmDelta.magnitude,
+                    MinimumWalkHandDisplacement,
+                    "The right arm did not reverse across the gait cycle.");
+                Assert.GreaterOrEqual(
+                    leftLegDelta.magnitude,
                     MinimumWalkFootDisplacement,
-                    "The right foot did not articulate relative to the pelvis.");
+                    "The left leg did not reverse across the gait cycle.");
+                Assert.GreaterOrEqual(
+                    rightLegDelta.magnitude,
+                    MinimumWalkFootDisplacement,
+                    "The right leg did not reverse across the gait cycle.");
+                Assert.LessOrEqual(
+                    MirroredLimbDot(leftArmDelta, rightArmDelta),
+                    MaximumOpposingLimbDot,
+                    "The arms do not alternate in mirrored anatomical space.");
+                Assert.LessOrEqual(
+                    MirroredLimbDot(leftLegDelta, rightLegDelta),
+                    MaximumOpposingLimbDot,
+                    "The legs do not alternate in mirrored anatomical space.");
             }
             finally
             {
@@ -521,6 +587,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             return
                 rigRoot.InverseTransformPoint(endpoint.position) -
                 rigRoot.InverseTransformPoint(origin.position);
+        }
+
+        private static float MirroredLimbDot(
+            Vector3 leftDelta,
+            Vector3 rightDelta)
+        {
+            leftDelta.x = -leftDelta.x;
+            if (leftDelta.sqrMagnitude < 0.000001f ||
+                rightDelta.sqrMagnitude < 0.000001f)
+            {
+                return 1f;
+            }
+
+            return Vector3.Dot(
+                leftDelta.normalized,
+                rightDelta.normalized);
         }
 
         private static Component BuildLegacyRig(GameObject root)

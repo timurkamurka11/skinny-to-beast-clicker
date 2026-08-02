@@ -501,6 +501,33 @@ The verification source code is committed, but Unity has not physically compiled
   `normalized-controller-state-path-review-v16`.
 - [x] Keep the exact master, animation curves, mesh weights, menu, video,
   music, audio, settings, readiness lock and Patch 3.5 unchanged.
-- [ ] Confirm P4.0-X in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
-  `4 passed`, all ten canonical state hashes verified, readable limb
-  articulation and zero Console errors.
+- [x] Confirm P4.0-X canonical state entry in Unity `6000.3.19f1`; the fresh
+  room review completed without review Console errors, but human motion review
+  rejected the standing twitch before acceptance.
+
+## 2026-08-02 — P4.0-Y complete gait and room-travel evidence
+
+- [x] Exercise P4.0-X in Unity `6000.3.19f1`; canonical state entry and the
+  room review completed without review Console errors.
+- [x] Reject v16 human motion review: Walk still read as standing twitch/rock
+  and one peak did not prove locomotion.
+- [x] Trace normal room travel to `CharacterRoutineController.WalkTo` on the
+  legacy parent and confirm the Patch 4 child inherits that travel in gameplay.
+- [x] Trace the review-only standstill to pausing that routine without a silent
+  replacement traversal.
+- [x] Remove thigh and upper-arm local-position curves; keep hip/shoulder bind
+  anchors fixed and reduce pelvis/spine sway.
+- [x] Recalculate the mirrored bind chains and author a two-step cycle whose
+  left/right hand and foot endpoints alternate anatomically.
+- [x] Add an eight-phase Walk sampler with monotonic review-only room travel,
+  exact root restoration and a dedicated review PNG.
+- [x] Require complete cycle capture, minimum travel and opposing mirrored
+  endpoint deltas before the technical review can pass.
+- [x] Replace the one-peak PlayMode foot assertion with leading/planted contact
+  checks plus full `0.25 / 0.75` arm-and-leg reversal checks.
+- [x] Advance automatic continuation to
+  `opposing-gait-room-travel-review-v17`.
+- [x] Keep readiness locked, Patch 3.5 active and protected paths unchanged.
+- [ ] Confirm v17 in Unity `6000.3.19f1`: EditMode `4 passed`, PlayMode
+  `4 passed`, eight visibly distinct gait phases progressing across the room,
+  both arms and both legs alternating, and zero Console errors.

@@ -55,6 +55,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4CompilationMonitor.ReportDirectory,
             Patch4AnimationRoomReviewDriver.ContactSheetFileName);
 
+        public static string WalkCyclePath => Path.Combine(
+            Patch4CompilationMonitor.ReportDirectory,
+            Patch4AnimationRoomReviewDriver.WalkCycleFileName);
+
         public static string CurrentRunToken =>
             SessionState.GetString(RunTokenKey, string.Empty);
 
@@ -453,7 +457,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "all ten clips were sampled in LivingGameplayScene with " +
                     "one intact body, frozen Canvas bind anchors, retained " +
                     "full silhouettes, " +
-                    "measurable start-to-peak motion, no legacy robot " +
+                    "measurable motion, an eight-phase opposing-limb walk " +
+                    "advancing through the room, no legacy robot " +
                     "footsteps and zero review errors. " +
                     "Human motion review is still required and activation " +
                     "remains locked.");
@@ -536,12 +541,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             DeleteReviewArtifact(ReportPath);
             DeleteReviewArtifact(ContactSheetPath);
+            DeleteReviewArtifact(WalkCyclePath);
         }
 
         private static bool HasFreshRoomArtifacts()
         {
             if (!File.Exists(ReportPath) ||
                 !File.Exists(ContactSheetPath) ||
+                !File.Exists(WalkCyclePath) ||
                 string.IsNullOrWhiteSpace(CurrentRunToken))
             {
                 return false;

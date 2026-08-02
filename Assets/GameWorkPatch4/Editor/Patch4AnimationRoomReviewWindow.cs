@@ -17,6 +17,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public string runToken = string.Empty;
             public bool completed;
             public bool passedTechnicalChecks;
+            public bool walkCycleCaptured;
+            public bool walkRootTravelPassed;
+            public bool walkPhaseAlternationPassed;
             public string generatedUtc = string.Empty;
             public string error = string.Empty;
         }
@@ -39,6 +42,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         };
 
         private Texture2D contactSheet;
+        private Texture2D walkCycleSheet;
         private ReviewStatus reviewStatus;
 
         [MenuItem(
@@ -87,13 +91,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (passed)
             {
                 EditorGUILayout.HelpBox(
-                    "This is a fresh completed review. These ten frames were " +
-                    "captured while the generated character played every " +
+                    "This is a fresh completed review. The first strip shows " +
+                    "eight consecutive phases of the walk advancing through " +
+                    "the room; the sheet below shows all ten clips. " +
+                    "They were captured while the generated character played " +
+                    "every " +
                     "required clip inside the real LivingGameplayScene with " +
                     "one intact continuous Canvas body, constrained anatomical " +
                     "weights and frozen bind anchors. Every peak retained the " +
                     "neutral silhouette without excessive expansion, and the " +
-                    "walk also passed independent silhouette motion plus " +
+                    "walk also passed opposing left/right arm and leg phases, " +
+                    "monotonic room travel, independent silhouette motion, " +
                     "shoulder-relative hand and pelvis-relative foot " +
                     "articulation. The legacy " +
                     "robot-like footstep was " +
@@ -126,6 +134,39 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     MessageType.Warning);
                 return;
             }
+
+            if (walkCycleSheet == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "Eight-phase walk-cycle evidence is unavailable. See: " +
+                    Patch4AnimationRoomReview.ReportPath,
+                    MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.LabelField(
+                "Walk: eight consecutive phases with room travel",
+                EditorStyles.boldLabel);
+            Rect walkAvailable = GUILayoutUtility.GetRect(
+                800f,
+                5000f,
+                180f,
+                360f,
+                GUILayout.ExpandWidth(true),
+                GUILayout.ExpandHeight(false));
+            float walkAspect =
+                walkCycleSheet.width / (float)walkCycleSheet.height;
+            Rect walkArea = FitAspect(walkAvailable, walkAspect);
+            GUI.DrawTexture(
+                walkArea,
+                walkCycleSheet,
+                ScaleMode.StretchToFill,
+                false);
+            DrawWalkLabels(walkArea);
+
+            EditorGUILayout.LabelField(
+                "All required clips",
+                EditorStyles.boldLabel);
 
             Rect available = GUILayoutUtility.GetRect(
                 800f,
@@ -175,6 +216,29 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
         }
 
+        private static void DrawWalkLabels(Rect imageArea)
+        {
+            const int phaseCount = 8;
+            float cellWidth = imageArea.width / phaseCount;
+            for (int i = 0; i < phaseCount; i++)
+            {
+                Rect label = new(
+                    imageArea.x + i * cellWidth + 3f,
+                    imageArea.y + 3f,
+                    cellWidth - 6f,
+                    22f);
+                string suffix = i == 0
+                    ? " start"
+                    : i == phaseCount - 1
+                        ? " travel"
+                        : string.Empty;
+                GUI.Box(
+                    label,
+                    "Phase " + (i + 1) + suffix,
+                    EditorStyles.helpBox);
+            }
+        }
+
         private void Reload()
         {
             DestroyTexture();
@@ -195,6 +259,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             contactSheet = LoadTexture(
                 Patch4AnimationRoomReview.ContactSheetPath);
+            walkCycleSheet = LoadTexture(
+                Patch4AnimationRoomReview.WalkCyclePath);
             Repaint();
         }
 
@@ -221,13 +287,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private void DestroyTexture()
         {
-            if (contactSheet == null)
+            if (contactSheet != null)
             {
-                return;
+                UnityEngine.Object.DestroyImmediate(contactSheet);
+                contactSheet = null;
             }
 
-            UnityEngine.Object.DestroyImmediate(contactSheet);
-            contactSheet = null;
+            if (walkCycleSheet != null)
+            {
+                UnityEngine.Object.DestroyImmediate(walkCycleSheet);
+                walkCycleSheet = null;
+            }
         }
 
         private static Texture2D LoadTexture(string path)
