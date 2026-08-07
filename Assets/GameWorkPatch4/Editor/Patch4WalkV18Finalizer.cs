@@ -9,6 +9,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     /// gait uses strong contact/lift poses, but the loop seam and half-cycle seam
     /// must remain neutral so Animator sampling begins from an undistorted bind
     /// pose and the next half-cycle can reverse cleanly.
+    ///
+    /// v18b also balances the arm peaks. The first v18 runtime review measured
+    /// the right hand at only ~0.63 units from its neutral shoulder-relative pose
+    /// while the contract requires 0.68. We correct the actual gait amplitude,
+    /// not the test threshold, and keep both arms visually symmetric.
     /// </summary>
     public static class Patch4WalkV18Finalizer
     {
@@ -78,12 +83,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalPosition.y");
 
+            // Balance the two arm chains at the two sampled gait peaks. This is
+            // intentionally done after seam normalization so phase 0 / phase 4
+            // stay neutral while phase 2 / phase 6 carry the readable arm swing.
+            SetOpposingPeakValues(walk, UpperArmL, 30f, -28f);
+            SetOpposingPeakValues(walk, ForearmL, -20f, 18f);
+            SetOpposingPeakValues(walk, HandL, 7f, -7f);
+            SetOpposingPeakValues(walk, UpperArmR, 28f, -30f);
+            SetOpposingPeakValues(walk, ForearmR, -18f, 20f);
+            SetOpposingPeakValues(walk, HandR, 7f, -7f);
+
             EditorUtility.SetDirty(walk);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Patch 4 v18 walk finalized: neutral loop seam + neutral " +
-                "half-cycle seam retained around explicit opposing gait peaks.");
+                "Patch 4 v18b walk finalized: neutral seams retained and " +
+                "balanced opposing arm peaks applied for full hand articulation.");
         }
 
         private static void NormalizeEightPhaseCurve(
@@ -108,6 +123,39 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             keys[0].value = 0f;
             keys[4].value = 0f;
             keys[keys.Length - 1].value = 0f;
+            WriteCurve(clip, binding, keys);
+        }
+
+        private static void SetOpposingPeakValues(
+            AnimationClip clip,
+            string path,
+            float firstPeak,
+            float oppositePeak)
+        {
+            EditorCurveBinding binding = EditorCurveBinding.FloatCurve(
+                path,
+                typeof(Transform),
+                "localEulerAnglesRaw.z");
+            AnimationCurve curve =
+                AnimationUtility.GetEditorCurve(clip, binding);
+            if (curve == null || curve.length < 9)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 v18b arm curve is missing or not eight-phase: " +
+                    path);
+            }
+
+            Keyframe[] keys = curve.keys;
+            keys[2].value = firstPeak;
+            keys[6].value = oppositePeak;
+            WriteCurve(clip, binding, keys);
+        }
+
+        private static void WriteCurve(
+            AnimationClip clip,
+            EditorCurveBinding binding,
+            Keyframe[] keys)
+        {
             AnimationCurve normalized = new(keys);
             for (int i = 0; i < normalized.length; i++)
             {
