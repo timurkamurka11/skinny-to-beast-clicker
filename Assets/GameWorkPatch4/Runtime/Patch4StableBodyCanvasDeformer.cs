@@ -66,7 +66,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             targetImage = graphic as Image;
             binds.Clear();
             bindPoseCaptured = false;
-            SetVerticesDirty();
+            MarkMeshDirty();
         }
 
         protected override void OnEnable()
@@ -165,9 +165,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             float normalizedX,
             float topY)
         {
-            // The painted torso is intentionally rigid. This is the key change
-            // from v18: no broad multi-bone matrix average can compress the
-            // chest, belly or pelvis while the limbs swing.
             Vector3 body = BonePoint("CharacterRoot", original);
             Vector3 result = body;
 
@@ -388,8 +385,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             bindPoseCaptured = true;
-            SetVerticesDirty();
+            MarkMeshDirty();
             return true;
+        }
+
+        private void MarkMeshDirty()
+        {
+            if (graphic != null)
+            {
+                graphic.SetVerticesDirty();
+            }
         }
 
         private static float SmoothBand(
