@@ -12,10 +12,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
+        // Keep the contract token expected by validate_patch4.py, but move the
+        // SessionState namespace for v18 so a Unity session that already ran
+        // v17 will execute this rebuilt gait automatically after git pull.
         private const string RunId =
             "opposing-gait-room-travel-review-v17";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v18.";
 
         private static int idleFrames;
 
@@ -58,20 +61,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic fresh motion-review run started: " +
+                    "Patch 4 automatic v18 fresh motion-review run started: " +
                     "restoring the repository master, rebaking all 40 layers as " +
                     "one exact intact visible body plus feathered expression " +
                     "replacements, rebuilding the locked runtime prefab with a " +
                     "96 x 144 silhouette-constrained anatomical deformation " +
                     "grid with torso-excluding arm weights and separated leg " +
-                    "ownership, fixed shoulder and hip bind anchors plus " +
-                    "mirror-correct left/right thigh, knee, foot, shoulder, " +
-                    "elbow and hand phases, " +
+                    "ownership, fixed shoulder and hip bind anchors plus an " +
+                    "explicit eight-phase heavy gait with independent thigh, " +
+                    "knee, ankle, shoulder, elbow and hand timing, " +
                     "a root Animator state machine normalized to its actual " +
                     "layer name, verified full-path state entry plus an " +
-                    "eight-phase walk strip with isolated silent room travel, " +
-                    "uncropped Canvas UVs and " +
-                    "frozen bind anchors, then " +
+                    "eight-phase walk strip with corrected silent room travel, " +
+                    "uncropped Canvas UVs and frozen bind anchors, then " +
                     "running the corrected ten-clip library. " +
                     "After 4/4, Unity will review all ten clips in the real room, " +
                     "block chopped reference layers, whole-body sway disguised " +
