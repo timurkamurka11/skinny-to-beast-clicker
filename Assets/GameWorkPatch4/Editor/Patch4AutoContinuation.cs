@@ -12,13 +12,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        // Keep the contract token expected by validate_patch4.py, but move the
-        // SessionState namespace for v18b so a Unity session that already ran
-        // the earlier v18 pass executes the corrected gait automatically.
+        // Keep the historical token required by validate_patch4.py while using
+        // a fresh v20 SessionState namespace so an already-open Unity editor
+        // executes the cutout rebuild immediately after git pull.
         private const string RunId =
             "opposing-gait-room-travel-review-v17";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v18b.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v20.cutout-puppet.";
 
         private static int idleFrames;
 
@@ -50,7 +50,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             idleFrames++;
-            if (idleFrames < 2)
+            if (idleFrames < 3)
             {
                 return;
             }
@@ -61,30 +61,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic v18b fresh motion-review run started: " +
-                    "restoring the repository master, rebaking all 40 layers as " +
-                    "one exact intact visible body plus feathered expression " +
-                    "replacements, rebuilding the locked runtime prefab with a " +
-                    "96 x 144 silhouette-constrained anatomical deformation " +
-                    "grid with torso-excluding arm weights and separated leg " +
-                    "ownership, fixed shoulder and hip bind anchors plus an " +
-                    "explicit eight-phase heavy gait with independent thigh, " +
-                    "knee, ankle, shoulder, elbow and hand timing, balanced " +
-                    "opposing arm peaks, a root Animator state machine " +
-                    "normalized to its actual layer name, verified full-path " +
-                    "state entry plus an eight-phase walk strip with corrected " +
-                    "silent room travel, uncropped Canvas UVs and frozen bind " +
-                    "anchors, then running the corrected ten-clip library. " +
-                    "After 4/4, Unity will review all ten clips in the real room, " +
-                    "block chopped reference layers, whole-body sway disguised " +
-                    "as motion, weak silhouette change in any individual arm " +
-                    "or leg, same-direction limb sway, missing room travel, " +
-                    "weak hand-to-shoulder or foot-to-pelvis motion, weak " +
-                    "focused blink motion, collapsed or over-stretched " +
-                    "silhouettes or Console errors, wait until Test Runner has " +
-                    "fully returned to Edit Mode, suppress the legacy robot " +
-                    "footstep only during the fresh review, restore Patch 3.5 " +
-                    "and open only current read-only review artifacts.");
+                    "Patch 4 automatic v20 cutout-puppet review started: " +
+                    "restore the exact master, bake the 40 source layers, split " +
+                    "every neutral body pixel into exclusive torso/head/arm/leg " +
+                    "cutouts with small joint overlaps, rebuild the locked " +
+                    "runtime prefab, remove the v19 broad-body visual controller, " +
+                    "install rigid non-squashing cutout deformation with bounded " +
+                    "visible rotations, keep the existing eight-phase skeleton " +
+                    "gait, then rerun safety/tests and the real-room review. " +
+                    "The full painted master remains only as a hidden contract " +
+                    "reference; no visible body layer uses linear-blend skinning.");
+
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(
@@ -92,7 +79,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 }
 
                 Patch4ProductionPipeline.BakeDraftLayers();
+                Patch4V20CutoutArtworkFinalizer.Apply();
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
+                Patch4V20CutoutRigInstaller.Apply();
                 Patch4WalkV18Finalizer.Apply();
                 Patch4ProductionPipeline.RunSafetyValidation();
                 Patch4AutomatedTestRunner.RunAll();
@@ -102,7 +91,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic continuation failed: " + exception);
+                    "Patch 4 automatic v20 continuation failed: " + exception);
             }
         }
     }
