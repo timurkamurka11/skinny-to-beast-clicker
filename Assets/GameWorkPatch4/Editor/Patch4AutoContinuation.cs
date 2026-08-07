@@ -94,6 +94,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 Patch4ProductionPipeline.BakeDraftLayers();
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
+                Patch4WalkV18Finalizer.Apply();
                 Patch4ProductionPipeline.RunSafetyValidation();
                 Patch4AutomatedTestRunner.RunAll();
                 EditorApplication.ExecuteMenuItem(
