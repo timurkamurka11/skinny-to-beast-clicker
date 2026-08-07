@@ -326,122 +326,140 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static AnimationClip BuildWalk()
         {
-            const float duration = 0.96f;
+            // v18: do not synthesize a walk from two peaks plus interpolation.
+            // Author all eight classical gait phases explicitly so the heavy
+            // front-facing character has contact, loading, passing and lift on
+            // each side. Hip/shoulder bind anchors remain fixed; only articulated
+            // joints rotate, preventing the rubber/vacuum deformation seen in
+            // earlier reviews.
+            const float duration = 1.12f;
             AnimationClip clip = Prepare(
                 "FatMan_Walk_InRoom",
                 true,
                 duration);
-            SetCyclePosition(
+
+            SetEightPhasePosition(
                 clip,
                 Visual,
                 "m_LocalPosition.y",
                 duration,
-                0.045f,
-                0.045f);
-            SetAlternatingRotation(
+                0f,
+                -0.018f,
+                0.052f,
+                0.018f,
+                0f,
+                -0.018f,
+                0.052f,
+                0.018f);
+
+            // Balance stays deliberately small. The gait must read from the
+            // limbs, not from rocking the entire painted body.
+            SetEightPhaseRotation(
                 clip,
                 Pelvis,
                 duration,
-                -0.6f,
-                0.6f);
-            SetAlternatingRotation(
+                0f, -0.25f, -0.5f, -0.25f,
+                0f, 0.25f, 0.5f, 0.25f);
+            SetEightPhaseRotation(
                 clip,
                 SpineLower,
                 duration,
-                0.3f,
-                -0.3f);
-
-            // Keep every shoulder and hip at its authored bind anchor. Moving
-            // those anchors translated whole texture regions and produced the
-            // rubber/vacuum motion seen in the v16 human review. Locomotion is
-            // instead a mirror-correct gait. The left and right bind chains
-            // point in opposite X directions, so matching raw rotation signs
-            // create opposing endpoint motion on screen. Giving the leading
-            // limb the larger bend makes each planted/lifted step unambiguous.
-            SetFourPhaseRotation(
-                clip,
-                ThighL,
-                duration,
-                -24f,
-                14f);
-            SetFourPhaseRotation(
-                clip,
-                ThighR,
-                duration,
-                -14f,
-                24f);
-            SetFourPhaseRotation(
-                clip,
-                ShinL,
-                duration,
-                34f,
-                -6f);
-            SetFourPhaseRotation(
-                clip,
-                ShinR,
-                duration,
-                6f,
-                -34f);
-            SetFourPhaseRotation(
-                clip,
-                FootL,
-                duration,
-                -16f,
-                6f);
-            SetFourPhaseRotation(
-                clip,
-                FootR,
-                duration,
-                -6f,
-                16f);
-            SetFourPhaseRotation(
-                clip,
-                UpperArmL,
-                duration,
-                24f,
-                -16f);
-            SetFourPhaseRotation(
-                clip,
-                UpperArmR,
-                duration,
-                16f,
-                -24f);
-            SetFourPhaseRotation(
-                clip,
-                ForearmL,
-                duration,
-                -16f,
-                8f);
-            SetFourPhaseRotation(
-                clip,
-                ForearmR,
-                duration,
-                -8f,
-                16f);
-            SetFourPhaseRotation(
-                clip,
-                HandL,
-                duration,
-                6f,
-                -4f);
-            SetFourPhaseRotation(
-                clip,
-                HandR,
-                duration,
-                4f,
-                -6f);
-            SetAlternatingRotation(
+                0f, 0.12f, 0.25f, 0.12f,
+                0f, -0.12f, -0.25f, -0.12f);
+            SetEightPhaseRotation(
                 clip,
                 SpineUpper,
                 duration,
-                1.5f,
-                -1.5f);
-            SetAlternatingRotation(
+                0f, -0.45f, -1.1f, -0.55f,
+                0f, 0.45f, 1.1f, 0.55f);
+            SetEightPhaseRotation(
                 clip,
                 Head,
                 duration,
-                -0.8f,
-                0.8f);
+                0f, 0.2f, 0.45f, 0.2f,
+                0f, -0.2f, -0.45f, -0.2f);
+
+            // Left step: contact -> down -> passing -> up.
+            SetEightPhaseRotation(
+                clip,
+                ThighL,
+                duration,
+                -14f, -20f, -28f, -16f,
+                6f, 12f, 16f, 4f);
+            SetEightPhaseRotation(
+                clip,
+                ShinL,
+                duration,
+                10f, 24f, 40f, 28f,
+                4f, -2f, -8f, 2f);
+            SetEightPhaseRotation(
+                clip,
+                FootL,
+                duration,
+                -4f, -10f, -20f, -10f,
+                2f, 5f, 8f, 2f);
+
+            // Right side is phase-shifted by half a cycle. Matching raw thigh
+            // signs are intentional because the authored right chain is mirrored.
+            SetEightPhaseRotation(
+                clip,
+                ThighR,
+                duration,
+                -6f, -10f, -14f, 4f,
+                14f, 20f, 30f, 16f);
+            SetEightPhaseRotation(
+                clip,
+                ShinR,
+                duration,
+                -8f, -2f, 6f, 2f,
+                10f, 24f, -40f, -26f);
+            SetEightPhaseRotation(
+                clip,
+                FootR,
+                duration,
+                -2f, -4f, -6f, -1f,
+                4f, 10f, 20f, 10f);
+
+            // Arms counter-swing against their same-side legs. Elbow and hand
+            // follow-through prevents the old rigid pendulum look.
+            SetEightPhaseRotation(
+                clip,
+                UpperArmL,
+                duration,
+                8f, 18f, 30f, 18f,
+                0f, -10f, -20f, -8f);
+            SetEightPhaseRotation(
+                clip,
+                ForearmL,
+                duration,
+                -6f, -12f, -20f, -12f,
+                0f, 5f, 10f, 4f);
+            SetEightPhaseRotation(
+                clip,
+                HandL,
+                duration,
+                2f, 4f, 7f, 4f,
+                0f, -2f, -5f, -2f);
+
+            SetEightPhaseRotation(
+                clip,
+                UpperArmR,
+                duration,
+                4f, 10f, 16f, 8f,
+                0f, -18f, -30f, -16f);
+            SetEightPhaseRotation(
+                clip,
+                ForearmR,
+                duration,
+                -3f, -6f, -8f, -4f,
+                0f, 10f, 20f, 10f);
+            SetEightPhaseRotation(
+                clip,
+                HandR,
+                duration,
+                1f, 2f, 4f, 2f,
+                0f, -4f, -7f, -4f);
+
             return clip;
         }
 
@@ -953,6 +971,64 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 duration,
                 first,
                 second);
+        }
+
+        private static void SetEightPhaseRotation(
+            AnimationClip clip,
+            string path,
+            float duration,
+            float phase0,
+            float phase1,
+            float phase2,
+            float phase3,
+            float phase4,
+            float phase5,
+            float phase6,
+            float phase7)
+        {
+            SetEightPhasePosition(
+                clip,
+                path,
+                "localEulerAnglesRaw.z",
+                duration,
+                phase0,
+                phase1,
+                phase2,
+                phase3,
+                phase4,
+                phase5,
+                phase6,
+                phase7);
+        }
+
+        private static void SetEightPhasePosition(
+            AnimationClip clip,
+            string path,
+            string property,
+            float duration,
+            float phase0,
+            float phase1,
+            float phase2,
+            float phase3,
+            float phase4,
+            float phase5,
+            float phase6,
+            float phase7)
+        {
+            float step = duration / 8f;
+            SetCurve(
+                clip,
+                path,
+                property,
+                new Keyframe(0f, phase0),
+                new Keyframe(step, phase1),
+                new Keyframe(step * 2f, phase2),
+                new Keyframe(step * 3f, phase3),
+                new Keyframe(step * 4f, phase4),
+                new Keyframe(step * 5f, phase5),
+                new Keyframe(step * 6f, phase6),
+                new Keyframe(step * 7f, phase7),
+                new Keyframe(duration, phase0));
         }
 
         private static void SetReactionRotation(
