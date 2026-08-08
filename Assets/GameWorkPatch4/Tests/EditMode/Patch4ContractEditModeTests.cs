@@ -110,6 +110,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             RequireType(
                 "SkinnyToBeast.Gameplay.Patch4." +
                 "Patch4AnimationRoomReviewDriver");
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4V22WalkCyclePresentation");
             Type animationRoomReview = RequireType(
                 "SkinnyToBeast.Gameplay.Patch4.Editor." +
                 "Patch4AnimationRoomReview");
@@ -134,6 +137,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Blink replacement must bind open-eye layers as well as lids.");
 
             AssertWalkClipHasArticulatedGait();
+            AssertV22WalkSheetIsImportable();
             AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
         }
 
@@ -462,6 +466,40 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.IsNull(
                 rootSway,
                 "Walk must not fake locomotion with side-to-side root sway.");
+        }
+
+        private static void AssertV22WalkSheetIsImportable()
+        {
+            const string path =
+                "Assets/GameWorkPatch4/Art/Character/FatMan/" +
+                "V22Candidates/FatMan_WalkCycle_V22.png";
+            Texture2D sheet = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            Assert.NotNull(
+                sheet,
+                "The V22 complete-frame walk candidate is missing.");
+            Assert.AreEqual(
+                0,
+                sheet.width % 4,
+                "The V22 walk sheet must contain four equal columns.");
+            Assert.AreEqual(
+                0,
+                sheet.height % 2,
+                "The V22 walk sheet must contain two equal rows.");
+
+            TextureImporter importer =
+                AssetImporter.GetAtPath(path) as TextureImporter;
+            Assert.NotNull(importer);
+            Assert.IsTrue(
+                importer.isReadable,
+                "The V22 review must be able to inspect visible limb " +
+                "silhouettes instead of hidden legacy bones.");
+            Assert.IsTrue(
+                importer.alphaIsTransparency,
+                "The complete walk frames need clean transparent gaps.");
+            Assert.IsFalse(
+                importer.mipmapEnabled,
+                "Walk-frame edges must not bleed between atlas cells.");
+            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode);
         }
 
         private static void AssertCurveSweep(

@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-08-02
+Last updated: 2026-08-08
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -997,7 +997,44 @@ P4.0-Y therefore:
 - keeps the exact master, face, protected paths, readiness lock and Patch 3.5
   rollback state unchanged.
 
-Unity compilation, PlayMode and the fresh v17 visual run remain pending.
+### P4.0-Y real Unity rejection and P4.0-Z/V22 correction
+
+Unity `6000.3.19f1` completed the fresh v17 visual run. Its stricter checks
+correctly failed instead of accepting another standing twitch:
+
+- all ten legacy peaks reported excessive neutral width/height retention,
+  generally around `1.4×`, while area stayed near `1.0`;
+- the eight Walk screenshots moved through the room, but the visible body still
+  did not read as a gait;
+- the Walk direction metrics (`-1.000` arms, `-0.612` legs) were already inside
+  the `<= -0.200` limit, exposing that the old error text omitted failed
+  amplitude values;
+- human review again identified procedural stretching rather than articulated
+  painted limbs.
+
+The flattened `1024 × 1536` master and code-defined Canvas zones cannot supply
+real hidden anatomy. P4.0-Z/V22 therefore stops tuning that surface for Walk:
+
+- a new eight-frame RGBA Walk candidate is stored at
+  `Assets/GameWorkPatch4/Art/Character/FatMan/V22Candidates/FatMan_WalkCycle_V22.png`;
+- every frame is a complete painted body aligned to one centre and ground line;
+- `Patch4V22WalkCyclePresentation` hides the entire experimental mesh stack
+  during Walk and displays exactly one complete frame;
+- the real Animator state chooses runtime frames, while the locked room review
+  explicitly samples all eight and retains monotonic silent room travel;
+- reports now measure all four visible arm/leg silhouette regions between the
+  opposing contact poses and reject any adjacent pair below `0.075`;
+- the current candidate measures arms `0.179 / 0.172`, legs `0.161 / 0.241`
+  and weakest adjacent pair `0.085`, above the unchanged V22 thresholds;
+- tests and static validation require the candidate but cannot approve it;
+- automatic continuation advances to
+  `complete-frame-walk-cycle-review-v22`;
+- the nine other motions remain on the rejected experimental surface and are
+  still blocked from activation.
+
+The durable production replacement path is in
+`Docs/Patch4/V22_PRODUCTION_RIG_PLAN.md`. Patch 4 remains disabled, Patch 3.5
+remains visible and protected menu/video/audio/settings scope is unchanged.
 
 ## Production dashboard
 
@@ -1058,31 +1095,21 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull the P4.0-Y complete gait and room-travel review correction into Unity
-   `6000.3.19f1`.
-2. Do not click the Dashboard, Test Runner or Play button; keep Unity open.
-3. Let `Patch4AutoContinuation` restore/rebake every layer as FullRect, create
-   one exact intact visible full-master body, rebuild the locked constrained
-   `96 × 144` grid prefab, validate and complete EditMode `4 passed`, PlayMode
-   `4 passed`.
-4. Let the Editor-only continuation wait for a genuinely quiescent Edit Mode
-   after Test Runner cleanup, then enter a separate Play Mode session, create
-   the real room, freeze the Canvas bind anchors, pause the old walk routine,
-   verify each layer-qualified Animator state and cycle all ten corrected clips
-   on the intact body.
-5. Let the driver sample eight Walk phases, move the locked review instance
-   silently across the room, and reject missing/retrograde travel or
-   non-alternating hand/foot endpoint motion.
-6. Let the driver align away whole-body displacement for limb-shape checks and
-   reject weak silhouette motion in any arm or leg, insufficient joint-space
-   displacement, weak blink, silhouette loss or excessive expansion; then
-   restore Patch 3.5 and return to Edit Mode.
-7. Confirm that the Console has zero errors and inspect the automatically
-   focused eight-phase Walk strip above the 5 × 2 room-animation sheet.
-8. Revise any exposed joint, detached paint, extreme stretch, foot slide or
-   collapsing body/clothing region while the readiness gate stays locked.
-9. Only after successful technical and human motion review, consider approving
-   the readiness asset for the exact master SHA.
+1. Pull P4.0-Z/V22 into Unity `6000.3.19f1` with only
+   `git pull origin patch-4.0` and leave Unity open.
+2. Do not click Dashboard, Test Runner, Play or a review button.
+3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind the new Walk
+   sheet, run the existing safety/tests and enter the actual room after Test
+   Runner is quiescent.
+4. Inspect the automatically opened first strip. It must contain eight complete
+   alternating steps moving left-to-right: visible knee bend, lifted feet and
+   arm swing, with no duplicate legacy body underneath.
+5. Preserve any failure from the nine legacy mesh-driven clips. Their rejection
+   is expected until the native/layered V22 production stages replace them.
+6. Use the fresh report's four limb-region silhouette differences plus the
+   weakest adjacent-frame difference to reject static or duplicated poses.
+7. Keep readiness locked and proceed to layered-source/native SpriteSkin work
+   only after the V22 Walk candidate passes human identity and motion review.
 
 Detailed art instructions:
 
@@ -1138,9 +1165,12 @@ Detailed verification instructions:
 - P4.0-X normalized the path and reached the fresh v16 room review, but human
   review rejected its standing twitch because one sampled peak did not prove a
   gait sequence or room travel.
-- P4.0-Y source adds mirror-correct fixed-anchor gait curves, an eight-phase
-  Walk strip and silent review-only room travel; its fresh v17 Unity run is
-  pending.
+- P4.0-Y completed its v17 Unity run and was rejected: room travel existed, but
+  the flattened Canvas body still stretched and did not read as walking.
+- P4.0-Z/V22 adds an isolated complete-frame Walk candidate. Its first fresh
+  Unity room review is pending; it is not approved production art.
+- The nine non-Walk clips still use the rejected procedural Canvas deformation
+  surface and are expected to remain blocked.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

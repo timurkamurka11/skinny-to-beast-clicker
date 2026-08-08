@@ -62,21 +62,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public float rightArmMotionCoverage;
             public float leftLegMotionCoverage;
             public float rightLegMotionCoverage;
-            public float leftHandRelativeDisplacement;
-            public float rightHandRelativeDisplacement;
-            public float leftFootRelativeDisplacement;
-            public float rightFootRelativeDisplacement;
-            public float minimumHandRelativeDisplacement;
-            public float minimumFootRelativeDisplacement;
-            public float minimumPlantedFootRelativeDisplacement;
-            public bool relativeLimbPosePassed;
             public bool allLimbRegionsPassed;
             public bool limbArticulationPassed;
             public int walkPhaseCount;
             public float walkRootTravelPixels;
             public float minimumWalkRootTravelPixels;
-            public float walkArmAlternationDot;
-            public float walkLegAlternationDot;
+            public float v22LeftArmSilhouetteDifference;
+            public float v22RightArmSilhouetteDifference;
+            public float v22LeftLegSilhouetteDifference;
+            public float v22RightLegSilhouetteDifference;
+            public float v22MinimumAdjacentFrameDifference;
+            public bool v22FrameSequenceReady;
+            public bool v22FrameSequenceUsed;
             public bool walkRootTravelPassed;
             public bool walkPhaseAlternationPassed;
             public bool walkCycleCaptured;
@@ -107,6 +104,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool walkCycleCaptured;
             public bool walkRootTravelPassed;
             public bool walkPhaseAlternationPassed;
+            public bool v22WalkFrameSequenceReady;
             public bool legacyRoutinePausedForReview;
             public bool legacyRoutineRestored;
             public bool legacySignalBridgePausedForReview;
@@ -134,8 +132,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const int ThumbnailWidth = 300;
         private const int ThumbnailHeight = 420;
         private const int WalkPhaseCount = 8;
-        private const int WalkContactPhaseIndex = 2;
-        private const int WalkOppositePhaseIndex = 6;
+        private const int WalkContactPhaseIndex = 4;
         private const int WalkThumbnailWidth = 220;
         private const int WalkThumbnailHeight = 310;
         private const int PixelDifferenceThreshold = 42;
@@ -153,17 +150,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumWalkLimbMotionCoverage = 0.04f;
         private const float MinimumWalkArmMotionCoverage = 0.035f;
         private const float MinimumWalkLegMotionCoverage = 0.04f;
-        private const float MinimumWalkHandRelativeDisplacement = 0.68f;
-        private const float MinimumWalkFootRelativeDisplacement = 0.60f;
-        private const float MinimumWalkPlantedFootRelativeDisplacement = 0.25f;
+        private const float MinimumV22WalkArmSilhouetteDifference = 0.14f;
+        private const float MinimumV22WalkLegSilhouetteDifference = 0.14f;
+        private const float MinimumV22AdjacentFrameDifference = 0.075f;
         private const float MinimumWalkTravelWidthRatio = 0.55f;
-        private const float MaximumOpposingLimbDot = -0.20f;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
         private Patch4CanvasPresentation canvasPresentation;
         private Patch4FaceController faceController;
         private Patch4SecondaryMotionController secondaryMotion;
+        private Patch4V22WalkCyclePresentation v22WalkPresentation;
         private Animator animator;
         private GameObject patch4VisualRoot;
         private GameObject patch35RollbackRoot;
@@ -190,22 +187,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private int neutralSilhouetteHeight;
         private int neutralSilhouetteArea;
         private bool neutralReferenceCaptured;
-        private bool walkJointStartCaptured;
-        private Vector3 walkStartLeftHandFromClavicle;
-        private Vector3 walkStartRightHandFromClavicle;
-        private Vector3 walkStartLeftFootFromPelvis;
-        private Vector3 walkStartRightFootFromPelvis;
         private Vector3 reviewBaseLocalPosition;
         private bool reviewBasePositionCaptured;
         private float reviewTravelLocalDistance;
-        private readonly Vector3[] walkPhaseLeftHands =
-            new Vector3[WalkPhaseCount];
-        private readonly Vector3[] walkPhaseRightHands =
-            new Vector3[WalkPhaseCount];
-        private readonly Vector3[] walkPhaseLeftFeet =
-            new Vector3[WalkPhaseCount];
-        private readonly Vector3[] walkPhaseRightFeet =
-            new Vector3[WalkPhaseCount];
         private readonly float[] walkPhaseRootScreenX =
             new float[WalkPhaseCount];
         private string currentClip = string.Empty;
@@ -220,6 +204,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Patch4CanvasPresentation presentation,
             Patch4FaceController face,
             Patch4SecondaryMotionController motion,
+            Patch4V22WalkCyclePresentation walkPresentation,
             Animator targetAnimator,
             GameObject visualRoot,
             GameObject rollbackRoot,
@@ -237,6 +222,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             canvasPresentation = presentation;
             faceController = face;
             secondaryMotion = motion;
+            v22WalkPresentation = walkPresentation;
             animator = targetAnimator;
             patch4VisualRoot = visualRoot;
             patch35RollbackRoot = rollbackRoot;
@@ -279,6 +265,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 continuousBodyBindingReady =
                     canvasPresentation != null &&
                     canvasPresentation.ContinuousBodyBindingReady,
+                v22WalkFrameSequenceReady =
+                    v22WalkPresentation != null &&
+                    v22WalkPresentation.IsReady &&
+                    v22WalkPresentation.FrameCount ==
+                        Patch4V22WalkCyclePresentation.RequiredFrameCount,
                 readinessGateRemainedLocked =
                     rigController != null &&
                     !rigController.Patch4Enabled,
@@ -381,12 +372,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
                 report.animatorStateBindingPassed &&
+                report.v22WalkFrameSequenceReady &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
                 report.walkPhaseAlternationPassed,
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
                 report.animatorStateBindingPassed &&
+                report.v22WalkFrameSequenceReady &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
                 report.walkPhaseAlternationPassed
@@ -403,12 +396,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int clipIndex)
         {
             currentClip = clip.name;
-            walkJointStartCaptured = false;
             ConfigureFaceForClip(clip.name);
             bool isWalk = string.Equals(
                 clip.name,
                 "FatMan_Walk_InRoom",
                 StringComparison.Ordinal);
+            v22WalkPresentation.SetReviewActive(isWalk);
+            clipReport.v22FrameSequenceReady =
+                v22WalkPresentation.IsReady &&
+                v22WalkPresentation.FrameCount == WalkPhaseCount;
+            clipReport.v22FrameSequenceUsed =
+                isWalk && clipReport.v22FrameSequenceReady;
 
             float reviewDuration = Mathf.Clamp(
                 clip.length,
@@ -455,6 +453,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 PrepareWalkReviewTravel();
                 SetWalkReviewTravel(0f);
+                v22WalkPresentation.SetReviewFrame(0);
             }
 
             ConfigureAnimatorParametersForClip(clip.name);
@@ -488,18 +487,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     report.error,
                     clip.name +
                     ": start-pose capture failed.");
-                RestoreAnimatorAfterClip();
-                yield break;
-            }
-
-            if (isWalk && !CaptureWalkJointStartPose())
-            {
-                clipReport.captured = false;
-                report.error = AppendError(
-                    report.error,
-                    clip.name +
-                    ": the four limb endpoint bind vectors could not be " +
-                    "captured.");
                 RestoreAnimatorAfterClip();
                 yield break;
             }
@@ -584,7 +571,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             float playbackSpeed)
         {
             bool phaseFramesCaptured = true;
-            bool phaseVectorsCaptured = true;
             bool contactFrameCaptured = false;
             float elapsed = 0f;
             float lastCaptureNormalizedTime =
@@ -620,6 +606,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     clipReport.animatorStateHash,
                     normalizedTime,
                     out int stateHash);
+                v22WalkPresentation.SetReviewFrame(phaseIndex);
                 Canvas.ForceUpdateCanvases();
                 yield return null;
                 yield return new WaitForEndOfFrame();
@@ -635,8 +622,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     yield break;
                 }
 
-                phaseFramesCaptured &= CaptureWalkPhaseFrame(phaseIndex);
-                phaseVectorsCaptured &= CaptureWalkPhaseVectors(phaseIndex);
+                phaseFramesCaptured &=
+                    v22WalkPresentation.IsDisplaying &&
+                    v22WalkPresentation.ActiveFrameIndex == phaseIndex &&
+                    CaptureWalkPhaseFrame(phaseIndex);
                 Rect currentRect = ResolveExpectedScreenRect(
                     backgroundWidth,
                     backgroundHeight);
@@ -672,8 +661,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clipReport.peakStateEntered;
             clipReport.walkPhaseCount = WalkPhaseCount;
             clipReport.walkCycleCaptured =
-                phaseFramesCaptured &&
-                phaseVectorsCaptured;
+                clipReport.v22FrameSequenceReady &&
+                clipReport.v22FrameSequenceUsed &&
+                phaseFramesCaptured;
             AnalyzeWalkSequence(clipReport);
             clipReport.captured =
                 contactFrameCaptured &&
@@ -681,32 +671,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             clipReport.visibleMotionPassed &=
                 clipReport.walkRootTravelPassed &&
                 clipReport.walkPhaseAlternationPassed;
-        }
-
-        private bool CaptureWalkPhaseVectors(int phaseIndex)
-        {
-            if (phaseIndex < 0 || phaseIndex >= WalkPhaseCount)
-            {
-                return false;
-            }
-
-            return
-                TryGetRigRelativeVector(
-                    "ClavicleL",
-                    "HandL",
-                    out walkPhaseLeftHands[phaseIndex]) &&
-                TryGetRigRelativeVector(
-                    "ClavicleR",
-                    "HandR",
-                    out walkPhaseRightHands[phaseIndex]) &&
-                TryGetRigRelativeVector(
-                    "Pelvis",
-                    "FootL",
-                    out walkPhaseLeftFeet[phaseIndex]) &&
-                TryGetRigRelativeVector(
-                    "Pelvis",
-                    "FootR",
-                    out walkPhaseRightFeet[phaseIndex]);
         }
 
         private void AnalyzeWalkSequence(ClipReview clipReport)
@@ -730,38 +694,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clipReport.walkRootTravelPixels >=
                 clipReport.minimumWalkRootTravelPixels;
 
-            Vector3 leftArmDelta =
-                walkPhaseLeftHands[WalkOppositePhaseIndex] -
-                walkPhaseLeftHands[WalkContactPhaseIndex];
-            Vector3 rightArmDelta =
-                walkPhaseRightHands[WalkOppositePhaseIndex] -
-                walkPhaseRightHands[WalkContactPhaseIndex];
-            Vector3 leftLegDelta =
-                walkPhaseLeftFeet[WalkOppositePhaseIndex] -
-                walkPhaseLeftFeet[WalkContactPhaseIndex];
-            Vector3 rightLegDelta =
-                walkPhaseRightFeet[WalkOppositePhaseIndex] -
-                walkPhaseRightFeet[WalkContactPhaseIndex];
-
-            clipReport.walkArmAlternationDot = DirectionDot(
-                MirrorLeftSideDelta(leftArmDelta),
-                rightArmDelta);
-            clipReport.walkLegAlternationDot = DirectionDot(
-                MirrorLeftSideDelta(leftLegDelta),
-                rightLegDelta);
+            bool sourceArticulationMeasured =
+                v22WalkPresentation.TryMeasureGaitArticulation(
+                    out clipReport.v22LeftArmSilhouetteDifference,
+                    out clipReport.v22RightArmSilhouetteDifference,
+                    out clipReport.v22LeftLegSilhouetteDifference,
+                    out clipReport.v22RightLegSilhouetteDifference,
+                    out clipReport.v22MinimumAdjacentFrameDifference);
             clipReport.walkPhaseAlternationPassed =
-                leftArmDelta.magnitude >=
-                    MinimumWalkHandRelativeDisplacement &&
-                rightArmDelta.magnitude >=
-                    MinimumWalkHandRelativeDisplacement &&
-                leftLegDelta.magnitude >=
-                    MinimumWalkFootRelativeDisplacement &&
-                rightLegDelta.magnitude >=
-                    MinimumWalkFootRelativeDisplacement &&
-                clipReport.walkArmAlternationDot <=
-                    MaximumOpposingLimbDot &&
-                clipReport.walkLegAlternationDot <=
-                    MaximumOpposingLimbDot;
+                sourceArticulationMeasured &&
+                clipReport.v22LeftArmSilhouetteDifference >=
+                    MinimumV22WalkArmSilhouetteDifference &&
+                clipReport.v22RightArmSilhouetteDifference >=
+                    MinimumV22WalkArmSilhouetteDifference &&
+                clipReport.v22LeftLegSilhouetteDifference >=
+                    MinimumV22WalkLegSilhouetteDifference &&
+                clipReport.v22RightLegSilhouetteDifference >=
+                    MinimumV22WalkLegSilhouetteDifference &&
+                clipReport.v22MinimumAdjacentFrameDifference >=
+                    MinimumV22AdjacentFrameDifference;
 
             if (!clipReport.walkRootTravelPassed)
             {
@@ -780,34 +731,26 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.error = AppendError(
                     report.error,
                     clipReport.clipName +
-                    ": left/right limbs did not reverse across opposing " +
-                    "walk phases (arm dot " +
-                    clipReport.walkArmAlternationDot.ToString("0.000") +
-                    ", leg dot " +
-                    clipReport.walkLegAlternationDot.ToString("0.000") +
-                    "; both must be <= " +
-                    MaximumOpposingLimbDot.ToString("0.000") + ").");
+                    ": the visible V22 frames do not contain a complete " +
+                    "articulated gait (left/right arm silhouette difference " +
+                    clipReport.v22LeftArmSilhouetteDifference.ToString("0.000") +
+                    "/" +
+                    clipReport.v22RightArmSilhouetteDifference.ToString("0.000") +
+                    ", minimum " +
+                    MinimumV22WalkArmSilhouetteDifference.ToString("0.000") +
+                    "; left/right leg silhouette difference " +
+                    clipReport.v22LeftLegSilhouetteDifference.ToString("0.000") +
+                    "/" +
+                    clipReport.v22RightLegSilhouetteDifference.ToString("0.000") +
+                    ", minimum " +
+                    MinimumV22WalkLegSilhouetteDifference.ToString("0.000") +
+                    "; weakest adjacent-frame difference " +
+                    clipReport.v22MinimumAdjacentFrameDifference.ToString(
+                        "0.000") +
+                    ", minimum " +
+                    MinimumV22AdjacentFrameDifference.ToString("0.000") +
+                    "). Repeated poses or body-only twitch cannot pass.");
             }
-        }
-
-        private static float DirectionDot(Vector3 first, Vector3 second)
-        {
-            if (first.sqrMagnitude < 0.000001f ||
-                second.sqrMagnitude < 0.000001f)
-            {
-                return 1f;
-            }
-
-            return Vector3.Dot(first.normalized, second.normalized);
-        }
-
-        private static Vector3 MirrorLeftSideDelta(Vector3 value)
-        {
-            // The authored left and right chains are mirrored in X. Convert
-            // the left endpoint delta into the right limb's anatomical frame
-            // before checking that the two sides move in opposite gait phases.
-            value.x = -value.x;
-            return value;
         }
 
         private string ResolveAnimatorStatePath(string clipName)
@@ -911,6 +854,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void RestoreAnimatorAfterClip()
         {
             RestoreWalkReviewTravel();
+            if (v22WalkPresentation != null)
+            {
+                v22WalkPresentation.SetReviewActive(false);
+            }
+
             if (animator != null)
             {
                 ConfigureAnimatorParametersForClip(string.Empty);
@@ -1052,6 +1000,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 canvasPresentation == null ||
                 faceController == null ||
                 secondaryMotion == null ||
+                v22WalkPresentation == null ||
+                !v22WalkPresentation.IsReady ||
+                v22WalkPresentation.FrameCount != WalkPhaseCount ||
                 animator == null ||
                 animator.runtimeAnimatorController == null ||
                 patch4VisualRoot == null ||
@@ -1154,6 +1105,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 patch35RollbackRoot.activeInHierarchy;
             PauseLegacyMotionAndFootsteps();
             patch4VisualRoot.SetActive(true);
+            v22WalkPresentation.SetReviewActive(false);
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -1951,14 +1903,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             clipReport.limbReferencePixelCount = reference;
             clipReport.limbMotionCoverage =
                 reference > 0 ? changed / (float)reference : 0f;
-            clipReport.minimumHandRelativeDisplacement =
-                MinimumWalkHandRelativeDisplacement;
-            clipReport.minimumFootRelativeDisplacement =
-                MinimumWalkFootRelativeDisplacement;
-            clipReport.minimumPlantedFootRelativeDisplacement =
-                MinimumWalkPlantedFootRelativeDisplacement;
-            clipReport.relativeLimbPosePassed =
-                MeasureWalkJointArticulation(clipReport);
             clipReport.allLimbRegionsPassed =
                 leftArmMeasured &&
                 rightArmMeasured &&
@@ -1967,8 +1911,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 leftArmCoverage >= MinimumWalkArmMotionCoverage &&
                 rightArmCoverage >= MinimumWalkArmMotionCoverage &&
                 leftLegCoverage >= MinimumWalkLegMotionCoverage &&
-                rightLegCoverage >= MinimumWalkLegMotionCoverage &&
-                clipReport.relativeLimbPosePassed;
+                rightLegCoverage >= MinimumWalkLegMotionCoverage;
             clipReport.limbArticulationPassed =
                 reference > 0 &&
                 clipReport.limbMotionCoverage >=
@@ -1991,21 +1934,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     leftLegCoverage.ToString("0.000") +
                     "/" +
                     rightLegCoverage.ToString("0.000") +
-                    "; hand endpoints " +
-                    clipReport.leftHandRelativeDisplacement.ToString("0.00") +
-                    "/" +
-                    clipReport.rightHandRelativeDisplacement.ToString("0.00") +
-                    ", foot endpoints " +
-                    clipReport.leftFootRelativeDisplacement.ToString("0.00") +
-                    "/" +
-                    clipReport.rightFootRelativeDisplacement.ToString("0.00") +
-                    "; leading/planted minimum " +
-                    MinimumWalkFootRelativeDisplacement.ToString("0.00") +
-                    "/" +
-                    MinimumWalkPlantedFootRelativeDisplacement.ToString("0.00") +
-                    "). Every arm and leg must change its silhouette and move " +
-                    "relative to its shoulder or pelvis; body bob and texture " +
-                    "shimmer cannot pass.");
+                    "). Every visible arm and leg region must change its " +
+                    "silhouette; room travel, body bob and texture shimmer " +
+                    "cannot pass by themselves.");
             }
 
             return clipReport.limbArticulationPassed;
@@ -2090,105 +2021,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 ? changed / (float)reference
                 : 0f;
             return reference > 0;
-        }
-
-        private bool CaptureWalkJointStartPose()
-        {
-            walkJointStartCaptured =
-                TryGetRigRelativeVector(
-                    "ClavicleL",
-                    "HandL",
-                    out walkStartLeftHandFromClavicle) &&
-                TryGetRigRelativeVector(
-                    "ClavicleR",
-                    "HandR",
-                    out walkStartRightHandFromClavicle) &&
-                TryGetRigRelativeVector(
-                    "Pelvis",
-                    "FootL",
-                    out walkStartLeftFootFromPelvis) &&
-                TryGetRigRelativeVector(
-                    "Pelvis",
-                    "FootR",
-                    out walkStartRightFootFromPelvis);
-            return walkJointStartCaptured;
-        }
-
-        private bool MeasureWalkJointArticulation(ClipReview clipReport)
-        {
-            if (!walkJointStartCaptured || clipReport == null ||
-                !TryGetRigRelativeVector(
-                    "ClavicleL",
-                    "HandL",
-                    out Vector3 leftHand) ||
-                !TryGetRigRelativeVector(
-                    "ClavicleR",
-                    "HandR",
-                    out Vector3 rightHand) ||
-                !TryGetRigRelativeVector(
-                    "Pelvis",
-                    "FootL",
-                    out Vector3 leftFoot) ||
-                !TryGetRigRelativeVector(
-                    "Pelvis",
-                    "FootR",
-                    out Vector3 rightFoot))
-            {
-                return false;
-            }
-
-            clipReport.leftHandRelativeDisplacement = Vector3.Distance(
-                walkStartLeftHandFromClavicle,
-                leftHand);
-            clipReport.rightHandRelativeDisplacement = Vector3.Distance(
-                walkStartRightHandFromClavicle,
-                rightHand);
-            clipReport.leftFootRelativeDisplacement = Vector3.Distance(
-                walkStartLeftFootFromPelvis,
-                leftFoot);
-            clipReport.rightFootRelativeDisplacement = Vector3.Distance(
-                walkStartRightFootFromPelvis,
-                rightFoot);
-            float leadingFootDisplacement = Mathf.Max(
-                clipReport.leftFootRelativeDisplacement,
-                clipReport.rightFootRelativeDisplacement);
-            float plantedFootDisplacement = Mathf.Min(
-                clipReport.leftFootRelativeDisplacement,
-                clipReport.rightFootRelativeDisplacement);
-            return
-                clipReport.leftHandRelativeDisplacement >=
-                    MinimumWalkHandRelativeDisplacement &&
-                clipReport.rightHandRelativeDisplacement >=
-                    MinimumWalkHandRelativeDisplacement &&
-                leadingFootDisplacement >=
-                    MinimumWalkFootRelativeDisplacement &&
-                plantedFootDisplacement >=
-                    MinimumWalkPlantedFootRelativeDisplacement;
-        }
-
-        private bool TryGetRigRelativeVector(
-            string originBoneName,
-            string endpointBoneName,
-            out Vector3 relative)
-        {
-            relative = Vector3.zero;
-            if (rigController == null || rigController.RigRoot == null)
-            {
-                return false;
-            }
-
-            Transform origin = rigController.GetBone(originBoneName);
-            Transform endpoint = rigController.GetBone(endpointBoneName);
-            if (origin == null || endpoint == null)
-            {
-                return false;
-            }
-
-            Transform rigRoot = rigController.RigRoot;
-            relative =
-                rigRoot.InverseTransformPoint(endpoint.position) -
-                rigRoot.InverseTransformPoint(origin.position);
-            return true;
         }
 
         private static bool IsForeground(Color32 pixel, Color32 background)
@@ -2400,7 +2232,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int screenWidth,
             int screenHeight)
         {
-            RectTransform root = canvasPresentation.GeneratedRoot;
+            RectTransform root =
+                v22WalkPresentation != null &&
+                v22WalkPresentation.IsDisplaying &&
+                v22WalkPresentation.PresentationRoot != null
+                    ? v22WalkPresentation.PresentationRoot
+                    : canvasPresentation.GeneratedRoot;
             Canvas canvas = canvasPresentation.HostCanvas;
             Camera camera =
                 canvas != null &&
@@ -2517,6 +2354,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.visualSanityPassed &&
                 report.visibleMotionPassed &&
                 report.animatorStateBindingPassed &&
+                report.v22WalkFrameSequenceReady &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
                 report.walkPhaseAlternationPassed &&
@@ -2605,6 +2443,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (secondaryMotion != null)
             {
                 secondaryMotion.SetEditorReviewActive(false);
+            }
+
+            if (v22WalkPresentation != null)
+            {
+                v22WalkPresentation.SetReviewActive(false);
             }
 
             if (rigController != null)

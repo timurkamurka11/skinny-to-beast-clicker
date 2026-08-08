@@ -11,6 +11,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public const string PrefabRoot = "Assets/GameWorkPatch4/Resources";
         public const string PrefabPath = PrefabRoot + "/FatMan_Patch4.prefab";
         public const string PrefabResourcePath = "FatMan_Patch4";
+        public const string V22WalkSheetPath =
+            "Assets/GameWorkPatch4/Art/Character/FatMan/V22Candidates/" +
+            "FatMan_WalkCycle_V22.png";
 
         private sealed class BoneSpec
         {
@@ -56,6 +59,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     root.AddComponent<Patch4LayerRenderer>();
                 Patch4CanvasPresentation canvasPresentation =
                     root.AddComponent<Patch4CanvasPresentation>();
+                Patch4V22WalkCyclePresentation v22Walk =
+                    root.AddComponent<Patch4V22WalkCyclePresentation>();
                 Patch4LegacySignalBridge signalBridge =
                     root.AddComponent<Patch4LegacySignalBridge>();
                 Patch4CharacterVisibilityGuard visibilityGuard =
@@ -74,12 +79,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     rigController,
                     faceController,
                     visualRoot);
+                ConfigureV22Walk(
+                    v22Walk,
+                    rigController,
+                    canvasPresentation,
+                    animator);
                 ConfigureSecondaryMotion(secondaryMotion, rigController, bones);
                 ConfigureSignalBridge(signalBridge, stateMachine, faceController);
                 ConfigureVisibility(visibilityGuard, rigController, visualRoot.gameObject);
 
                 layerRenderer.RebuildLayers();
                 canvasPresentation.RebuildCanvasLayers();
+                if (!v22Walk.RebuildPresentation())
+                {
+                    throw new InvalidOperationException(
+                        "The V22 eight-frame walk presentation could not be " +
+                        "built from " + V22WalkSheetPath + ".");
+                }
 
                 visualRoot.gameObject.SetActive(false);
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -223,6 +239,35 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             serialized.FindProperty("faceController").objectReferenceValue = face;
             serialized.FindProperty("visualRoot").objectReferenceValue = visualRoot;
             serialized.FindProperty("buildOnAwake").boolValue = true;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void ConfigureV22Walk(
+            Patch4V22WalkCyclePresentation target,
+            Patch4CharacterRigController rig,
+            Patch4CanvasPresentation presentation,
+            Animator animator)
+        {
+            Texture2D walkSheet =
+                AssetDatabase.LoadAssetAtPath<Texture2D>(V22WalkSheetPath);
+            if (walkSheet == null)
+            {
+                throw new InvalidOperationException(
+                    "The V22 walk-cycle candidate is missing at " +
+                    V22WalkSheetPath + ".");
+            }
+
+            SerializedObject serialized = new(target);
+            serialized.FindProperty("rigController").objectReferenceValue = rig;
+            serialized.FindProperty("canvasPresentation").objectReferenceValue =
+                presentation;
+            serialized.FindProperty("animator").objectReferenceValue = animator;
+            serialized.FindProperty("walkSheet").objectReferenceValue = walkSheet;
+            serialized.FindProperty("columns").intValue = 4;
+            serialized.FindProperty("rows").intValue = 2;
+            serialized.FindProperty("canvasHeightRatio").floatValue = 0.8f;
+            serialized.FindProperty("canvasBottomOffsetRatio").floatValue =
+                0.156f;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

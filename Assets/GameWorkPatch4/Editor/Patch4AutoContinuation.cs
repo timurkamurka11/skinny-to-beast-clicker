@@ -13,11 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "opposing-gait-room-travel-review-v17";
-        // Fresh v21.1 namespace: an Editor that already ran v21 must rerun after
-        // pulling the walk-channel contract correction.
+            "complete-frame-walk-cycle-review-v22";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v21.1.walk-contract.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v22.complete-frame.";
 
         private static int idleFrames;
 
@@ -59,17 +57,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic v21.1 hybrid-rig rebuild started: restore " +
-                    "the approved master, bake non-exclusive source layers, merge " +
-                    "each complete arm and leg into one continuous painted surface, " +
-                    "verify neutral reconstruction before motion, keep enlarged " +
-                    "shoulder/hip artwork hidden behind a localized soft torso, " +
-                    "remove the v20 rigid paper-doll presentation, install planted-" +
-                    "foot gait correction, prohibit whole-body/core-bone scale, " +
-                    "reset omitted pose channels while leaving Walk horizontal " +
-                    "CharacterRoot motion unkeyed, then run safety/tests and the " +
-                    "real-room ten-clip review.");
-
+                    "Patch 4 V22 automatic complete-frame walk review started: " +
+                    "restore the approved master, rebuild the retained v21.1 " +
+                    "continuous torso/limb/face candidates for the nine legacy " +
+                    "clips, verify neutral reconstruction, rebuild the locked " +
+                    "prefab and bind the isolated eight-frame RGBA Walk. During " +
+                    "Walk the entire experimental Canvas stack is hidden, so " +
+                    "no sliced joint, detached face or vacuum-stretched body can " +
+                    "leak behind the complete painted frames. After 4/4, Unity " +
+                    "will enter every full Animator state in the actual room, " +
+                    "sample all eight Walk frames with silent monotonic travel, " +
+                    "measure both visible arm silhouettes, both visible leg " +
+                    "silhouettes and the weakest adjacent-frame difference, " +
+                    "reject duplicated poses, missing travel, weak blink motion, " +
+                    "collapse, over-stretch or Console errors, restore Patch 3.5 " +
+                    "and open only fresh read-only review artifacts.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(
@@ -93,7 +95,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic v21.1 continuation failed: " + exception);
+                    "Patch 4 automatic V22 continuation failed: " + exception);
             }
         }
     }

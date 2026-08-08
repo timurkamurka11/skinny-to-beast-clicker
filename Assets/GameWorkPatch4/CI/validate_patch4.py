@@ -15,6 +15,7 @@ import re
 import struct
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 from typing import Iterable
 
@@ -46,6 +47,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Runtime/Patch4CanvasPresentation.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4CanvasSkinDeformer.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
+    "Assets/GameWorkPatch4/Runtime/Patch4V22WalkCyclePresentation.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
     "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
     "Assets/GameWorkPatch4/Editor/Patch4LayerImportPostprocessor.cs",
@@ -60,9 +62,12 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4EditorSmokeValidator.cs",
     "Assets/GameWorkPatch4/Editor/Patch4PrefabReadinessBinder.cs",
     REPOSITORY_MASTER,
+    "Assets/GameWorkPatch4/Art/Character/FatMan/V22Candidates/"
+    "FatMan_WalkCycle_V22.png",
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
     "Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json",
     "Docs/Patch4/CHECKPOINT.md",
+    "Docs/Patch4/V22_PRODUCTION_RIG_PLAN.md",
 )
 
 
@@ -271,7 +276,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"opposing-gait-room-travel-review-v17"',
+            '"complete-frame-walk-cycle-review-v22"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -395,8 +400,39 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4PrefabBuilder.cs",
         errors,
     )
-    if builder and 'PrefabRoot = "Assets/GameWorkPatch4/Resources"' not in builder:
-        fail(errors, "Patch 4 prefab must be generated into isolated Resources")
+    if builder:
+        if 'PrefabRoot = "Assets/GameWorkPatch4/Resources"' not in builder:
+            fail(errors, "Patch 4 prefab must be generated into isolated Resources")
+        for snippet in (
+            "Patch4V22WalkCyclePresentation",
+            "FatMan_WalkCycle_V22.png",
+            "v22Walk.RebuildPresentation()",
+        ):
+            if snippet not in builder:
+                fail(errors, f"V22 complete-frame walk builder is missing: {snippet}")
+
+    v22_walk = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4V22WalkCyclePresentation.cs",
+        errors,
+    )
+    if v22_walk:
+        for snippet in (
+            "RequiredFrameCount = 8",
+            "typeof(RawImage)",
+            "presentationImage.uvRect",
+            "generatedLayersGroup.alpha = 0f",
+            "rigController.Patch4Enabled",
+            "FatMan_Walk_InRoom",
+            "SetReviewFrame(",
+            "SetReviewActive(",
+            "TryMeasureGaitArticulation(",
+            "VisibleAlphaThreshold",
+        ):
+            if snippet not in v22_walk:
+                fail(errors, f"V22 complete-frame walk presentation is missing: {snippet}")
+        if "SetPatch4Enabled(true)" in v22_walk:
+            fail(errors, "V22 walk presentation must never unlock Patch 4")
 
     deformer = read_text(
         root,
@@ -515,8 +551,6 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AnalyzeVisibleMotion(",
             "AnalyzeFocusedFaceMotion(",
             "AnalyzeWalkLimbMotion(",
-            "CaptureWalkJointStartPose(",
-            "MeasureWalkJointArticulation(",
             "MeasureAlignedRegionMotion(",
             "ResolveGlobalAlignment(",
             "TryMeasureForegroundCentroid(",
@@ -526,18 +560,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "focusedFaceMotionPassed",
             "limbArticulationPassed",
             "allLimbRegionsPassed",
-            "relativeLimbPosePassed",
             "leftArmMotionCoverage",
             "rightArmMotionCoverage",
             "leftLegMotionCoverage",
             "rightLegMotionCoverage",
-            "leftHandRelativeDisplacement",
-            "rightHandRelativeDisplacement",
-            "leftFootRelativeDisplacement",
-            "rightFootRelativeDisplacement",
-            "MinimumWalkHandRelativeDisplacement",
-            "MinimumWalkFootRelativeDisplacement",
-            "MinimumWalkPlantedFootRelativeDisplacement",
+            "MinimumV22WalkArmSilhouetteDifference",
+            "MinimumV22WalkLegSilhouetteDifference",
+            "MinimumV22AdjacentFrameDifference",
             "IsForeground(",
             "neutralWidthRetention",
             "MaximumNeutralWidthExpansion",
@@ -554,10 +583,14 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "ReviewWalkCycle(",
             "CaptureWalkPhaseFrame(",
             "SetWalkReviewTravel(",
-            "MirrorLeftSideDelta(",
             "walkCycleCaptured",
             "walkRootTravelPassed",
             "walkPhaseAlternationPassed",
+            "Patch4V22WalkCyclePresentation",
+            "v22WalkPresentation.SetReviewFrame(phaseIndex)",
+            "v22LeftArmSilhouetteDifference",
+            "v22RightLegSilhouetteDifference",
+            "v22MinimumAdjacentFrameDifference",
             'animator.GetLayerName(0) + "." + clipName',
             "Animator.StringToHash(",
             "animator.HasState(",
@@ -716,6 +749,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             '"m_LocalPosition.x"',
             "RequireCurve(",
             "AssertAnimatorControllerHasCanonicalRootStatePaths(clips)",
+            "AssertV22WalkSheetIsImportable()",
             "layer.name",
             "machine.name",
         ):
@@ -814,12 +848,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AssertWalkAnimatorStateProducesArticulation(",
             "animator.HasState(0, stateHash)",
             "GetCurrentAnimatorStateInfo(0).fullPathHash",
-            "MinimumWalkHandDisplacement",
-            "MinimumWalkFootDisplacement",
-            "MinimumWalkPlantedFootDisplacement",
-            "animator.Play(stateHash, 0, 0.25f)",
-            "animator.Play(stateHash, 0, 0.75f)",
-            "MirroredLimbDot(",
+            "MinimumV22ArmSilhouetteDifference",
+            "MinimumV22LegSilhouetteDifference",
+            "MinimumV22AdjacentFrameDifference",
+            "animator.Play(stateHash, 0, 0.5f)",
+            "TryMeasureGaitArticulation",
+            "Patch4V22WalkCyclePresentation",
+            "GetBoolProperty(v22Walk, \"IsReady\")",
         ):
             if snippet not in playmode_tests:
                 fail(
@@ -980,6 +1015,196 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Draft validation does not require one intact runtime body")
 
 
+def validate_v22_walk_sheet(root: Path, errors: list[str]) -> None:
+    relative = (
+        "Assets/GameWorkPatch4/Art/Character/FatMan/V22Candidates/"
+        "FatMan_WalkCycle_V22.png"
+    )
+    path = root / relative
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        fail(errors, f"V22 walk sheet is unreadable: {exc}")
+        return
+
+    if (
+        len(data) < 29
+        or data[:8] != b"\x89PNG\r\n\x1a\n"
+        or data[12:16] != b"IHDR"
+    ):
+        fail(errors, "V22 walk sheet is not a valid PNG")
+        return
+
+    width, height = struct.unpack(">II", data[16:24])
+    if width % 4 != 0 or height % 2 != 0:
+        fail(
+            errors,
+            "V22 walk sheet must divide into four equal columns and two rows",
+        )
+    if data[24] != 8 or data[25] != 6:
+        fail(errors, "V22 walk sheet must be 8-bit RGBA PNG data")
+        return
+
+    try:
+        rgba = decode_png_rgba(data, width, height)
+    except (ValueError, zlib.error) as exc:
+        fail(errors, f"V22 walk sheet pixels could not be decoded: {exc}")
+        return
+
+    cell_width = width // 4
+    cell_height = height // 2
+    arm_regions = (
+        (0.10, 0.48, 0.15, 0.67),
+        (0.52, 0.90, 0.15, 0.67),
+    )
+    leg_regions = (
+        (0.22, 0.50, 0.52, 0.98),
+        (0.50, 0.78, 0.52, 0.98),
+    )
+    arm_differences = [
+        alpha_silhouette_difference(
+            rgba, width, cell_width, cell_height, 0, 4, region
+        )
+        for region in arm_regions
+    ]
+    leg_differences = [
+        alpha_silhouette_difference(
+            rgba, width, cell_width, cell_height, 0, 4, region
+        )
+        for region in leg_regions
+    ]
+    adjacent_differences = [
+        alpha_silhouette_difference(
+            rgba,
+            width,
+            cell_width,
+            cell_height,
+            frame,
+            (frame + 1) % 8,
+            (0.0, 1.0, 0.0, 1.0),
+        )
+        for frame in range(8)
+    ]
+    if min(arm_differences) < 0.14:
+        fail(
+            errors,
+            "V22 opposing contact poses do not visibly articulate both arms "
+            f"({arm_differences[0]:.3f}/{arm_differences[1]:.3f})",
+        )
+    if min(leg_differences) < 0.14:
+        fail(
+            errors,
+            "V22 opposing contact poses do not visibly articulate both legs "
+            f"({leg_differences[0]:.3f}/{leg_differences[1]:.3f})",
+        )
+    if min(adjacent_differences) < 0.075:
+        fail(
+            errors,
+            "V22 contains a duplicated or nearly static adjacent frame "
+            f"(minimum difference {min(adjacent_differences):.3f})",
+        )
+
+    meta = read_text(root, relative + ".meta", errors)
+    if meta and "isReadable: 1" not in meta:
+        fail(errors, "V22 texture must remain readable for visible-art QA")
+
+
+def decode_png_rgba(data: bytes, width: int, height: int) -> bytes:
+    cursor = 8
+    compressed = bytearray()
+    while cursor + 12 <= len(data):
+        length = struct.unpack(">I", data[cursor : cursor + 4])[0]
+        chunk_type = data[cursor + 4 : cursor + 8]
+        chunk_data = data[cursor + 8 : cursor + 8 + length]
+        if len(chunk_data) != length:
+            raise ValueError("truncated PNG chunk")
+        if chunk_type == b"IDAT":
+            compressed.extend(chunk_data)
+        cursor += 12 + length
+        if chunk_type == b"IEND":
+            break
+
+    raw = zlib.decompress(bytes(compressed))
+    stride = width * 4
+    expected = height * (stride + 1)
+    if len(raw) != expected:
+        raise ValueError("unexpected decompressed PNG size")
+
+    output = bytearray(height * stride)
+    previous = bytearray(stride)
+    source_offset = 0
+    for row in range(height):
+        filter_type = raw[source_offset]
+        source_offset += 1
+        scanline = bytearray(raw[source_offset : source_offset + stride])
+        source_offset += stride
+        for index in range(stride):
+            left = scanline[index - 4] if index >= 4 else 0
+            above = previous[index]
+            upper_left = previous[index - 4] if index >= 4 else 0
+            if filter_type == 1:
+                scanline[index] = (scanline[index] + left) & 0xFF
+            elif filter_type == 2:
+                scanline[index] = (scanline[index] + above) & 0xFF
+            elif filter_type == 3:
+                scanline[index] = (
+                    scanline[index] + ((left + above) // 2)
+                ) & 0xFF
+            elif filter_type == 4:
+                scanline[index] = (
+                    scanline[index] + paeth(left, above, upper_left)
+                ) & 0xFF
+            elif filter_type != 0:
+                raise ValueError(f"unsupported PNG filter {filter_type}")
+        start = row * stride
+        output[start : start + stride] = scanline
+        previous = scanline
+    return bytes(output)
+
+
+def paeth(left: int, above: int, upper_left: int) -> int:
+    estimate = left + above - upper_left
+    left_distance = abs(estimate - left)
+    above_distance = abs(estimate - above)
+    upper_left_distance = abs(estimate - upper_left)
+    if left_distance <= above_distance and left_distance <= upper_left_distance:
+        return left
+    if above_distance <= upper_left_distance:
+        return above
+    return upper_left
+
+
+def alpha_silhouette_difference(
+    rgba: bytes,
+    image_width: int,
+    cell_width: int,
+    cell_height: int,
+    first_frame: int,
+    second_frame: int,
+    region: tuple[float, float, float, float],
+) -> float:
+    x0, x1, y0, y1 = region
+    local_x_min = max(0, min(cell_width - 1, int(x0 * cell_width)))
+    local_x_max = max(local_x_min + 1, min(cell_width, int(x1 * cell_width + 0.999)))
+    local_y_min = max(0, min(cell_height - 1, int(y0 * cell_height)))
+    local_y_max = max(local_y_min + 1, min(cell_height, int(y1 * cell_height + 0.999)))
+    first_column, first_row = first_frame % 4, first_frame // 4
+    second_column, second_row = second_frame % 4, second_frame // 4
+    different = 0
+    union = 0
+    for local_y in range(local_y_min, local_y_max):
+        first_y = first_row * cell_height + local_y
+        second_y = second_row * cell_height + local_y
+        for local_x in range(local_x_min, local_x_max):
+            first_x = first_column * cell_width + local_x
+            second_x = second_column * cell_width + local_x
+            first_alpha = rgba[(first_y * image_width + first_x) * 4 + 3] >= 32
+            second_alpha = rgba[(second_y * image_width + second_x) * 4 + 3] >= 32
+            union += int(first_alpha or second_alpha)
+            different += int(first_alpha != second_alpha)
+    return different / union if union else 0.0
+
+
 def changed_paths(root: Path, base_ref: str) -> Iterable[str]:
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
@@ -1029,6 +1254,7 @@ def main() -> int:
     validate_readiness_gate(root, errors)
     validate_runtime_installation(root, errors)
     validate_neutral_pose_qa(root, errors)
+    validate_v22_walk_sheet(root, errors)
     validate_protected_paths(root, args.base_ref, errors)
 
     if errors:
@@ -1046,6 +1272,7 @@ def main() -> int:
     print("- exact neutral face and feathered expression replacements share the Head matrix")
     print("- Test Runner exit must stay quiescent before the separate room review")
     print("- actual-room review blocks weak limbs, collapse, over-stretch and Console errors")
+    print("- V22 walk uses eight complete RGBA frames while the experimental body mesh stays hidden")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

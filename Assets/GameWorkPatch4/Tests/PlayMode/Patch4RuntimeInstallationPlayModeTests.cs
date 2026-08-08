@@ -15,10 +15,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             "UI/Gameplay/Living/CharacterRig2D";
         private const string Patch4PrefabResourcePath = "FatMan_Patch4";
         private const string Patch4InstanceName = "FatMan_Patch4_Instance";
-        private const float MinimumWalkHandDisplacement = 0.68f;
-        private const float MinimumWalkFootDisplacement = 0.60f;
-        private const float MinimumWalkPlantedFootDisplacement = 0.25f;
-        private const float MaximumOpposingLimbDot = -0.20f;
+        private const float MinimumV22ArmSilhouetteDifference = 0.14f;
+        private const float MinimumV22LegSilhouetteDifference = 0.14f;
+        private const float MinimumV22AdjacentFrameDifference = 0.075f;
 
         [UnityTest]
         public IEnumerator LivingGameplayRoomGetsLockedRollbackInstance()
@@ -214,6 +213,31 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     "mesh. Patch4CanvasSkinDeformer generates and validates " +
                     "the full-canvas weighted grid itself.");
 
+                Type v22WalkType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4V22WalkCyclePresentation");
+                Component v22Walk = patchInstance.GetComponent(v22WalkType);
+                Assert.NotNull(
+                    v22Walk,
+                    "The generated prefab has no complete-frame walk surface.");
+                Assert.IsTrue(
+                    GetBoolProperty(v22Walk, "IsReady"),
+                    "The V22 eight-frame walk sheet was not bound.");
+                Assert.AreEqual(
+                    8,
+                    GetIntProperty(v22Walk, "FrameCount"));
+                Assert.NotNull(
+                    GetObjectProperty(v22Walk, "WalkSheet"));
+                RawImage[] frameImages =
+                    patchVisual.GetComponentsInChildren<RawImage>(true);
+                Assert.AreEqual(
+                    1,
+                    frameImages.Length,
+                    "Walk must use one intact complete-frame presentation.");
+                Assert.IsFalse(
+                    frameImages[0].enabled,
+                    "The locked rollback instance must not expose Patch 4.");
+
                 Vector3 localScale = patchInstance.localScale;
                 Assert.AreEqual(
                     localScale.x,
@@ -374,8 +398,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
 
                 AssertWalkAnimatorStateProducesArticulation(
                     patchInstance,
-                    patchVisual,
-                    patchRig);
+                    patchVisual);
             }
             finally
             {
@@ -385,8 +408,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
 
         private static void AssertWalkAnimatorStateProducesArticulation(
             Transform patchInstance,
-            Transform patchVisual,
-            Component patchRig)
+            Transform patchVisual)
         {
             Animator animator = patchInstance.GetComponent<Animator>();
             Assert.NotNull(
@@ -422,130 +444,52 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
                     "Animator.Play must enter the full-path walk state.");
 
-                Vector3 startLeftHand = GetRigRelativeVector(
-                    patchRig,
-                    "ClavicleL",
-                    "HandL");
-                Vector3 startRightHand = GetRigRelativeVector(
-                    patchRig,
-                    "ClavicleR",
-                    "HandR");
-                Vector3 startLeftFoot = GetRigRelativeVector(
-                    patchRig,
-                    "Pelvis",
-                    "FootL");
-                Vector3 startRightFoot = GetRigRelativeVector(
-                    patchRig,
-                    "Pelvis",
-                    "FootR");
-
-                animator.Play(stateHash, 0, 0.25f);
+                animator.Play(stateHash, 0, 0.5f);
                 animator.Update(0f);
                 Assert.AreEqual(
                     stateHash,
                     animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
-                    "The full-path walk state was lost before peak sampling.");
+                    "The full-path walk state was lost before V22 sampling.");
 
-                Vector3 firstLeftHand = GetRigRelativeVector(
-                    patchRig,
-                    "ClavicleL",
-                    "HandL");
-                Vector3 firstRightHand = GetRigRelativeVector(
-                    patchRig,
-                    "ClavicleR",
-                    "HandR");
-                Vector3 firstLeftFoot = GetRigRelativeVector(
-                    patchRig,
-                    "Pelvis",
-                    "FootL");
-                Vector3 firstRightFoot = GetRigRelativeVector(
-                    patchRig,
-                    "Pelvis",
-                    "FootR");
+                Type v22WalkType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4V22WalkCyclePresentation");
+                Component v22Walk = patchInstance.GetComponent(v22WalkType);
+                Assert.NotNull(v22Walk);
+                MethodInfo measure = v22WalkType.GetMethod(
+                    "TryMeasureGaitArticulation",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(
+                    measure,
+                    "The complete-frame walk has no visible-articulation " +
+                    "measurement contract.");
+                object[] metrics = { 0f, 0f, 0f, 0f, 0f };
+                Assert.IsTrue(
+                    (bool)measure.Invoke(v22Walk, metrics),
+                    "The V22 walk sheet is unreadable or incomplete.");
                 Assert.GreaterOrEqual(
-                    Vector3.Distance(
-                        startLeftHand,
-                        firstLeftHand),
-                    MinimumWalkHandDisplacement,
-                    "The left hand did not articulate relative to its shoulder.");
+                    (float)metrics[0],
+                    MinimumV22ArmSilhouetteDifference,
+                    "The visible left arm does not change between contact " +
+                    "poses.");
                 Assert.GreaterOrEqual(
-                    Vector3.Distance(
-                        startRightHand,
-                        firstRightHand),
-                    MinimumWalkHandDisplacement,
-                    "The right hand did not articulate relative to its shoulder.");
-                float firstLeftFootDisplacement = Vector3.Distance(
-                    startLeftFoot,
-                    firstLeftFoot);
-                float firstRightFootDisplacement = Vector3.Distance(
-                    startRightFoot,
-                    firstRightFoot);
+                    (float)metrics[1],
+                    MinimumV22ArmSilhouetteDifference,
+                    "The visible right arm does not change between contact " +
+                    "poses.");
                 Assert.GreaterOrEqual(
-                    Mathf.Max(
-                        firstLeftFootDisplacement,
-                        firstRightFootDisplacement),
-                    MinimumWalkFootDisplacement,
-                    "Neither foot produced a leading step at the first peak.");
+                    (float)metrics[2],
+                    MinimumV22LegSilhouetteDifference,
+                    "The visible left leg does not step.");
                 Assert.GreaterOrEqual(
-                    Mathf.Min(
-                        firstLeftFootDisplacement,
-                        firstRightFootDisplacement),
-                    MinimumWalkPlantedFootDisplacement,
-                    "The planted foot remained completely rigid at the first " +
-                    "walk peak.");
-
-                animator.Play(stateHash, 0, 0.75f);
-                animator.Update(0f);
-                Assert.AreEqual(
-                    stateHash,
-                    animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
-                    "The full-path walk state was lost before opposite-peak " +
-                    "sampling.");
-
-                Vector3 secondLeftHand = GetRigRelativeVector(
-                    patchRig,
-                    "ClavicleL",
-                    "HandL");
-                Vector3 secondRightHand = GetRigRelativeVector(
-                    patchRig,
-                    "ClavicleR",
-                    "HandR");
-                Vector3 secondLeftFoot = GetRigRelativeVector(
-                    patchRig,
-                    "Pelvis",
-                    "FootL");
-                Vector3 secondRightFoot = GetRigRelativeVector(
-                    patchRig,
-                    "Pelvis",
-                    "FootR");
-                Vector3 leftArmDelta = secondLeftHand - firstLeftHand;
-                Vector3 rightArmDelta = secondRightHand - firstRightHand;
-                Vector3 leftLegDelta = secondLeftFoot - firstLeftFoot;
-                Vector3 rightLegDelta = secondRightFoot - firstRightFoot;
+                    (float)metrics[3],
+                    MinimumV22LegSilhouetteDifference,
+                    "The visible right leg does not step.");
                 Assert.GreaterOrEqual(
-                    leftArmDelta.magnitude,
-                    MinimumWalkHandDisplacement,
-                    "The left arm did not reverse across the gait cycle.");
-                Assert.GreaterOrEqual(
-                    rightArmDelta.magnitude,
-                    MinimumWalkHandDisplacement,
-                    "The right arm did not reverse across the gait cycle.");
-                Assert.GreaterOrEqual(
-                    leftLegDelta.magnitude,
-                    MinimumWalkFootDisplacement,
-                    "The left leg did not reverse across the gait cycle.");
-                Assert.GreaterOrEqual(
-                    rightLegDelta.magnitude,
-                    MinimumWalkFootDisplacement,
-                    "The right leg did not reverse across the gait cycle.");
-                Assert.LessOrEqual(
-                    MirroredLimbDot(leftArmDelta, rightArmDelta),
-                    MaximumOpposingLimbDot,
-                    "The arms do not alternate in mirrored anatomical space.");
-                Assert.LessOrEqual(
-                    MirroredLimbDot(leftLegDelta, rightLegDelta),
-                    MaximumOpposingLimbDot,
-                    "The legs do not alternate in mirrored anatomical space.");
+                    (float)metrics[4],
+                    MinimumV22AdjacentFrameDifference,
+                    "The V22 walk contains a duplicated or nearly static " +
+                    "adjacent pose.");
             }
             finally
             {
@@ -560,49 +504,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 animator.speed = previousAnimatorSpeed;
                 patchVisual.gameObject.SetActive(visualWasActive);
             }
-        }
-
-        private static Vector3 GetRigRelativeVector(
-            Component patchRig,
-            string originBoneName,
-            string endpointBoneName)
-        {
-            MethodInfo getBone = patchRig.GetType().GetMethod(
-                "GetBone",
-                BindingFlags.Instance | BindingFlags.Public);
-            Assert.NotNull(getBone, "Patch 4 rig does not expose GetBone.");
-
-            Transform origin = getBone.Invoke(
-                patchRig,
-                new object[] { originBoneName }) as Transform;
-            Transform endpoint = getBone.Invoke(
-                patchRig,
-                new object[] { endpointBoneName }) as Transform;
-            Transform rigRoot =
-                GetObjectProperty(patchRig, "RigRoot") as Transform;
-            Assert.NotNull(origin, originBoneName);
-            Assert.NotNull(endpoint, endpointBoneName);
-            Assert.NotNull(rigRoot, "Patch 4 rig root is missing.");
-
-            return
-                rigRoot.InverseTransformPoint(endpoint.position) -
-                rigRoot.InverseTransformPoint(origin.position);
-        }
-
-        private static float MirroredLimbDot(
-            Vector3 leftDelta,
-            Vector3 rightDelta)
-        {
-            leftDelta.x = -leftDelta.x;
-            if (leftDelta.sqrMagnitude < 0.000001f ||
-                rightDelta.sqrMagnitude < 0.000001f)
-            {
-                return 1f;
-            }
-
-            return Vector3.Dot(
-                leftDelta.normalized,
-                rightDelta.normalized);
         }
 
         private static Component BuildLegacyRig(GameObject root)

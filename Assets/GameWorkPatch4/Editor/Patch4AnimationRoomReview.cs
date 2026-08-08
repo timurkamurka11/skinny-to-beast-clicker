@@ -378,6 +378,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 patchRig.GetComponent<Patch4FaceController>();
             Patch4SecondaryMotionController motion =
                 patchRig.GetComponent<Patch4SecondaryMotionController>();
+            Patch4V22WalkCyclePresentation v22Walk =
+                patchRig.GetComponent<Patch4V22WalkCyclePresentation>();
             Animator animator = patchRig.GetComponent<Animator>();
 
             if (legacyRig == null ||
@@ -387,6 +389,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation == null ||
                 face == null ||
                 motion == null ||
+                v22Walk == null ||
+                !v22Walk.IsReady ||
                 animator == null)
             {
                 FailAndExit(
@@ -410,6 +414,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation,
                 face,
                 motion,
+                v22Walk,
                 animator,
                 patchVisual,
                 rollbackVisual,

@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-08-02**
+Last updated: **2026-08-08**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -835,9 +835,72 @@ The v16 technical result is rejected. Patch 4 remains locked.
 - Keep readiness locked, Patch 3.5 active and protected menu, video, music,
   audio and settings paths unchanged.
 
+## P4.0-Y real Unity result and root rejection
+
+Unity `6000.3.19f1` completed the fresh v17 eight-phase review. The new
+validator correctly rejected the result instead of repeating a false pass:
+
+- every legacy deformed clip exceeded the neutral width/height retention
+  limits; typical peak retention was about `1.40 × 1.25–1.43` while area stayed
+  close to `1.00`, proving that the one-piece image was being spread rather
+  than revealing new painted anatomy;
+- Walk did produce eight room-travel frames, but the displayed character still
+  read as a standing body with weak limb motion;
+- Walk reported `arm dot -1.000` and `leg dot -0.612`, both already inside the
+  required `<= -0.200` direction limit. The failure message omitted the actual
+  four displacement magnitudes, so it hid which amplitude condition failed;
+- human review again reported rubber/vacuum deformation and no convincing
+  footfall.
+
+Tracing the runtime confirmed the structural cause: the visible actor is still
+one flattened `1024 × 1536` PNG deformed by
+`Patch4CanvasSkinDeformer` using code-defined zones. The repository metadata
+already marks that flattened master as `runtimeReady: false` and forbids it as
+final runtime art. More angle/weight tuning cannot turn that source into a
+production skeletal rig.
+
+The v17 result is rejected. Patch 4 remains locked.
+
+## Current P4.0-Z / V22 complete-frame walk candidate
+
+- Add a new project-owned RGBA candidate at
+  `Assets/GameWorkPatch4/Art/Character/FatMan/V22Candidates/FatMan_WalkCycle_V22.png`.
+  It contains eight equal `4 × 2` cells and keeps one complete painted body in
+  every cell.
+- The candidate was generated from the exact repository master as the identity,
+  costume and style reference, keyed to transparency, then mechanically aligned
+  to a common centre and ground line. It does not overwrite the exact master.
+- `Patch4V22WalkCyclePresentation` displays one complete frame at a time for
+  `FatMan_Walk_InRoom`. While it is visible, a `CanvasGroup` hides the entire
+  experimental mesh stack, so no old face, sliced joint or stretched body can
+  leak behind it.
+- Runtime frame selection follows the real Animator state's normalized time.
+  The locked room review explicitly selects frames `0…7` while retaining its
+  separate monotonic room travel.
+- The report now records whether the V22 sheet was ready/used and measures the
+  visible alpha silhouette in both arm regions, both leg regions and every
+  adjacent frame pair. Hidden legacy bones can no longer fail or falsely pass
+  a complete-frame Walk.
+- The accepted candidate must exceed `0.140` opposing-contact difference in
+  each arm and leg region and `0.075` in the weakest adjacent-frame pair;
+  duplicated poses and body-only twitch are rejected.
+- The committed candidate measures arms `0.179 / 0.172`, legs
+  `0.161 / 0.241` and weakest adjacent pair `0.085`; all five checks pass
+  without lowering their thresholds.
+- EditMode, PlayMode and the static guard require the eight-frame asset and its
+  locked presentation. The candidate cannot approve art or enable Patch 4.
+- Automatic continuation advances to
+  `complete-frame-walk-cycle-review-v22`.
+- The nine non-Walk motions still use the rejected experimental deformation
+  surface. A clean V22 Walk is an isolated milestone, not final Patch 4
+  approval. The production replacement plan is recorded in
+  `Docs/Patch4/V22_PRODUCTION_RIG_PLAN.md`.
+- Patch 3.5 remains active and no protected menu, video, music, audio or
+  settings path changed.
+
 ## Exact next action
 
-After the P4.0-Y correction is present on `patch-4.0`, run only:
+After the P4.0-Z/V22 correction is present on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -847,30 +910,21 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. create one exact intact visible full-master body while preserving all 40
-   reference/alternate layers;
-4. import every layer as FullRect and rebuild the locked Canvas prefab with a
-   dense silhouette-constrained `96 × 144` body grid and Head-bound face states;
-5. assemble and compare the locked one-layer exact neutral runtime pose;
-6. write the neutral and four-expression review images;
-7. validate all 40 bindings, frozen bind anchors, full-canvas UVs, the dense
-   continuous body and every rigid feathered face replacement;
-8. run pixel, rig, compilation and Editor smoke validation;
-9. run all EditMode tests;
-10. enter Play Mode and run all PlayMode tests;
-11. after `4/4`, require a stable quiescent Edit Mode interval after Test Runner
-    cleanup, then enter a separate Play Mode session and create the actual room;
-12. capture a clean background and neutral reference, then enter every clip by
-    its verified full-path Animator hash and play all ten clips;
-13. for Walk, sample eight consecutive phases, advance the Patch 4 review root
-    silently across the actual room, and require opposite anatomical motion of
-    both hands and both feet plus monotonic travel;
-14. require independent left/right limb silhouette motion, focused blink
-    motion, a retained non-expanded silhouette and zero Console errors while
-    the legacy robot-like footstep stays paused;
-15. write a token-matched fresh report, an eight-phase walk strip and the
-    ten-clip contact sheet, restore Patch 3.5, exit Play Mode and open the
-    read-only review windows.
+3. rebuild the locked prefab and bind the new eight-frame V22 Walk sheet;
+4. keep the exact master and all 40 legacy candidate layers available for the
+   still-locked non-Walk review;
+5. run pixel, rig, compilation, Editor smoke, EditMode and PlayMode checks;
+6. after Test Runner becomes quiescent, create the actual gameplay room in a
+   separate Play Mode session;
+7. enter every clip through its verified full Animator path;
+8. during Walk only, hide the whole experimental deformation stack and show
+   V22 frames `0…7` as complete silhouettes while the review root moves
+   silently and monotonically through the room;
+9. capture the fresh eight-frame strip and the existing ten-clip sheet, report
+   all four visible limb-region differences plus the weakest adjacent-frame
+   difference, and keep all technical failures visible rather than
+   manufacturing a pass;
+10. restore Patch 3.5, exit Play Mode and open the fresh read-only review.
 
 Expected final count:
 
@@ -881,8 +935,10 @@ EditMode: 4 passed; PlayMode: 4 passed.
 No Dashboard, Test Runner, Play button or review-window click is required.
 Unity will briefly show the real room while it cycles the clips. Inspect the
 automatically focused review after Unity returns to Edit Mode. The first strip
-must show eight distinct Walk phases moving from left to right; the 5 × 2 sheet
-below still shows all ten clips. The face and neutral windows remain behind it.
+must now show a real alternating step: bent knees, lifted feet and arm swing,
+moving from left to right, with no second body behind it. The `5 × 2` sheet
+below may still reject the nine legacy deformed clips; that is an honest known
+blocker, not permission to weaken the checks.
 
 ## Do not do yet
 
@@ -892,12 +948,13 @@ below still shows all ten clips. The face and neutral windows remain behind it.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the P4.0-Y automatic room review
+## Work after the P4.0-Z/V22 automatic room review
 
-- Inspect the actual-room contact sheet and the live ten-clip cycle while
-  keeping production activation locked.
-- Reject and revise any exposed joint, detached layer, excessive stretch,
-  overlap, foot slide or collapse at an animation extreme.
-- Keep the intact-body grid and exact-master/Head-bound facial replacements locked
-  until the ten motions pass human review.
+- Inspect the eight complete Walk frames first and keep activation locked.
+- Reject any identity drift, foot slide, duplicate underlay, inconsistent scale
+  or non-alternating step before extending the approach.
+- Preserve the failures from the other nine clips until real layered art/native
+  SpriteSkin or dedicated complete frames replace the experimental mesh.
+- Follow `Docs/Patch4/V22_PRODUCTION_RIG_PLAN.md`; do not resume tuning broad
+  code-defined weight zones as if they were production art.
 - Approve readiness only after technical and human visual review.
