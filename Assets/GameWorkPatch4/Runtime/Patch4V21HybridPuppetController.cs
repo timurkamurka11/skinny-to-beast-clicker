@@ -7,10 +7,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
     /// v21 visible presentation for the existing Canvas-hosted room.
-    /// Torso/head stay volume-stable, while each arm and leg is one continuous
-    /// painted sprite with only narrow internal joint blending. The original
-    /// 40 layer object names are preserved so rollback and validation contracts
-    /// remain inspectable even though only the v21 hybrid subset is rendered.
+    /// The torso has its own localized soft mesh, while each arm and leg is one
+    /// continuous painted sprite with narrow internal joint blending. The old
+    /// broad full-body deformation and rigid internal cutouts are never rendered.
     /// </summary>
     [DefaultExecutionOrder(1245)]
     [DisallowMultipleComponent]
@@ -156,7 +155,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 SetActiveIfPresent(images, AlwaysHiddenLayers[i], false);
             }
 
-            ConfigureRigidLayer(torso, torsoSprite, "SpineLower", "V21/TorsoCore");
+            ConfigureTorsoLayer(torso, torsoSprite);
             ConfigureRigidLayer(neck, neck.sprite, "Neck", "V21/Neck");
             ConfigureRigidLayer(head, head.sprite, "Head", "V21/Head");
 
@@ -177,9 +176,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 legRSprite,
                 Patch4HybridLimbDeformer.LimbProfile.RightLeg);
 
-            // Put proximal limb artwork behind the torso. The enlarged hidden
-            // shoulder/hip overlap is concealed in neutral pose and exposed only
-            // as needed during articulation, rather than showing a straight cut.
+            // Proximal limb artwork lives behind the torso. The enlarged hidden
+            // shoulder/hip overlap is concealed in neutral pose and only revealed
+            // as needed during articulation instead of exposing a straight cut.
             MoveBefore(legL.transform.parent, torso.transform.parent);
             MoveBefore(legR.transform.parent, torso.transform.parent);
             MoveBefore(armL.transform.parent, torso.transform.parent);
@@ -194,9 +193,42 @@ namespace SkinnyToBeast.Gameplay.Patch4
             appliedGeneratedRootId = rootId;
             Debug.Log(
                 "Patch 4 v21 hybrid puppet applied: four continuous limbs use " +
-                "localized three-bone deformation, torso/head stay stable, v20 " +
-                "rigid internal segment cuts are not rendered.",
+                "localized three-bone deformation; the torso uses only its own " +
+                "Spine/Pelvis/Belly mesh instead of whole-body weights; v20 rigid " +
+                "internal segment cuts are not rendered.",
                 this);
+        }
+
+        private void ConfigureTorsoLayer(Image image, Sprite sprite)
+        {
+            image.sprite = sprite;
+            image.gameObject.SetActive(true);
+            DisableRigidCutout(image);
+            DisableHybridLimb(image);
+
+            Patch4CanvasSkinDeformer skin =
+                image.GetComponent<Patch4CanvasSkinDeformer>();
+            if (skin == null)
+            {
+                skin = image.gameObject.AddComponent<Patch4CanvasSkinDeformer>();
+            }
+            skin.enabled = true;
+            skin.Configure(
+                "V21/TorsoCore",
+                sprite,
+                rigController,
+                new[]
+                {
+                    "SpineLower",
+                    "SpineUpper",
+                    "Pelvis",
+                    "BellyBase",
+                    "BellyTip"
+                },
+                24,
+                36);
+            skin.CaptureBindPose();
+            image.SetVerticesDirty();
         }
 
         private void ConfigureRigidLayer(
