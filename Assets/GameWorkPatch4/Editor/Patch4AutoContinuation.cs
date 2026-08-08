@@ -14,8 +14,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     {
         private const string RunId =
             "opposing-gait-room-travel-review-v17";
+        // Fresh v21.1 namespace: an Editor that already ran v21 must rerun after
+        // pulling the walk-channel contract correction.
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v21.hybrid-rig.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v21.1.walk-contract.";
 
         private static int idleFrames;
 
@@ -57,16 +59,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic v21 hybrid-rig rebuild started: restore " +
+                    "Patch 4 automatic v21.1 hybrid-rig rebuild started: restore " +
                     "the approved master, bake non-exclusive source layers, merge " +
                     "each complete arm and leg into one continuous painted surface, " +
                     "verify neutral reconstruction before motion, keep enlarged " +
                     "shoulder/hip artwork hidden behind a localized soft torso, " +
                     "remove the v20 rigid paper-doll presentation, install planted-" +
                     "foot gait correction, prohibit whole-body/core-bone scale, " +
-                    "reset every omitted pose channel so Walk cannot leak into " +
-                    "React/Turn/Upgrade, then run safety/tests and the real-room " +
-                    "ten-clip review. v20 exclusive pixel ownership is not run.");
+                    "reset omitted pose channels while leaving Walk horizontal " +
+                    "CharacterRoot motion unkeyed, then run safety/tests and the " +
+                    "real-room ten-clip review.");
 
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
@@ -79,9 +81,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Patch4V21NeutralReconstructionGate.ValidateOrThrow();
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
                 Patch4V21AnimationFinalizer.Apply();
-                // Keep the verified opposing hand peaks used by the existing
-                // structural test. Real playback no longer trusts these curves
-                // for leg contact because v21 solves planted/swinging foot targets.
                 Patch4WalkV18Finalizer.Apply();
                 Patch4V21PoseResetFinalizer.Apply();
                 Patch4V21HybridRigInstaller.Apply();
@@ -94,7 +93,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic v21 continuation failed: " + exception);
+                    "Patch 4 automatic v21.1 continuation failed: " + exception);
             }
         }
     }
