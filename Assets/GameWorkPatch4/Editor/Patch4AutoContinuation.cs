@@ -67,9 +67,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "stable torso, rebuild the runtime prefab, remove the v20 " +
                     "rigid paper-doll controller, install localized whole-limb " +
                     "joint deformation plus planted-foot gait correction, remove " +
-                    "whole-body/core-bone scale animation, run v21 structure " +
-                    "gates, then execute the existing safety/tests and real-room " +
-                    "ten-clip review. v20 exclusive pixel ownership is not run.");
+                    "whole-body/core-bone scale animation, retain the already " +
+                    "tested opposing arm peaks, run v21 structure gates, then " +
+                    "execute the existing safety/tests and real-room ten-clip " +
+                    "review. v20 exclusive pixel ownership is not run.");
 
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
@@ -81,6 +82,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Patch4V21HybridArtworkBuilder.Build();
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
                 Patch4V21AnimationFinalizer.Apply();
+                // Preserve the previously verified opposing hand peaks for the
+                // legacy structural PlayMode contract. During real playback the
+                // v21 planted-foot solver replaces the old direct leg solution.
+                Patch4WalkV18Finalizer.Apply();
                 Patch4V21HybridRigInstaller.Apply();
                 Patch4V21HybridValidator.ValidateOrThrow();
                 Patch4ProductionPipeline.RunSafetyValidation();
