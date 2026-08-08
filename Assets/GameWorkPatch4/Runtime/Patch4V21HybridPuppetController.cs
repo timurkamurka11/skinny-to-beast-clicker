@@ -7,16 +7,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
     /// v21 visible presentation for the existing Canvas-hosted room.
-    ///
-    /// This is deliberately a hybrid bridge, not another v20 cutout pass:
-    /// - torso/head stay volume-stable;
-    /// - each arm is one continuous painted sprite;
-    /// - each leg is one continuous painted sprite;
-    /// - only narrow internal joint bands deform;
-    /// - the old intact-master broad skin and rigid segment puppet stay hidden.
-    ///
-    /// The controller preserves the current room/UI integration while moving the
-    /// visible character toward the authored Sprite-Skin production structure.
+    /// Torso/head stay volume-stable, while each arm and leg is one continuous
+    /// painted sprite with only narrow internal joint blending. The original
+    /// 40 layer object names are preserved so rollback and validation contracts
+    /// remain inspectable even though only the v21 hybrid subset is rendered.
     /// </summary>
     [DefaultExecutionOrder(1245)]
     [DisallowMultipleComponent]
@@ -169,28 +163,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
             ConfigureLimb(
                 armL,
                 armLSprite,
-                Patch4HybridLimbDeformer.LimbProfile.LeftArm,
-                "V21/ArmLWhole");
+                Patch4HybridLimbDeformer.LimbProfile.LeftArm);
             ConfigureLimb(
                 armR,
                 armRSprite,
-                Patch4HybridLimbDeformer.LimbProfile.RightArm,
-                "V21/ArmRWhole");
+                Patch4HybridLimbDeformer.LimbProfile.RightArm);
             ConfigureLimb(
                 legL,
                 legLSprite,
-                Patch4HybridLimbDeformer.LimbProfile.LeftLeg,
-                "V21/LegLWhole");
+                Patch4HybridLimbDeformer.LimbProfile.LeftLeg);
             ConfigureLimb(
                 legR,
                 legRSprite,
-                Patch4HybridLimbDeformer.LimbProfile.RightLeg,
-                "V21/LegRWhole");
+                Patch4HybridLimbDeformer.LimbProfile.RightLeg);
 
             // Put proximal limb artwork behind the torso. The enlarged hidden
-            // shoulder/hip overlap is therefore concealed in neutral pose and
-            // revealed only as needed during articulation instead of exposing a
-            // straight texture edge.
+            // shoulder/hip overlap is concealed in neutral pose and exposed only
+            // as needed during articulation, rather than showing a straight cut.
             MoveBefore(legL.transform.parent, torso.transform.parent);
             MoveBefore(legR.transform.parent, torso.transform.parent);
             MoveBefore(armL.transform.parent, torso.transform.parent);
@@ -242,8 +231,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void ConfigureLimb(
             Image image,
             Sprite sprite,
-            Patch4HybridLimbDeformer.LimbProfile profile,
-            string contractPath)
+            Patch4HybridLimbDeformer.LimbProfile profile)
         {
             image.sprite = sprite;
             image.gameObject.SetActive(true);
@@ -265,10 +253,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             hybrid.enabled = true;
             hybrid.Configure(rigController, profile, sprite, 40, 80);
             image.SetVerticesDirty();
-
-            // contractPath is intentionally carried only in the log/debug name;
-            // the official 40-layer contract remains unchanged for rollback.
-            image.gameObject.name = "Layer." + contractPath.Replace('/', '.');
         }
 
         private static void DisableRigidCutout(Image image)
