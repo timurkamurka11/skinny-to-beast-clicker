@@ -6,11 +6,9 @@ using UnityEngine.UI;
 namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
-    /// v21 face bridge. The hybrid head uses skin underpaint, so neutral eye,
-    /// iris and mouth sprites can once again be bound explicitly to the existing
-    /// face controller instead of being assumed to live in the full-body master.
-    /// This gives mouth poses true mutually-exclusive sprite switching and keeps
-    /// blink replacements attached to the same Head transform.
+    /// v21 face bridge. Neutral eye, iris and mouth sprites are rebound only when
+    /// the v21 visual is actually enabled for review/runtime. Locked rollback
+    /// state therefore remains byte-for-byte compatible with the old contract.
     /// </summary>
     [DefaultExecutionOrder(1250)]
     [DisallowMultipleComponent]
@@ -51,9 +49,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             Transform visual = transform.Find(VisualRootName);
-            Transform candidate = visual != null
-                ? visual.Find(GeneratedRootName)
-                : null;
+            if (visual == null || !visual.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            Transform candidate = visual.Find(GeneratedRootName);
             if (candidate == null)
             {
                 return;
@@ -93,8 +94,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             Debug.Log(
                 "Patch 4 v21 face layers rebound as explicit neutral/expression " +
-                "sprites; mouth poses are mutually exclusive and no longer rely " +
-                "on the hidden full-body master.",
+                "sprites after the hybrid visual became active.",
                 this);
         }
 
