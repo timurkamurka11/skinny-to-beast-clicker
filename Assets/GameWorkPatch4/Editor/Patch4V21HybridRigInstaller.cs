@@ -23,6 +23,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 RemoveIfPresent<Patch4StableBodySkinController>(root);
                 RemoveIfPresent<Patch4CutoutPuppetController>(root);
 
+                Patch4CharacterRigController rig =
+                    root.GetComponent<Patch4CharacterRigController>();
+                Animator animator = root.GetComponent<Animator>();
+
                 Patch4V21HybridPuppetController controller =
                     root.GetComponent<Patch4V21HybridPuppetController>();
                 if (controller == null)
@@ -37,8 +41,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Sprite legR = LoadSprite(Patch4V21HybridArtworkBuilder.LegRPath);
 
                 SerializedObject serialized = new(controller);
-                serialized.FindProperty("rigController").objectReferenceValue =
-                    root.GetComponent<Patch4CharacterRigController>();
+                serialized.FindProperty("rigController").objectReferenceValue = rig;
                 serialized.FindProperty("torsoSprite").objectReferenceValue = torso;
                 serialized.FindProperty("armLSprite").objectReferenceValue = armL;
                 serialized.FindProperty("armRSprite").objectReferenceValue = armR;
@@ -46,15 +49,30 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 serialized.FindProperty("legRSprite").objectReferenceValue = legR;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
 
+                Patch4V21FootPlantController footPlant =
+                    root.GetComponent<Patch4V21FootPlantController>();
+                if (footPlant == null)
+                {
+                    footPlant = root.AddComponent<Patch4V21FootPlantController>();
+                }
+                SerializedObject footSerialized = new(footPlant);
+                footSerialized.FindProperty("rigController").objectReferenceValue = rig;
+                footSerialized.FindProperty("animator").objectReferenceValue = animator;
+                footSerialized.FindProperty("stepLengthRatio").floatValue = .36f;
+                footSerialized.FindProperty("footLiftRatio").floatValue = .10f;
+                footSerialized.ApplyModifiedPropertiesWithoutUndo();
+
                 EditorUtility.SetDirty(controller);
+                EditorUtility.SetDirty(footPlant);
                 PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
 
                 Debug.Log(
                     "Patch 4 v21 hybrid rig installed: v20 rigid puppet removed; " +
-                    "continuous whole-arm/whole-leg artwork bound to localized " +
-                    "joint deformation with a stable torso presentation.");
+                    "continuous whole-arm/whole-leg artwork uses localized joint " +
+                    "deformation and the walk uses world-space planted-foot targets " +
+                    "with two-bone leg solving instead of unrelated leg angles.");
             }
             finally
             {
