@@ -62,8 +62,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 footSerialized.FindProperty("footLiftRatio").floatValue = .10f;
                 footSerialized.ApplyModifiedPropertiesWithoutUndo();
 
+                Patch4V21FaceSwapBridge faceBridge =
+                    root.GetComponent<Patch4V21FaceSwapBridge>();
+                if (faceBridge == null)
+                {
+                    faceBridge = root.AddComponent<Patch4V21FaceSwapBridge>();
+                }
+                SerializedObject faceSerialized = new(faceBridge);
+                faceSerialized.FindProperty("faceController").objectReferenceValue =
+                    root.GetComponent<Patch4FaceController>();
+                faceSerialized.ApplyModifiedPropertiesWithoutUndo();
+
                 EditorUtility.SetDirty(controller);
                 EditorUtility.SetDirty(footPlant);
+                EditorUtility.SetDirty(faceBridge);
                 PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
@@ -71,8 +83,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 v21 hybrid rig installed: v20 rigid puppet removed; " +
                     "continuous whole-arm/whole-leg artwork uses localized joint " +
-                    "deformation and the walk uses world-space planted-foot targets " +
-                    "with two-bone leg solving instead of unrelated leg angles.");
+                    "deformation, the walk uses world-space planted-foot targets, " +
+                    "and neutral/expression facial sprites are explicitly rebound.");
             }
             finally
             {
