@@ -378,8 +378,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 patchRig.GetComponent<Patch4FaceController>();
             Patch4SecondaryMotionController motion =
                 patchRig.GetComponent<Patch4SecondaryMotionController>();
-            Patch4V22WalkCyclePresentation v22Walk =
-                patchRig.GetComponent<Patch4V22WalkCyclePresentation>();
+            Patch4V23FullFramePresentation v23Presentation =
+                patchRig.GetComponent<Patch4V23FullFramePresentation>();
             Animator animator = patchRig.GetComponent<Animator>();
 
             if (legacyRig == null ||
@@ -389,8 +389,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation == null ||
                 face == null ||
                 motion == null ||
-                v22Walk == null ||
-                !v22Walk.IsReady ||
+                v23Presentation == null ||
+                !v23Presentation.IsReady ||
                 animator == null)
             {
                 FailAndExit(
@@ -414,7 +414,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation,
                 face,
                 motion,
-                v22Walk,
+                v23Presentation,
                 animator,
                 patchVisual,
                 rollbackVisual,
@@ -458,145 +458,4 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (passed)
             {
                 Debug.Log(
-                    "Patch 4 locked animation-room technical review PASSED: " +
-                    "all ten clips were sampled in LivingGameplayScene with " +
-                    "one intact body, frozen Canvas bind anchors, retained " +
-                    "full silhouettes, " +
-                    "measurable motion, an eight-phase opposing-limb walk " +
-                    "advancing through the room, no legacy robot " +
-                    "footsteps and zero review errors. " +
-                    "Human motion review is still required and activation " +
-                    "remains locked.");
-            }
-            else
-            {
-                Debug.LogError(
-                    "Patch 4 locked animation-room review failed: " +
-                    message);
-            }
-
-            EditorApplication.delayCall += ExitPlayMode;
-        }
-
-        private static void FailAndExit(string message)
-        {
-            EditorApplication.update -= TryBindRealRoom;
-            SessionState.SetBool(ResultKey, false);
-            SessionState.SetString(MessageKey, message);
-            SessionState.SetString(StageKey, ExitingStage);
-            Debug.LogError("Patch 4 animation-room review: " + message);
-            EditorApplication.delayCall += ExitPlayMode;
-        }
-
-        private static void ExitPlayMode()
-        {
-            EditorApplication.delayCall -= ExitPlayMode;
-            if (EditorApplication.isPlayingOrWillChangePlaymode)
-            {
-                EditorApplication.isPlaying = false;
-            }
-            else
-            {
-                EditorApplication.delayCall += CompleteAfterExit;
-            }
-        }
-
-        private static void CompleteAfterExit()
-        {
-            EditorApplication.delayCall -= CompleteAfterExit;
-            EditorApplication.update -= TryBindRealRoom;
-            EditorApplication.update -= WaitForEditorQuiescence;
-            if (!SessionState.GetBool(InProgressKey, false) ||
-                EditorApplication.isPlayingOrWillChangePlaymode)
-            {
-                return;
-            }
-
-            bool passed = SessionState.GetBool(ResultKey, false);
-            string message =
-                SessionState.GetString(MessageKey, string.Empty);
-            SessionState.SetBool(InProgressKey, false);
-            SessionState.SetString(StageKey, string.Empty);
-
-            EditorApplication.ExecuteMenuItem("Window/General/Console");
-            Patch4NeutralPoseReviewWindow.Open();
-            Patch4FacePoseReviewWindow.Open();
-            bool hasFreshRoomArtifacts = HasFreshRoomArtifacts();
-            if (hasFreshRoomArtifacts)
-            {
-                Patch4AnimationRoomReviewWindow.Open();
-            }
-
-            if (!passed && !string.IsNullOrWhiteSpace(message))
-            {
-                Debug.LogError(
-                    "Patch 4 animation-room review did not complete: " +
-                    message);
-            }
-
-            if (!hasFreshRoomArtifacts)
-            {
-                Debug.LogError(
-                    "Patch 4 did not produce a fresh animation-room report " +
-                    "and contact sheet. No previous contact sheet was opened.");
-            }
-        }
-
-        private static void ClearPreviousReviewArtifacts()
-        {
-            DeleteReviewArtifact(ReportPath);
-            DeleteReviewArtifact(ContactSheetPath);
-            DeleteReviewArtifact(WalkCyclePath);
-        }
-
-        private static bool HasFreshRoomArtifacts()
-        {
-            if (!File.Exists(ReportPath) ||
-                !File.Exists(ContactSheetPath) ||
-                !File.Exists(WalkCyclePath) ||
-                string.IsNullOrWhiteSpace(CurrentRunToken))
-            {
-                return false;
-            }
-
-            try
-            {
-                ReviewArtifactStatus status =
-                    JsonUtility.FromJson<ReviewArtifactStatus>(
-                        File.ReadAllText(ReportPath));
-                return status != null &&
-                    status.completed &&
-                    string.Equals(
-                        status.runToken,
-                        CurrentRunToken,
-                        StringComparison.Ordinal);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning(
-                    "Patch 4 could not verify review artifact freshness: " +
-                    exception.Message);
-                return false;
-            }
-        }
-
-        private static void DeleteReviewArtifact(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                return;
-            }
-
-            try
-            {
-                File.Delete(path);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning(
-                    "Patch 4 could not clear stale review artifact " +
-                    path + ": " + exception.Message);
-            }
-        }
-    }
-}
+               

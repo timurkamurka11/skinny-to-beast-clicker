@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "complete-frame-walk-cycle-review-v22";
+            "full-frame-ten-clip-review-v23";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v22.complete-frame.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v23.full-frame.";
 
         private static int idleFrames;
 
@@ -57,18 +57,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V22 automatic complete-frame walk review started: " +
+                    "Patch 4 V23 automatic ten-clip full-frame review started: " +
                     "restore the approved master, rebuild the retained v21.1 " +
-                    "continuous torso/limb/face candidates for the nine legacy " +
-                    "clips, verify neutral reconstruction, rebuild the locked " +
-                    "prefab and bind the isolated eight-frame RGBA Walk. During " +
-                    "Walk the entire experimental Canvas stack is hidden, so " +
+                    "rollback candidates, verify neutral reconstruction, rebuild " +
+                    "the locked prefab and bind six complete-frame RGBA sheets " +
+                    "covering all ten required clips. During every clip the entire " +
+                    "experimental Canvas stack is hidden, so " +
                     "no sliced joint, detached face or vacuum-stretched body can " +
-                    "leak behind the complete painted frames. After 4/4, Unity " +
+                    "leak behind the complete painted frames. The Walk uses eight " +
+                    "strict screen-right profile phases, and blink/look/tap/upgrade " +
+                    "use independent painted facial expressions. After 4/4, Unity " +
                     "will enter every full Animator state in the actual room, " +
-                    "sample all eight Walk frames with silent monotonic travel, " +
+                    "sample all ten states and eight Walk frames with silent " +
+                    "monotonic travel, " +
                     "measure both visible arm silhouettes, both visible leg " +
-                    "silhouettes and the weakest adjacent-frame difference, " +
+                    "silhouettes, facial differences and the weakest adjacent-" +
+                    "frame difference, " +
                     "reject duplicated poses, missing travel, weak blink motion, " +
                     "collapse, over-stretch or Console errors, restore Patch 3.5 " +
                     "and open only fresh read-only review artifacts.");
@@ -95,7 +99,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V22 continuation failed: " + exception);
+                    "Patch 4 automatic V23 continuation failed: " + exception);
             }
         }
     }

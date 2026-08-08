@@ -112,7 +112,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Patch4AnimationRoomReviewDriver");
             RequireType(
                 "SkinnyToBeast.Gameplay.Patch4." +
-                "Patch4V22WalkCyclePresentation");
+                "Patch4V23FullFramePresentation");
             Type animationRoomReview = RequireType(
                 "SkinnyToBeast.Gameplay.Patch4.Editor." +
                 "Patch4AnimationRoomReview");
@@ -137,7 +137,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Blink replacement must bind open-eye layers as well as lids.");
 
             AssertWalkClipHasArticulatedGait();
-            AssertV22WalkSheetIsImportable();
+            AssertV23FullFrameSheetsAreImportable();
             AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
         }
 
@@ -468,38 +468,49 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Walk must not fake locomotion with side-to-side root sway.");
         }
 
-        private static void AssertV22WalkSheetIsImportable()
+        private static void AssertV23FullFrameSheetsAreImportable()
         {
-            const string path =
+            string root =
                 "Assets/GameWorkPatch4/Art/Character/FatMan/" +
-                "V22Candidates/FatMan_WalkCycle_V22.png";
-            Texture2D sheet = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-            Assert.NotNull(
-                sheet,
-                "The V22 complete-frame walk candidate is missing.");
-            Assert.AreEqual(
-                0,
-                sheet.width % 4,
-                "The V22 walk sheet must contain four equal columns.");
-            Assert.AreEqual(
-                0,
-                sheet.height % 2,
-                "The V22 walk sheet must contain two equal rows.");
+                "V23FullFrame/";
+            string[] fileNames =
+            {
+                "FatMan_Idle_V23.png",
+                "FatMan_Face_V23.png",
+                "FatMan_Tap_V23.png",
+                "FatMan_Pose_V23.png",
+                "FatMan_Upgrade_V23.png",
+                "FatMan_WalkRight_V23.png"
+            };
 
-            TextureImporter importer =
-                AssetImporter.GetAtPath(path) as TextureImporter;
-            Assert.NotNull(importer);
-            Assert.IsTrue(
-                importer.isReadable,
-                "The V22 review must be able to inspect visible limb " +
-                "silhouettes instead of hidden legacy bones.");
-            Assert.IsTrue(
-                importer.alphaIsTransparency,
-                "The complete walk frames need clean transparent gaps.");
-            Assert.IsFalse(
-                importer.mipmapEnabled,
-                "Walk-frame edges must not bleed between atlas cells.");
-            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode);
+            for (int i = 0; i < fileNames.Length; i++)
+            {
+                string path = root + fileNames[i];
+                Texture2D sheet =
+                    AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                Assert.NotNull(
+                    sheet,
+                    "A V23 complete-frame sheet is missing: " + path);
+                Assert.AreEqual(1536, sheet.width, path);
+                Assert.AreEqual(1024, sheet.height, path);
+                Assert.AreEqual(0, sheet.width % 4, path);
+                Assert.AreEqual(0, sheet.height % 2, path);
+
+                TextureImporter importer =
+                    AssetImporter.GetAtPath(path) as TextureImporter;
+                Assert.NotNull(importer, path);
+                Assert.IsTrue(importer.isReadable, path);
+                Assert.IsTrue(importer.alphaIsTransparency, path);
+                Assert.IsFalse(importer.mipmapEnabled, path);
+                Assert.AreEqual(
+                    TextureWrapMode.Clamp,
+                    importer.wrapMode,
+                    path);
+                Assert.AreEqual(
+                    TextureImporterCompression.Uncompressed,
+                    importer.textureCompression,
+                    path);
+            }
         }
 
         private static void AssertCurveSweep(

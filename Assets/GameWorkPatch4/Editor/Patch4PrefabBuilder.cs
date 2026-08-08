@@ -11,9 +11,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public const string PrefabRoot = "Assets/GameWorkPatch4/Resources";
         public const string PrefabPath = PrefabRoot + "/FatMan_Patch4.prefab";
         public const string PrefabResourcePath = "FatMan_Patch4";
-        public const string V22WalkSheetPath =
-            "Assets/GameWorkPatch4/Art/Character/FatMan/V22Candidates/" +
-            "FatMan_WalkCycle_V22.png";
+        public const string V23SheetRoot =
+            "Assets/GameWorkPatch4/Art/Character/FatMan/V23FullFrame/";
+        public const string V23IdleSheetPath =
+            V23SheetRoot + "FatMan_Idle_V23.png";
+        public const string V23FaceSheetPath =
+            V23SheetRoot + "FatMan_Face_V23.png";
+        public const string V23TapSheetPath =
+            V23SheetRoot + "FatMan_Tap_V23.png";
+        public const string V23PoseSheetPath =
+            V23SheetRoot + "FatMan_Pose_V23.png";
+        public const string V23UpgradeSheetPath =
+            V23SheetRoot + "FatMan_Upgrade_V23.png";
+        public const string V23WalkRightSheetPath =
+            V23SheetRoot + "FatMan_WalkRight_V23.png";
 
         private sealed class BoneSpec
         {
@@ -59,8 +70,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     root.AddComponent<Patch4LayerRenderer>();
                 Patch4CanvasPresentation canvasPresentation =
                     root.AddComponent<Patch4CanvasPresentation>();
-                Patch4V22WalkCyclePresentation v22Walk =
-                    root.AddComponent<Patch4V22WalkCyclePresentation>();
+                Patch4V23FullFramePresentation v23Presentation =
+                    root.AddComponent<Patch4V23FullFramePresentation>();
                 Patch4LegacySignalBridge signalBridge =
                     root.AddComponent<Patch4LegacySignalBridge>();
                 Patch4CharacterVisibilityGuard visibilityGuard =
@@ -79,8 +90,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     rigController,
                     faceController,
                     visualRoot);
-                ConfigureV22Walk(
-                    v22Walk,
+                ConfigureV23Presentation(
+                    v23Presentation,
                     rigController,
                     canvasPresentation,
                     animator);
@@ -90,11 +101,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 layerRenderer.RebuildLayers();
                 canvasPresentation.RebuildCanvasLayers();
-                if (!v22Walk.RebuildPresentation())
+                if (!v23Presentation.RebuildPresentation())
                 {
                     throw new InvalidOperationException(
-                        "The V22 eight-frame walk presentation could not be " +
-                        "built from " + V22WalkSheetPath + ".");
+                        "The V23 ten-state full-frame presentation could not " +
+                        "be built from " + V23SheetRoot + ".");
                 }
 
                 visualRoot.gameObject.SetActive(false);
@@ -242,33 +253,63 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void ConfigureV22Walk(
-            Patch4V22WalkCyclePresentation target,
+        private static void ConfigureV23Presentation(
+            Patch4V23FullFramePresentation target,
             Patch4CharacterRigController rig,
             Patch4CanvasPresentation presentation,
             Animator animator)
         {
-            Texture2D walkSheet =
-                AssetDatabase.LoadAssetAtPath<Texture2D>(V22WalkSheetPath);
-            if (walkSheet == null)
-            {
-                throw new InvalidOperationException(
-                    "The V22 walk-cycle candidate is missing at " +
-                    V22WalkSheetPath + ".");
-            }
-
             SerializedObject serialized = new(target);
             serialized.FindProperty("rigController").objectReferenceValue = rig;
             serialized.FindProperty("canvasPresentation").objectReferenceValue =
                 presentation;
             serialized.FindProperty("animator").objectReferenceValue = animator;
-            serialized.FindProperty("walkSheet").objectReferenceValue = walkSheet;
-            serialized.FindProperty("columns").intValue = 4;
-            serialized.FindProperty("rows").intValue = 2;
+            BindV23Texture(
+                serialized,
+                "idleSheet",
+                V23IdleSheetPath);
+            BindV23Texture(
+                serialized,
+                "faceSheet",
+                V23FaceSheetPath);
+            BindV23Texture(
+                serialized,
+                "tapSheet",
+                V23TapSheetPath);
+            BindV23Texture(
+                serialized,
+                "poseSheet",
+                V23PoseSheetPath);
+            BindV23Texture(
+                serialized,
+                "upgradeSheet",
+                V23UpgradeSheetPath);
+            BindV23Texture(
+                serialized,
+                "walkRightSheet",
+                V23WalkRightSheetPath);
             serialized.FindProperty("canvasHeightRatio").floatValue = 0.8f;
             serialized.FindProperty("canvasBottomOffsetRatio").floatValue =
                 0.156f;
             serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void BindV23Texture(
+            SerializedObject serialized,
+            string propertyName,
+            string assetPath)
+        {
+            Texture2D texture =
+                AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+            if (texture == null)
+            {
+                throw new InvalidOperationException(
+                    "A required V23 full-frame sheet is missing at " +
+                    assetPath + ".");
+            }
+
+            serialized.FindProperty(propertyName).objectReferenceValue =
+                texture;
         }
 
         private static void ConfigureSecondaryMotion(
