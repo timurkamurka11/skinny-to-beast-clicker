@@ -61,16 +61,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 Debug.Log(
                     "Patch 4 automatic v21 hybrid-rig rebuild started: restore " +
-                    "the approved master, bake the non-exclusive source layers, " +
-                    "merge each complete arm and leg into one continuous painted " +
-                    "surface, keep enlarged shoulder/hip artwork hidden behind a " +
-                    "stable torso, rebuild the runtime prefab, remove the v20 " +
-                    "rigid paper-doll controller, install localized whole-limb " +
-                    "joint deformation plus planted-foot gait correction, remove " +
-                    "whole-body/core-bone scale animation, retain the already " +
-                    "tested opposing arm peaks, run v21 structure gates, then " +
-                    "execute the existing safety/tests and real-room ten-clip " +
-                    "review. v20 exclusive pixel ownership is not run.");
+                    "the approved master, bake non-exclusive source layers, merge " +
+                    "each complete arm and leg into one continuous painted surface, " +
+                    "verify neutral reconstruction before motion, keep enlarged " +
+                    "shoulder/hip artwork hidden behind a stable torso, rebuild the " +
+                    "runtime prefab, remove the v20 rigid paper-doll controller, " +
+                    "install localized whole-limb joint deformation plus planted-" +
+                    "foot gait correction, remove whole-body/core-bone scale " +
+                    "animation, retain the tested opposing arm peaks, run v21 " +
+                    "structure gates, then execute safety/tests and the real-room " +
+                    "ten-clip review. v20 exclusive pixel ownership is not run.");
 
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
@@ -80,6 +80,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 Patch4ProductionPipeline.BakeDraftLayers();
                 Patch4V21HybridArtworkBuilder.Build();
+                Patch4V21NeutralReconstructionGate.ValidateOrThrow();
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
                 Patch4V21AnimationFinalizer.Apply();
                 // Preserve the previously verified opposing hand peaks for the
