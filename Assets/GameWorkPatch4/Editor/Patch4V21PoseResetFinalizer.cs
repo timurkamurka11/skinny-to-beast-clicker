@@ -9,11 +9,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     /// would otherwise keep the rotation left by the previous state; this was
     /// especially destructive after Walk when a reaction clip did not key legs.
     /// v21 makes every clip self-contained by adding neutral curves only where a
-    /// clip has no authored curve of its own.
+    /// clip has no authored curve of its own. Walk is the deliberate exception
+    /// for CharacterRoot X: the gait contract requires that channel to be absent
+    /// so locomotion cannot be faked by side-to-side root sway.
     /// </summary>
     public static class Patch4V21PoseResetFinalizer
     {
         private const string AnimationRoot = "Assets/GameWorkPatch4/Animations/";
+        private const string WalkName = "FatMan_Walk_InRoom";
         private const string Visual = "Patch4VisualRoot/Root/CharacterRoot";
         private const string Pelvis = Visual + "/Pelvis";
         private const string SpineLower = Pelvis + "/SpineLower";
@@ -43,7 +46,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             "FatMan_LookAround",
             "FatMan_TapReact_01",
             "FatMan_TapReact_02",
-            "FatMan_Walk_InRoom",
+            WalkName,
             "FatMan_Turn",
             "FatMan_SitOrLean",
             "FatMan_UpgradeReact"
@@ -75,13 +78,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             for (int clipIndex = 0; clipIndex < ClipNames.Length; clipIndex++)
             {
+                string clipName = ClipNames[clipIndex];
                 AnimationClip clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(
-                    AnimationRoot + ClipNames[clipIndex] + ".anim");
+                    AnimationRoot + clipName + ".anim");
                 if (clip == null)
                 {
                     throw new InvalidOperationException(
-                        "Patch 4 v21 pose reset could not load " +
-                        ClipNames[clipIndex]);
+                        "Patch 4 v21 pose reset could not load " + clipName);
                 }
 
                 float duration = Mathf.Max(.0333f, clip.length);
@@ -95,12 +98,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         duration);
                 }
 
-                EnsureNeutralCurve(
-                    clip,
-                    Visual,
-                    "m_LocalPosition.x",
-                    0f,
-                    duration);
+                if (string.Equals(clipName, WalkName, StringComparison.Ordinal))
+                {
+                    // This channel must be genuinely absent, not a constant zero
+                    // curve. The contract uses absence to guarantee that walking
+                    // reads from limb articulation + room travel, never root sway.
+                    RemoveCurve(clip, Visual, "m_LocalPosition.x");
+                }
+                else
+                {
+                    EnsureNeutralCurve(
+                        clip,
+                        Visual,
+                        "m_LocalPosition.x",
+                        0f,
+                        duration);
+                }
+
                 EnsureNeutralCurve(
                     clip,
                     Visual,
@@ -130,9 +144,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Patch 4 v21 pose reset finalized: every animation state now " +
-                "keys neutral values for omitted core bones/root channels, so " +
-                "Walk leg/arm poses cannot leak into Turn, React or Upgrade.");
+                "Patch 4 v21 pose reset finalized: omitted pose channels reset " +
+                "between states, while Walk keeps CharacterRoot X completely " +
+                "unkeyed so side-to-side root sway cannot fake locomotion.");
         }
 
         private static void EnsureNeutralCurve(
@@ -154,6 +168,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             AnimationCurve curve = AnimationCurve.Constant(0f, duration, value);
             AnimationUtility.SetEditorCurve(clip, binding, curve);
+        }
+
+        private static void RemoveCurve(
+            AnimationClip clip,
+            string path,
+            string property)
+        {
+            AnimationUtility.SetEditorCurve(
+                clip,
+                EditorCurveBinding.FloatCurve(
+                    path,
+                    typeof(Transform),
+                    property),
+                null);
         }
     }
 }
