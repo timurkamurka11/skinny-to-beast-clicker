@@ -12,13 +12,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     [InitializeOnLoad]
     public static class Patch4AutoContinuation
     {
-        // Keep the historical token required by validate_patch4.py while using
-        // a fresh v20 SessionState namespace so an already-open Unity editor
-        // executes the cutout rebuild immediately after git pull.
+        // Keep the historical validation token but use a fresh v21 namespace so
+        // an already-open Editor runs the architecture migration after git pull.
         private const string RunId =
             "opposing-gait-room-travel-review-v17";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v20.cutout-puppet.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v21.hybrid-rig.";
 
         private static int idleFrames;
 
@@ -61,16 +60,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 automatic v20 cutout-puppet review started: " +
-                    "restore the exact master, bake the 40 source layers, split " +
-                    "every neutral body pixel into exclusive torso/head/arm/leg " +
-                    "cutouts with small joint overlaps, rebuild the locked " +
-                    "runtime prefab, remove the v19 broad-body visual controller, " +
-                    "install rigid non-squashing cutout deformation with bounded " +
-                    "visible rotations, keep the existing eight-phase skeleton " +
-                    "gait, then rerun safety/tests and the real-room review. " +
-                    "The full painted master remains only as a hidden contract " +
-                    "reference; no visible body layer uses linear-blend skinning.");
+                    "Patch 4 automatic v21 hybrid-rig rebuild started: restore " +
+                    "the approved master, bake the non-exclusive source layers, " +
+                    "merge each complete arm and leg into one continuous painted " +
+                    "surface, keep enlarged shoulder/hip artwork hidden behind a " +
+                    "stable torso, rebuild the runtime prefab, remove the v20 " +
+                    "rigid paper-doll controller, install localized whole-limb " +
+                    "joint deformation plus planted-foot gait correction, remove " +
+                    "whole-body/core-bone scale animation, run v21 structure " +
+                    "gates, then execute the existing safety/tests and real-room " +
+                    "ten-clip review. v20 exclusive pixel ownership is not run.");
 
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
@@ -79,10 +78,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 }
 
                 Patch4ProductionPipeline.BakeDraftLayers();
-                Patch4V20CutoutArtworkFinalizer.Apply();
+                Patch4V21HybridArtworkBuilder.Build();
                 Patch4ProductionPipeline.RebuildRuntimeAssets();
-                Patch4V20CutoutRigInstaller.Apply();
-                Patch4WalkV18Finalizer.Apply();
+                Patch4V21AnimationFinalizer.Apply();
+                Patch4V21HybridRigInstaller.Apply();
+                Patch4V21HybridValidator.ValidateOrThrow();
                 Patch4ProductionPipeline.RunSafetyValidation();
                 Patch4AutomatedTestRunner.RunAll();
                 EditorApplication.ExecuteMenuItem(
@@ -91,7 +91,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic v20 continuation failed: " + exception);
+                    "Patch 4 automatic v21 continuation failed: " + exception);
             }
         }
     }
