@@ -18,6 +18,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private const byte AlphaThreshold = 8;
         private const string PrefabPath =
             "Assets/GameWorkPatch4/Resources/FatMan_Patch4.prefab";
+        private const string WalkPath =
+            "Assets/GameWorkPatch4/Animations/FatMan_Walk_InRoom.anim";
+        private const string WalkVisual =
+            "Patch4VisualRoot/Root/CharacterRoot";
 
         private readonly struct JointProbe
         {
@@ -90,6 +94,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             ValidateScaleProhibition(errors);
+            ValidateWalkRootContract(errors);
 
             if (errors.Count > 0)
             {
@@ -101,8 +106,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Debug.Log(
                 "Patch 4 v21 hybrid validation passed: continuous limb art is " +
                 "present through elbow/wrist/knee/ankle zones, v20 is not the " +
-                "active presentation, foot planting is installed, and no core " +
-                "body/limb Transform scale animation remains.");
+                "active presentation, foot planting is installed, no core " +
+                "body/limb Transform scale animation remains, and Walk has no " +
+                "CharacterRoot X curve that could fake locomotion by root sway.");
         }
 
         private static void ValidateSprite(string path, ICollection<string> errors)
@@ -230,6 +236,30 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         clips[clipIndex] + " still animates forbidden scale at " +
                         binding.path + " / " + binding.propertyName);
                 }
+            }
+        }
+
+        private static void ValidateWalkRootContract(ICollection<string> errors)
+        {
+            AnimationClip walk = AssetDatabase.LoadAssetAtPath<AnimationClip>(WalkPath);
+            if (walk == null)
+            {
+                errors.Add("Walk clip missing for root-sway validation.");
+                return;
+            }
+
+            AnimationCurve rootX = AnimationUtility.GetEditorCurve(
+                walk,
+                EditorCurveBinding.FloatCurve(
+                    WalkVisual,
+                    typeof(Transform),
+                    "m_LocalPosition.x"));
+            if (rootX != null)
+            {
+                errors.Add(
+                    "Walk still contains CharacterRoot m_LocalPosition.x. " +
+                    "The channel must be absent, not merely constant zero, so " +
+                    "side-to-side root sway cannot masquerade as locomotion.");
             }
         }
 
