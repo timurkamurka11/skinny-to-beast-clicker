@@ -114,6 +114,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public int clippedCompleteFrameCount;
             public float maximumRawGroundDeviationPixels;
             public float maximumArtworkScaleAdjustment;
+            public bool gameplayActionRoutingPassed;
             public bool liveGameplayPreviewCompleted;
             public float liveGameplayPreviewDurationSeconds;
             public int liveGameplayPreviewFrameAdvances;
@@ -166,7 +167,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumV23WalkLegSilhouetteDifference = 0.14f;
         private const float MinimumV23AdjacentFrameDifference = 0.075f;
         private const float MinimumV23FaceDifference = 0.02f;
-        private const float MinimumWalkTravelWidthRatio = 0.55f;
+        private const float MinimumWalkTravelWidthRatio = 0.35f;
         private const int LiveGameplayPreviewPassCount = 2;
         private const int MinimumLivePreviewFrameAdvances = 70;
 
@@ -174,6 +175,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Patch4CharacterVisibilityGuard visibilityGuard;
         private Patch4CanvasPresentation canvasPresentation;
         private Patch4FaceController faceController;
+        private Patch4CharacterStateMachine stateMachine;
         private Patch4SecondaryMotionController secondaryMotion;
         private Patch4V23FullFramePresentation v23FullFramePresentation;
         private Animator animator;
@@ -236,6 +238,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             visibilityGuard = visibility;
             canvasPresentation = presentation;
             faceController = face;
+            stateMachine = rig != null
+                ? rig.GetComponent<Patch4CharacterStateMachine>()
+                : null;
             secondaryMotion = motion;
             v23FullFramePresentation = fullFramePresentation;
             animator = targetAnimator;
@@ -442,6 +447,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.v23TenStateFullFrameReady &&
                 report.v23FaceArticulationReady &&
                 report.runtimeFrameCalibrationReady &&
+                report.gameplayActionRoutingPassed &&
                 report.liveGameplayPreviewCompleted &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
@@ -453,6 +459,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.v23TenStateFullFrameReady &&
                 report.v23FaceArticulationReady &&
                 report.runtimeFrameCalibrationReady &&
+                report.gameplayActionRoutingPassed &&
                 report.liveGameplayPreviewCompleted &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
@@ -469,11 +476,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             float previewDuration = 0f;
             int frameAdvances = 0;
+            report.gameplayActionRoutingPassed = true;
             Debug.Log(
                 "Patch 4 LIVE GAMEPLAY PREVIEW started in the real " +
                 "LivingGameplayScene: two uninterrupted passes at final " +
-                "whole-frame cadence. The paused evidence capture follows " +
-                "after this preview and is not a timing demonstration.");
+                "whole-frame cadence. Every state is entered through the " +
+                "same Patch 4 gameplay-action API used at runtime. The paused " +
+                "evidence capture follows after this preview and is not a " +
+                "timing demonstration.");
 
             for (int pass = 0;
                  pass < LiveGameplayPreviewPassCount;
@@ -499,18 +509,29 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
                     currentClip = clipName;
                     ConfigureFaceForClip(clipName);
-                    ConfigureAnimatorParametersForClip(clipName);
                     int stateHash = Animator.StringToHash(
                         ResolveAnimatorStatePath(clipName));
-                    if (!animator.HasState(0, stateHash) ||
-                        !PlayVerifiedAnimatorState(
-                            stateHash,
-                            0f,
-                            out _))
+                    if (!animator.HasState(0, stateHash))
                     {
+                        report.gameplayActionRoutingPassed = false;
                         report.error = AppendError(
                             report.error,
-                            "Live preview could not enter " +
+                            "Live action preview could not resolve " +
+                            ResolveAnimatorStatePath(clipName) + ".");
+                        yield break;
+                    }
+
+                    bool actionRouted = false;
+                    yield return RouteGameplayActionToState(
+                        clipName,
+                        stateHash,
+                        value => actionRouted = value);
+                    if (!actionRouted)
+                    {
+                        report.gameplayActionRoutingPassed = false;
+                        report.error = AppendError(
+                            report.error,
+                            "Gameplay action did not enter " +
                             ResolveAnimatorStatePath(clipName) + ".");
                         yield break;
                     }
@@ -519,9 +540,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                         0.05f,
                         Patch4V23FullFramePresentation
                             .ResolvePlaybackDuration(clipName));
-                    animator.speed = Mathf.Max(
-                        0.01f,
-                        clip.length / duration);
+                    animator.speed = 1f;
                     bool isWalk = string.Equals(
                         clipName,
                         "FatMan_Walk_InRoom",
@@ -576,6 +595,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                         RestoreWalkReviewTravel();
                     }
 
+                    ClearGameplayActionReviewSignals();
                     faceController.SetMouth(
                         Patch4FaceController.MouthPose.Closed);
                 }
@@ -593,6 +613,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             report.liveGameplayPreviewDurationSeconds = previewDuration;
             report.liveGameplayPreviewFrameAdvances = frameAdvances;
             report.liveGameplayPreviewCompleted =
+                report.gameplayActionRoutingPassed &&
                 frameAdvances >= MinimumLivePreviewFrameAdvances &&
                 v23FullFramePresentation.HasSingleVisibleCompleteFrame &&
                 v23FullFramePresentation.FrameCalibrationReady;
@@ -610,8 +631,113 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 "Patch 4 LIVE GAMEPLAY PREVIEW completed: " +
                 previewDuration.ToString("0.0") +
                 " seconds, " + frameAdvances +
-                " visible whole-frame advances, fixed shoe line and fixed " +
-                "per-state character scale. Starting paused evidence capture.");
+                " visible whole-frame advances, all gameplay actions routed, " +
+                "fixed shoe line and fixed per-state character scale. " +
+                "Starting paused evidence capture.");
+        }
+
+        private IEnumerator RouteGameplayActionToState(
+            string clipName,
+            int expectedStateHash,
+            Action<bool> completed)
+        {
+            ClearGameplayActionReviewSignals();
+            animator.speed = 1f;
+
+            int idleStateHash = Animator.StringToHash(
+                ResolveAnimatorStatePath("FatMan_Idle_Breathe"));
+            if (!animator.HasState(0, idleStateHash) ||
+                !PlayVerifiedAnimatorState(
+                    idleStateHash,
+                    0f,
+                    out _))
+            {
+                completed(false);
+                yield break;
+            }
+
+            RequestGameplayActionForClip(clipName);
+            float timeoutAt = Time.realtimeSinceStartup + 0.4f;
+            while (Time.realtimeSinceStartup < timeoutAt)
+            {
+                if (VerifyCurrentAnimatorState(
+                        expectedStateHash,
+                        out _))
+                {
+                    if (string.Equals(
+                            clipName,
+                            "FatMan_Turn",
+                            StringComparison.Ordinal))
+                    {
+                        // Runtime uses a short facing-change pulse. Clear it as
+                        // soon as the one-shot owns the layer so it cannot
+                        // retrigger after returning to the current activity.
+                        stateMachine.SetTurning(false);
+                    }
+
+                    completed(true);
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            completed(false);
+        }
+
+        private void RequestGameplayActionForClip(string clipName)
+        {
+            switch (clipName)
+            {
+                case "FatMan_Idle_Breathe":
+                    break;
+                case "FatMan_Idle_ShiftWeight":
+                    stateMachine.SetShiftingWeight(true);
+                    break;
+                case "FatMan_Blink_Random":
+                    stateMachine.PlayBlink();
+                    break;
+                case "FatMan_LookAround":
+                    stateMachine.SetLooking(true);
+                    break;
+                case "FatMan_TapReact_01":
+                    stateMachine.PlayTapReaction(1);
+                    break;
+                case "FatMan_TapReact_02":
+                    stateMachine.PlayTapReaction(2);
+                    break;
+                case "FatMan_Walk_InRoom":
+                    stateMachine.SetWalkSpeed(1f);
+                    break;
+                case "FatMan_Turn":
+                    stateMachine.SetTurning(true);
+                    break;
+                case "FatMan_SitOrLean":
+                    stateMachine.SetSittingOrLeaning(true);
+                    break;
+                case "FatMan_UpgradeReact":
+                    stateMachine.PlayUpgradeReaction();
+                    break;
+            }
+        }
+
+        private void ClearGameplayActionReviewSignals()
+        {
+            if (stateMachine != null)
+            {
+                stateMachine.SetWalkSpeed(0f);
+                stateMachine.SetLooking(false);
+                stateMachine.SetShiftingWeight(false);
+                stateMachine.SetTurning(false);
+                stateMachine.SetSittingOrLeaning(false);
+            }
+
+            if (animator != null)
+            {
+                animator.ResetTrigger("Tap");
+                animator.ResetTrigger("Blink");
+                animator.ResetTrigger("Upgrade");
+            }
         }
 
         private IEnumerator ReviewClip(
@@ -664,10 +790,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 yield break;
             }
 
-            float playbackSpeed =
-                clip.length > 0.001f
-                    ? clip.length / reviewDuration
-                    : 1f;
+            // Each generated Animator state already owns its final playback
+            // speed. Applying clip.length / reviewDuration again would square
+            // that calibration and make the state end before its visible strip.
+            float playbackSpeed = 1f;
             if (isWalk)
             {
                 PrepareWalkReviewTravel();
@@ -1027,6 +1153,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
                                  StringComparison.Ordinal)) ||
                             (string.Equals(
                                  parameter.name,
+                                 "Shift",
+                                 StringComparison.Ordinal) &&
+                             string.Equals(
+                                 clipName,
+                                 "FatMan_Idle_ShiftWeight",
+                                 StringComparison.Ordinal)) ||
+                            (string.Equals(
+                                 parameter.name,
                                  "Sit",
                                  StringComparison.Ordinal) &&
                              string.Equals(
@@ -1272,6 +1406,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 visibilityGuard == null ||
                 canvasPresentation == null ||
                 faceController == null ||
+                stateMachine == null ||
                 secondaryMotion == null ||
                 v23FullFramePresentation == null ||
                 !v23FullFramePresentation.IsReady ||
@@ -1358,6 +1493,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             reviewBasePositionCaptured = true;
             reviewTravelLocalDistance = 0f;
             rigController.SetPatch4Enabled(false);
+            stateMachine.SetLockedReviewActive(true);
             visibilityGuard.enabled = false;
             patch35RollbackRoot.SetActive(true);
             rollbackReviewGroup =
@@ -1429,10 +1565,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 pixelsPerLocalUnit = 1f;
             }
 
+            // Keep one stride visibly translational without moving the actor
+            // off the portrait room. The previous 180 px hard cap could never
+            // satisfy its own 0.55-body-width gate (313.5 px in the user's
+            // fresh V24 run), so every genuine gait was reported as in-place.
+            float referenceWidth = Mathf.Max(
+                360f,
+                neutralSilhouetteWidth);
             float targetTravelPixels = Mathf.Clamp(
-                neutralSilhouetteWidth * 0.72f,
-                64f,
-                180f);
+                referenceWidth * 0.48f,
+                128f,
+                320f);
             reviewTravelLocalDistance =
                 targetTravelPixels / pixelsPerLocalUnit;
         }
@@ -2653,6 +2796,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.v23TenStateFullFrameReady &&
                 report.v23FaceArticulationReady &&
                 report.runtimeFrameCalibrationReady &&
+                report.gameplayActionRoutingPassed &&
                 report.liveGameplayPreviewCompleted &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
@@ -2730,6 +2874,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (animator != null)
             {
                 animator.speed = 1f;
+            }
+
+            if (stateMachine != null)
+            {
+                ClearGameplayActionReviewSignals();
+                stateMachine.SetLockedReviewActive(false);
             }
 
             if (faceController != null)

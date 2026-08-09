@@ -288,7 +288,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"calibrated-live-gameplay-preview-v24"',
+            '"gameplay-action-routing-v25"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -364,6 +364,24 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
 
         if "patchRig.SetPatch4Enabled(true)" in installer:
             fail(errors, "Runtime installer must never enable Patch 4 automatically")
+
+    signal_bridge = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4LegacySignalBridge.cs",
+        errors,
+    )
+    if signal_bridge:
+        for snippet in (
+            "stateMachine.SetWalkSpeed(moving ? 1f : 0f)",
+            "stateMachine.SetLooking(looking)",
+            "stateMachine.SetShiftingWeight(shifting)",
+            "stateMachine.SetSittingOrLeaning(sitting)",
+            "stateMachine.PlayBlink()",
+            "upgradeManager.UpgradesChanged += OnUpgradePurchased",
+            "stateMachine.PlayUpgradeReaction()",
+        ):
+            if snippet not in signal_bridge:
+                fail(errors, f"Gameplay action routing is missing: {snippet}")
 
     presentation = read_text(
         root,
@@ -641,6 +659,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "liveGameplayPreviewFrameAdvances",
             "runtimeFrameCalibrationReady",
             "MinimumLivePreviewFrameAdvances",
+            "gameplayActionRoutingPassed",
+            "RouteGameplayActionToState(",
+            "RequestGameplayActionForClip(",
+            "stateMachine.SetLockedReviewActive(true)",
         ):
             if snippet not in review_driver:
                 fail(errors, f"Locked animation-room driver is missing: {snippet}")
@@ -670,6 +692,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "SetCyclePosition(",
             "SetFourPhaseRotation(",
             "AddFloatTransition(",
+            'controller.AddParameter("Shift"',
+            'controller.AddParameter("Blink"',
+            "AddExitToContext(",
+            ".ResolvePlaybackDuration(clip.name)",
             "AnimatorControllerLayer layer = controller.layers[0];",
             "machine.name = layer.name;",
             "HandL",
@@ -789,6 +815,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AssertV24UpgradeCorrectionIsImportable()",
             "GetRawConstantValue()",
             "AssertWholeFramePlaybackCadence()",
+            "AssertAnimatorControllerRoutesGameplayActions()",
             "layer.name",
             "machine.name",
         ):
@@ -854,6 +881,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "DrawWalkLabels(",
             "liveGameplayPreviewDurationSeconds",
             "liveGameplayPreviewFrameAdvances",
+            "gameplayActionRoutingPassed",
             "timing from that live pass, not from this deliberately",
         ):
             if snippet not in review_window:
@@ -1637,6 +1665,7 @@ def main() -> int:
     print("- V23 blink and look-around use measurable painted facial changes")
     print("- V24 repairs the cropped upgrade pose and calibrates scale plus shoe line")
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
+    print("- V25 routes idle, routine, tap, walk, turn and upgrade gameplay actions")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

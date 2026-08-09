@@ -21,6 +21,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool walkRootTravelPassed;
             public bool walkPhaseAlternationPassed;
             public bool runtimeFrameCalibrationReady;
+            public bool gameplayActionRoutingPassed;
             public bool liveGameplayPreviewCompleted;
             public float liveGameplayPreviewDurationSeconds;
             public int liveGameplayPreviewFrameAdvances;
@@ -91,7 +92,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             bool passed =
                 currentRun &&
                 reviewStatus.completed &&
-                reviewStatus.passedTechnicalChecks;
+                reviewStatus.passedTechnicalChecks &&
+                reviewStatus.gameplayActionRoutingPassed;
             if (passed)
             {
                 EditorGUILayout.HelpBox(
@@ -101,6 +103,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "They were captured while the generated character played " +
                     "every " +
                     "required clip inside the real LivingGameplayScene with " +
+                    "the same action-routing API used by gameplay (idle, " +
+                    "shift, blink, look, tap, walk, turn, sit and upgrade), " +
                     "one intact continuous Canvas body, constrained anatomical " +
                     "weights and frozen bind anchors. Every peak retained the " +
                     "neutral silhouette without excessive expansion, and the " +

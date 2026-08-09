@@ -6,6 +6,42 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AC / V25 gameplay-action checkpoint
+
+Fresh V24 human review confirmed that all ten complete-frame motions now play
+and are substantially cleaner. The remaining request is architectural: improve
+the cadence and connect motions to the actions that own them. The same report
+proved that Walk validation was internally impossible (`180 px` output versus
+`313.5 px` required) and that the obsolete `1.135` upgrade scale expanded an
+already corrected full body.
+
+V25 adds an explicit runtime mapping without editing any existing gameplay,
+menu, audio or settings owner:
+
+| Gameplay signal | Patch 4 state |
+| --- | --- |
+| no movement/action | `FatMan_Idle_Breathe` |
+| `ShiftWeight` | `FatMan_Idle_ShiftWeight` |
+| idle blink timer | `FatMan_Blink_Random` |
+| `LookAround` | `FatMan_LookAround` |
+| accepted tap, alternating variant | `FatMan_TapReact_01/02` |
+| `CharacterRigController.IsMoving` | `FatMan_Walk_InRoom` |
+| facing-change pulse | `FatMan_Turn` |
+| sit/down/loop/stand family | `FatMan_SitOrLean` |
+| successful `UpgradeManager.Purchase` or distinct stage change | `FatMan_UpgradeReact` |
+
+Animator source states now run at the complete-frame target durations, use
+short fixed-duration transitions and return one-shots to the still-active
+movement/routine intent. Shift is no longer an unconditional Idle exit. Blink
+is suppressed while busy, and purchase/stage notifications are debounced.
+Upgrade scale is `1.0`. Walk target travel and its minimum are compatible.
+
+The locked actual-room live pass now exercises every public gameplay-action
+method and verifies the resulting full-path state before rendering the motion;
+the report cannot pass without `gameplayActionRoutingPassed`. The automatic run
+token is `gameplay-action-routing-v25`. Repository static validation passes;
+Unity compilation, tests and fresh visual review remain pending until pull.
+
 ## Latest P4.0-AB compile hotfix
 
 The first P4.0-AB publish (`caa9e98`) compiled the new V24 path assertion as a
@@ -1108,6 +1144,27 @@ The repository static guard passes. Unity compilation, `EditMode: 4` and
 pull. Patch 4 stays disabled, Patch 3.5 stays active and protected
 menu/video/music/audio/settings paths remain unchanged.
 
+### P4.0-AC / V25 action-owned transitions and matched state timing
+
+The user's V24 result supersedes the preceding pending visual statement: the
+motions visibly work and are much better, but are not yet smooth enough and
+were still demonstrated as a clip list rather than proven from gameplay
+commands. P4.0-AC/V25 therefore:
+
+- binds movement, routine, facing, tap, purchase and idle-blink signals through
+  `Patch4LegacySignalBridge`;
+- adds explicit Shift/Blink Animator inputs and context-aware one-shot returns;
+- calibrates Animator state speed once and removes the duplicate time scaling
+  in the complete-frame presenter;
+- removes obsolete V24 upgrade enlargement;
+- makes the Walk travel output compatible with its own minimum gate;
+- routes all ten states through `Patch4CharacterStateMachine` during the live
+  actual-room pass and persists `gameplayActionRoutingPassed` in the report;
+- advances automatic continuation to `gameplay-action-routing-v25`.
+
+Static validation passes. Unity compile, `4/4 + 4/4` and fresh V25 review are
+pending. Production readiness remains locked.
+
 ## Production dashboard
 
 Open in Unity:
@@ -1167,25 +1224,27 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull P4.0-AB/V24 into Unity `6000.3.19f1` with only
+1. Pull P4.0-AC/V25 into Unity `6000.3.19f1` with only
    `git pull origin patch-4.0` and leave Unity open.
 2. Do not click Dashboard, Test Runner, Play or a review button.
 3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind the V23 sheets
    plus the corrected V24 upgrade sheet, run safety/tests and enter the actual
    room after Test Runner is quiescent.
 4. Watch the automatically focused Game view before the report opens. It must
-   play about 13 seconds of uninterrupted target-cadence animation; this is the
-   gameplay timing preview and requires no click.
+   route idle, shift, blink, look, both taps, Walk, Turn, Sit and Upgrade through
+   the public gameplay-action API and play two uninterrupted target-cadence
+   passes; this is the timing and routing preview and requires no click.
 5. Inspect the automatically opened first strip. It must contain eight complete
    profile-right alternating steps moving left-to-right: visible knee bend,
    lifted feet and arm swing, with no duplicate legacy body underneath.
 6. Inspect the ten-clip sheet for fixed character scale, one common shoe line
    and eight complete upgrade bodies. The sheet is frozen evidence and must not
    be used to judge playback speed.
-7. Use the fresh report's face metrics, frame calibration, four limb-region
+7. Require `gameplayActionRoutingPassed: true`, then use the fresh report's
+   face metrics, frame calibration, four limb-region
    differences and weakest adjacent-frame difference to reject static,
    front-facing, clipped or duplicated art.
-8. Keep readiness locked until the V24 actual-room motion and identity pass
+8. Keep readiness locked until the V25 actual-room motion and identity pass
    human review.
 
 Detailed art instructions:
@@ -1246,11 +1305,11 @@ Detailed verification instructions:
   the flattened Canvas body still stretched and did not read as walking.
 - P4.0-Z/V22 added an isolated complete-frame Walk candidate; it is superseded
   by V23 and remains historical, not approved production art.
-- V23 replaced the visible surface for all ten clips and its first fresh Unity
-  review was substantially cleaner, but human review found slow diagnostic
-  pacing, real source-scale variation and a cropped upgrade frame. P4.0-AB/V24
-  corrects those issues and still awaits its fresh Unity run; it is not approved
-  production art.
+- V23 replaced the visible surface for all ten clips. V24 made it substantially
+  cleaner and visibly animated, but the user still found cadence hitches and no
+  proof of action ownership; its report also exposed an impossible Walk gate
+  and obsolete upgrade scale. P4.0-AC/V25 corrects those exact issues and awaits
+  its fresh Unity run; it is not approved production art.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

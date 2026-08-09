@@ -141,6 +141,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             AssertV24UpgradeCorrectionIsImportable();
             AssertWholeFramePlaybackCadence();
             AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
+            AssertAnimatorControllerRoutesGameplayActions();
         }
 
         [Test]
@@ -638,6 +639,185 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 stateNames,
                 "The controller does not expose every required clip as a " +
                 "direct root state.");
+        }
+
+        private static void AssertAnimatorControllerRoutesGameplayActions()
+        {
+            const string controllerPath =
+                "Assets/GameWorkPatch4/Animations/FatMan_Patch4.controller";
+            AnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                    controllerPath);
+            Assert.NotNull(controller);
+
+            string[] expectedParameters =
+            {
+                "Speed",
+                "Look",
+                "Shift",
+                "Turn",
+                "Sit",
+                "TapVariant",
+                "Tap",
+                "Blink",
+                "Upgrade"
+            };
+            CollectionAssert.IsSubsetOf(
+                expectedParameters,
+                controller.parameters.Select(parameter => parameter.name),
+                "The Animator is missing a gameplay-action parameter.");
+
+            AnimatorStateMachine machine =
+                controller.layers[0].stateMachine;
+            Dictionary<string, AnimatorState> states = machine.states
+                .Where(child => child.state != null)
+                .ToDictionary(
+                    child => child.state.name,
+                    child => child.state,
+                    StringComparer.Ordinal);
+            AnimatorState idle = states["FatMan_Idle_Breathe"];
+
+            AssertStateTransition(
+                idle,
+                "FatMan_Walk_InRoom",
+                "Speed",
+                AnimatorConditionMode.Greater);
+            AssertStateTransition(
+                idle,
+                "FatMan_LookAround",
+                "Look",
+                AnimatorConditionMode.If);
+            AssertStateTransition(
+                idle,
+                "FatMan_Idle_ShiftWeight",
+                "Shift",
+                AnimatorConditionMode.If);
+            AssertStateTransition(
+                idle,
+                "FatMan_SitOrLean",
+                "Sit",
+                AnimatorConditionMode.If);
+
+            AssertAnyStateTransition(
+                machine,
+                "FatMan_Turn",
+                "Turn",
+                AnimatorConditionMode.If);
+            AssertAnyStateTransition(
+                machine,
+                "FatMan_Blink_Random",
+                "Blink",
+                AnimatorConditionMode.If);
+            AssertAnyStateTransition(
+                machine,
+                "FatMan_UpgradeReact",
+                "Upgrade",
+                AnimatorConditionMode.If);
+            AssertTapTransition(machine, "FatMan_TapReact_01", 1f);
+            AssertTapTransition(machine, "FatMan_TapReact_02", 2f);
+
+            Type presentation = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4V23FullFramePresentation");
+            MethodInfo resolveDuration = presentation.GetMethod(
+                "ResolvePlaybackDuration",
+                BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(resolveDuration);
+            foreach (AnimatorState state in states.Values)
+            {
+                AnimationClip clip = state.motion as AnimationClip;
+                Assert.NotNull(
+                    clip,
+                    state.name + " has no source clip.");
+                float targetDuration = (float)resolveDuration.Invoke(
+                    null,
+                    new object[] { state.name });
+                float expectedSpeed = clip.length /
+                    Mathf.Max(0.05f, targetDuration);
+                Assert.AreEqual(
+                    expectedSpeed,
+                    state.speed,
+                    0.001f,
+                    state.name +
+                    " does not finish with its visible whole-frame cadence.");
+            }
+
+            Assert.IsFalse(
+                idle.transitions.Any(transition =>
+                    transition.destinationState ==
+                        states["FatMan_Idle_ShiftWeight"] &&
+                    transition.conditions.Length == 0),
+                "ShiftWeight must be requested by the real routine action, " +
+                "not entered automatically after every idle loop.");
+        }
+
+        private static void AssertStateTransition(
+            AnimatorState source,
+            string destination,
+            string parameter,
+            AnimatorConditionMode mode)
+        {
+            Assert.IsTrue(
+                source.transitions.Any(transition =>
+                    transition.destinationState != null &&
+                    string.Equals(
+                        transition.destinationState.name,
+                        destination,
+                        StringComparison.Ordinal) &&
+                    transition.conditions.Any(condition =>
+                        string.Equals(
+                            condition.parameter,
+                            parameter,
+                            StringComparison.Ordinal) &&
+                        condition.mode == mode)),
+                source.name + " does not route " + parameter +
+                " to " + destination + ".");
+        }
+
+        private static void AssertAnyStateTransition(
+            AnimatorStateMachine machine,
+            string destination,
+            string parameter,
+            AnimatorConditionMode mode)
+        {
+            Assert.IsTrue(
+                machine.anyStateTransitions.Any(transition =>
+                    transition.destinationState != null &&
+                    string.Equals(
+                        transition.destinationState.name,
+                        destination,
+                        StringComparison.Ordinal) &&
+                    transition.conditions.Any(condition =>
+                        string.Equals(
+                            condition.parameter,
+                            parameter,
+                            StringComparison.Ordinal) &&
+                        condition.mode == mode)),
+                "Any State does not route " + parameter +
+                " to " + destination + ".");
+        }
+
+        private static void AssertTapTransition(
+            AnimatorStateMachine machine,
+            string destination,
+            float variant)
+        {
+            Assert.IsTrue(
+                machine.anyStateTransitions.Any(transition =>
+                    transition.destinationState != null &&
+                    string.Equals(
+                        transition.destinationState.name,
+                        destination,
+                        StringComparison.Ordinal) &&
+                    transition.conditions.Any(condition =>
+                        condition.parameter == "Tap" &&
+                        condition.mode == AnimatorConditionMode.If) &&
+                    transition.conditions.Any(condition =>
+                        condition.parameter == "TapVariant" &&
+                        condition.mode == AnimatorConditionMode.Equals &&
+                        Mathf.Abs(condition.threshold - variant) < 0.001f)),
+                "Tap variant " + variant + " does not route to " +
+                destination + ".");
         }
 
         private static AnimationCurve RequireCurve(

@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "calibrated-live-gameplay-preview-v24";
+            "gameplay-action-routing-v25";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v24.live-preview.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v25.actions.";
 
         private static int idleFrames;
 
@@ -57,7 +57,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V24 calibrated live-gameplay review started: " +
+                    "Patch 4 V25 gameplay-action review started: " +
                     "restore the approved master, rebuild the retained v21.1 " +
                     "rollback candidates, verify neutral reconstruction, rebuild " +
                     "the locked prefab and bind six complete-frame RGBA sheets " +
@@ -69,9 +69,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "strict screen-right profile phases, and blink/look/tap/upgrade " +
                     "use independent painted facial expressions. Every frame is " +
                     "aligned to one shoe line and each pose family uses a fixed " +
-                    "body scale. After 4/4, Unity will first play two uninterrupted " +
-                    "final-cadence passes in the actual room, then enter every " +
-                    "full Animator state, " +
+                    "body scale. Animator state speeds now match the visible " +
+                    "whole-frame cadence. After 4/4, Unity will first route " +
+                    "idle, shift, blink, look, both taps, walking, turning, " +
+                    "sitting and upgrade through the same gameplay API used at " +
+                    "runtime, and play two uninterrupted passes in the actual " +
+                    "room. It will then enter every full Animator state, " +
                     "sample all ten states and eight Walk frames with silent " +
                     "monotonic travel, " +
                     "measure both visible arm silhouettes, both visible leg " +
@@ -103,7 +106,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V23 continuation failed: " + exception);
+                    "Patch 4 automatic V25 continuation failed: " + exception);
             }
         }
     }

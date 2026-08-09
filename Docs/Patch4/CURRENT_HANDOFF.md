@@ -11,6 +11,59 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AC / V25 gameplay-action routing
+
+The user's fresh V24 actual-room review is the current human evidence. The
+single-body complete-frame architecture is now substantially better and the
+animations visibly play, but the user correctly reported that their cadence
+still hitches and that they must be connected to real gameplay actions rather
+than remain a clip demonstration. The same review exposed two deterministic
+technical failures:
+
+- `FatMan_Walk_InRoom` travelled the hard-coded maximum of `180 px`, while the
+  validator simultaneously required `313.5 px`; that gate was impossible to
+  satisfy;
+- the corrected V24 upgrade sheet was already authored at neutral scale, but
+  runtime still multiplied it by the old `1.135` compensation, producing the
+  reported `1.133 / 1.136 / 1.204` width, height and area expansion.
+
+P4.0-AC/V25 corrects the event architecture and those measured failures:
+
+- `Patch4LegacySignalBridge` now maps actual gameplay state to Patch 4:
+  movement → Walk, `ShiftWeight` → Shift, `LookAround` → Look, the sit action
+  family → Sit, facing changes → Turn and accepted taps → alternating Tap 1/2;
+- successful `UpgradeManager.Purchase` notifications trigger exactly one
+  `UpgradeReact`; a simultaneous art-stage change is debounced rather than
+  restarting the celebration;
+- full-frame blink is now an Animator trigger scheduled only during free idle,
+  never while walking, reacting or performing a routine action;
+- the Animator controller has explicit `Shift` and `Blink` parameters. The old
+  unconditional Idle → Shift loop is removed, so every non-idle state now has
+  a gameplay owner;
+- one-shots return directly to the current Walk/Sit/Look/Shift intent instead
+  of always flashing through Idle;
+- each Animator state speed is calibrated to the same target duration used by
+  the visible complete-frame presentation. The former second source/target
+  time multiplication is removed, eliminating the early final-frame hold;
+- fixed-duration transitions are short (`0.05–0.08 s`) and do not reactivate
+  cross-faded duplicate bodies;
+- the corrected V24 upgrade atlas now renders at `1.0` artwork scale;
+- Walk review target travel is now a bounded `0.48` reference-body width, and
+  its required minimum is a compatible `0.35` width;
+- the uninterrupted room preview resets to Idle, requests every state through
+  `Patch4CharacterStateMachine`, verifies the expected full-path Animator state
+  and records `gameplayActionRoutingPassed` before showing each motion;
+- EditMode/static contracts require all nine action parameters, their state
+  destinations, both tap variants, calibrated state speeds and the absence of
+  an unconditional Shift transition;
+- automatic continuation advances to `gameplay-action-routing-v25`.
+
+Repository static validation passes for the P4.0-AC/V25 source set. Unity
+compilation, `EditMode: 4`, `PlayMode: 4` and a fresh V25 actual-room review are
+pending until the next pull and must not be described as passed yet. Readiness
+remains locked, Patch 3.5 remains active, and no protected menu, video, music,
+audio or settings file changed.
+
 ## Latest compile hotfix
 
 - The first P4.0-AB publish (`caa9e98`) added a direct compile-time reference
@@ -23,8 +76,8 @@ more Patch 4 work.
   `Patch4PrefabBuilder.V23UpgradeSheetPath` through the same `RequireType` /
   reflection pattern already used by the surrounding Editor contract tests.
 - No runtime, scene, menu, audio, settings or art behavior changed in this
-  hotfix. The V24 automatic continuation token remains current and should run
-  after the corrected assembly compiles.
+  hotfix. It retained the V24 continuation token at that time; V25 now
+  supersedes it.
 
 ## User workflow preference
 
@@ -913,7 +966,7 @@ The v17 result is rejected. Patch 4 remains locked.
 - Patch 3.5 remains active and no protected menu, video, music, audio or
   settings path changed.
 
-## Current P4.0-AB / V24 cadence, scale and live-room correction
+## Superseded P4.0-AB / V24 cadence and scale correction
 
 The user's fresh V23 Unity review is the current evidence. It confirmed that
 the complete-frame architecture is substantially cleaner: Walk is a real
@@ -953,11 +1006,11 @@ rig:
 - readiness remains locked, Patch 3.5 remains active, and no menu, video,
   music, audio or settings file is changed.
 
-Repository static validation passes for this P4.0-AB source set. Unity compile,
-`4/4 + 4/4` tests and fresh actual-room visual review remain pending until the
-next pull and must not be described as passed yet.
+This V24 source description is retained as history. The user's fresh V24 room
+review completed and is summarized by the V25 section at the top of this file.
+Do not treat the V24 run token as the current continuation.
 
-After P4.0-AB is published on `patch-4.0`, run only:
+The historical V24 automatic flow used the same single-command pull:
 
 ```bat
 git pull origin patch-4.0
@@ -1007,9 +1060,30 @@ old limb pieces, vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the V24 automatic room review
+## Next automatic V25 run
+
+Run only:
+
+```bat
+git pull origin patch-4.0
+```
+
+Leave Unity open. Do not click Dashboard, Test Runner, Play or any review
+button. `Patch4AutoContinuation` will rebuild the generated controller and
+prefab, run safety plus `4/4 + 4/4`, then start the separate locked room review.
+The first live pass must visibly show the event-owned sequence: idle breathing,
+weight shift, blink, look, both taps, a right-facing travelling walk, turn,
+sit/lean and upgrade. The frozen report must contain
+`gameplayActionRoutingPassed: true`, compatible Walk travel, and no upgrade
+scale-expansion failure. Patch 4 must remain locked after the review.
+
+## Work after the V25 automatic room review
 
 - Inspect the eight complete Walk frames first and keep activation locked.
+- Confirm that the live sequence changes state promptly instead of holding the
+  final frame or flashing through Idle after a one-shot.
+- Confirm that successful action routing is reported; a direct clip-only tour
+  is no longer sufficient evidence.
 - Reject any identity drift, foot slide, duplicate underlay, inconsistent scale
   or non-alternating step before extending the approach.
 - Reject any clip that reveals the hidden legacy mesh, facial drift, weak

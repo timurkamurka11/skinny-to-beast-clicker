@@ -684,10 +684,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
             controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
             controller.AddParameter("Look", AnimatorControllerParameterType.Bool);
+            controller.AddParameter("Shift", AnimatorControllerParameterType.Bool);
             controller.AddParameter("Turn", AnimatorControllerParameterType.Bool);
             controller.AddParameter("Sit", AnimatorControllerParameterType.Bool);
             controller.AddParameter("TapVariant", AnimatorControllerParameterType.Int);
             controller.AddParameter("Tap", AnimatorControllerParameterType.Trigger);
+            controller.AddParameter("Blink", AnimatorControllerParameterType.Trigger);
             controller.AddParameter("Upgrade", AnimatorControllerParameterType.Trigger);
 
             AnimatorControllerLayer layer = controller.layers[0];
@@ -701,9 +703,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             AnimatorState idle = AddState(machine, clips["FatMan_Idle_Breathe"]);
             AnimatorState shift = AddState(machine, clips["FatMan_Idle_ShiftWeight"]);
-            // Random blink timing is driven by Patch4FaceController. Keep the
-            // authored clip referenced by the controller for contract review.
-            AddState(machine, clips["FatMan_Blink_Random"]);
+            AnimatorState blink = AddState(machine, clips["FatMan_Blink_Random"]);
             AnimatorState look = AddState(machine, clips["FatMan_LookAround"]);
             AnimatorState tap1 = AddState(machine, clips["FatMan_TapReact_01"]);
             AnimatorState tap2 = AddState(machine, clips["FatMan_TapReact_02"]);
@@ -719,30 +719,28 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "Speed",
                 0.1f,
                 AnimatorConditionMode.Greater,
-                0.15f);
-            AddFloatReturn(walk, idle, "Speed", 0.1f);
-            AddBoolTransition(idle, look, "Look", true, 0.12f);
-            AddBoolTransition(look, idle, "Look", false, 0.12f);
-            AddBoolTransition(idle, sit, "Sit", true, 0.16f);
-            AddBoolTransition(sit, idle, "Sit", false, 0.16f);
+                0.06f);
+            AddFloatReturn(walk, idle, "Speed", 0.1f, 0.06f);
+            AddBoolTransition(idle, look, "Look", true, 0.06f);
+            AddBoolTransition(look, idle, "Look", false, 0.06f);
+            AddBoolTransition(idle, shift, "Shift", true, 0.06f);
+            AddBoolTransition(shift, idle, "Shift", false, 0.06f);
+            AddBoolTransition(idle, sit, "Sit", true, 0.08f);
+            AddBoolTransition(sit, idle, "Sit", false, 0.08f);
 
-            AnimatorStateTransition shiftTransition = idle.AddTransition(shift);
-            shiftTransition.hasExitTime = true;
-            shiftTransition.exitTime = 1f;
-            shiftTransition.duration = 0.2f;
-            AnimatorStateTransition shiftReturn = shift.AddTransition(idle);
-            shiftReturn.hasExitTime = true;
-            shiftReturn.exitTime = 1f;
-            shiftReturn.duration = 0.2f;
-
-            AddAnyBool(machine, turn, "Turn");
+            // One-shot gameplay reactions take priority over a facing pulse.
+            // Blink is deliberately last because the runtime only schedules it
+            // during free idle and a simultaneous tap/upgrade must win.
+            AddAnyTrigger(machine, upgrade, "Upgrade");
             AddAnyTap(machine, tap1, 1);
             AddAnyTap(machine, tap2, 2);
-            AddAnyTrigger(machine, upgrade, "Upgrade");
-            AddExitToIdle(turn, idle, 0.12f);
-            AddExitToIdle(tap1, idle, 0.1f);
-            AddExitToIdle(tap2, idle, 0.1f);
-            AddExitToIdle(upgrade, idle, 0.12f);
+            AddAnyBool(machine, turn, "Turn");
+            AddAnyTrigger(machine, blink, "Blink", false);
+            AddExitToContext(turn, idle, walk, shift, look, sit);
+            AddExitToContext(blink, idle, walk, shift, look, sit);
+            AddExitToContext(tap1, idle, walk, shift, look, sit);
+            AddExitToContext(tap2, idle, walk, shift, look, sit);
+            AddExitToContext(upgrade, idle, walk, shift, look, sit);
 
             EditorUtility.SetDirty(controller);
         }
@@ -753,6 +751,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             AnimatorState state = machine.AddState(clip.name);
             state.motion = clip;
+            state.speed = Mathf.Max(
+                0.01f,
+                clip.length /
+                Mathf.Max(
+                    0.05f,
+                    Patch4V23FullFramePresentation
+                        .ResolvePlaybackDuration(clip.name)));
             state.writeDefaultValues = false;
             return state;
         }
@@ -766,6 +771,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             AnimatorStateTransition transition = from.AddTransition(to);
             transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
             transition.duration = duration;
             transition.AddCondition(
                 value ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot,
@@ -777,11 +783,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             AnimatorState from,
             AnimatorState to,
             string parameter,
-            float threshold)
+            float threshold,
+            float duration)
         {
             AnimatorStateTransition transition = from.AddTransition(to);
             transition.hasExitTime = false;
-            transition.duration = 0.15f;
+            transition.hasFixedDuration = true;
+            transition.duration = duration;
             transition.AddCondition(
                 AnimatorConditionMode.Less,
                 threshold,
@@ -798,6 +806,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             AnimatorStateTransition transition = from.AddTransition(to);
             transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
             transition.duration = duration;
             transition.AddCondition(
                 condition,
@@ -812,6 +821,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             AnimatorStateTransition transition = machine.AddAnyStateTransition(state);
             transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
             transition.duration = 0.08f;
             transition.canTransitionToSelf = false;
             transition.AddCondition(AnimatorConditionMode.If, 0f, parameter);
@@ -824,6 +834,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             AnimatorStateTransition transition = machine.AddAnyStateTransition(state);
             transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
             transition.duration = 0.05f;
             transition.canTransitionToSelf = true;
             transition.AddCondition(AnimatorConditionMode.If, 0f, "Tap");
@@ -836,13 +847,66 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static void AddAnyTrigger(
             AnimatorStateMachine machine,
             AnimatorState state,
-            string trigger)
+            string trigger,
+            bool canTransitionToSelf = true)
         {
             AnimatorStateTransition transition = machine.AddAnyStateTransition(state);
             transition.hasExitTime = false;
+            transition.hasFixedDuration = true;
             transition.duration = 0.05f;
-            transition.canTransitionToSelf = true;
+            transition.canTransitionToSelf = canTransitionToSelf;
             transition.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+        }
+
+        private static void AddExitToContext(
+            AnimatorState from,
+            AnimatorState idle,
+            AnimatorState walk,
+            AnimatorState shift,
+            AnimatorState look,
+            AnimatorState sit)
+        {
+            AddConditionalExit(
+                from,
+                walk,
+                "Speed",
+                AnimatorConditionMode.Greater,
+                0.15f);
+            AddConditionalExit(
+                from,
+                sit,
+                "Sit",
+                AnimatorConditionMode.If,
+                0f);
+            AddConditionalExit(
+                from,
+                look,
+                "Look",
+                AnimatorConditionMode.If,
+                0f);
+            AddConditionalExit(
+                from,
+                shift,
+                "Shift",
+                AnimatorConditionMode.If,
+                0f);
+            AddExitToIdle(from, idle, 0.06f);
+        }
+
+        private static void AddConditionalExit(
+            AnimatorState from,
+            AnimatorState destination,
+            string parameter,
+            AnimatorConditionMode mode,
+            float threshold)
+        {
+            AnimatorStateTransition transition =
+                from.AddTransition(destination);
+            transition.hasExitTime = true;
+            transition.exitTime = 0.94f;
+            transition.hasFixedDuration = true;
+            transition.duration = 0.06f;
+            transition.AddCondition(mode, threshold, parameter);
         }
 
         private static void AddExitToIdle(
@@ -852,7 +916,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             AnimatorStateTransition transition = from.AddTransition(idle);
             transition.hasExitTime = true;
-            transition.exitTime = 0.95f;
+            transition.exitTime = 0.94f;
+            transition.hasFixedDuration = true;
             transition.duration = duration;
         }
 

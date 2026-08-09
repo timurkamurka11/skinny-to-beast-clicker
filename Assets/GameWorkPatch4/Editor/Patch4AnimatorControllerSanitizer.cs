@@ -85,7 +85,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         0.1f,
                         "Speed");
                     transition.hasExitTime = false;
-                    transition.duration = 0.15f;
+                    transition.hasFixedDuration = true;
+                    transition.duration = 0.06f;
                     EditorUtility.SetDirty(transition);
                 }
 

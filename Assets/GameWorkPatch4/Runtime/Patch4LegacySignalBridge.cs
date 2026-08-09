@@ -1,3 +1,4 @@
+using SkinnyToBeast.Economy;
 using SkinnyToBeast.Gameplay;
 using UnityEngine;
 
@@ -14,16 +15,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
     {
         [SerializeField] private CharacterRigController legacyRig;
         [SerializeField] private CharacterSkinController legacySkin;
+        [SerializeField] private UpgradeManager upgradeManager;
         [SerializeField] private Patch4CharacterStateMachine stateMachine;
         [SerializeField] private Patch4FaceController faceController;
         [SerializeField, Min(0.05f)] private float turnPulseDuration = 0.24f;
         [SerializeField, Min(0.05f)] private float mouthReactionDuration = 0.42f;
+        [SerializeField, Min(0.5f)] private float minimumBlinkDelay = 2.8f;
+        [SerializeField, Min(0.5f)] private float maximumBlinkDelay = 5.4f;
 
         private int observedTapCount;
         private int observedStage = -1;
         private CharacterFacing observedFacing;
         private float turningUntil;
         private float mouthResetAt;
+        private float nextBlinkAt;
+        private float nextUpgradeManagerLookupAt;
+        private float lastUpgradeReactionAt = -10f;
+        private bool upgradeManagerSubscribed;
         private bool initialized;
 
         private void Reset()
@@ -34,7 +42,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void OnEnable()
         {
+            BindUpgradeManager(upgradeManager);
             InitializeObservation();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeUpgradeManager();
         }
 
         public void BindLegacy(
@@ -44,6 +58,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             legacyRig = rig;
             legacySkin = skin;
             initialized = false;
+            TryResolveUpgradeManager(true);
             InitializeObservation();
         }
 
@@ -59,9 +74,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 InitializeObservation();
             }
 
+            TryResolveUpgradeManager(false);
             MirrorTapSignals();
             MirrorStageSignals();
             MirrorMovementAndRoutine();
+            MirrorIdleBlink();
             ResetMouthWhenDue();
         }
 
@@ -78,6 +95,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 observedStage = legacySkin.CurrentArtIndex;
             }
 
+            ScheduleNextBlink();
             initialized = true;
         }
 
@@ -125,7 +143,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             observedStage = currentStage;
-            stateMachine.PlayUpgradeReaction();
+            TriggerUpgradeReaction();
             if (faceController != null)
             {
                 faceController.SetMouth(Patch4FaceController.MouthPose.Smile);
@@ -135,15 +153,27 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void MirrorMovementAndRoutine()
         {
-            stateMachine.SetWalkSpeed(legacyRig.IsMoving ? 1f : 0f);
-
+            bool moving = legacyRig.IsMoving;
             CharacterRoutineAction action = legacyRig.ActiveAction;
-            stateMachine.SetLooking(action == CharacterRoutineAction.LookAround);
-            stateMachine.SetSittingOrLeaning(
+            bool sitting = !moving && (
                 action == CharacterRoutineAction.Sit ||
                 action == CharacterRoutineAction.SitDown ||
                 action == CharacterRoutineAction.SitLoop ||
                 action == CharacterRoutineAction.StandUp);
+            bool looking =
+                !moving &&
+                !sitting &&
+                action == CharacterRoutineAction.LookAround;
+            bool shifting =
+                !moving &&
+                !sitting &&
+                !looking &&
+                action == CharacterRoutineAction.ShiftWeight;
+
+            stateMachine.SetWalkSpeed(moving ? 1f : 0f);
+            stateMachine.SetLooking(looking);
+            stateMachine.SetShiftingWeight(shifting);
+            stateMachine.SetSittingOrLeaning(sitting);
 
             CharacterFacing currentFacing = legacyRig.Facing;
             if (currentFacing != observedFacing)
@@ -152,7 +182,101 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 turningUntil = Time.unscaledTime + turnPulseDuration;
             }
 
-            stateMachine.SetTurning(Time.unscaledTime < turningUntil);
+            stateMachine.SetTurning(
+                !moving &&
+                !sitting &&
+                legacyRig.ActiveActionRemaining <= 0f &&
+                Time.unscaledTime < turningUntil);
+        }
+
+        private void MirrorIdleBlink()
+        {
+            if (Time.unscaledTime < nextBlinkAt || legacyRig == null)
+            {
+                return;
+            }
+
+            if (legacyRig.IsMoving ||
+                legacyRig.ActiveAction != CharacterRoutineAction.None ||
+                legacyRig.ActiveActionRemaining > 0f ||
+                Time.unscaledTime < turningUntil)
+            {
+                nextBlinkAt = Time.unscaledTime + 0.25f;
+                return;
+            }
+
+            stateMachine.PlayBlink();
+            ScheduleNextBlink();
+        }
+
+        private void ScheduleNextBlink()
+        {
+            float minimum = Mathf.Max(0.5f, minimumBlinkDelay);
+            float maximum = Mathf.Max(minimum, maximumBlinkDelay);
+            nextBlinkAt = Time.unscaledTime + Random.Range(minimum, maximum);
+        }
+
+        private void TryResolveUpgradeManager(bool immediate)
+        {
+            if (upgradeManager != null)
+            {
+                BindUpgradeManager(upgradeManager);
+                return;
+            }
+
+            if (!immediate && Time.unscaledTime < nextUpgradeManagerLookupAt)
+            {
+                return;
+            }
+
+            nextUpgradeManagerLookupAt = Time.unscaledTime + 1f;
+            BindUpgradeManager(
+                Object.FindFirstObjectByType<UpgradeManager>());
+        }
+
+        private void BindUpgradeManager(UpgradeManager target)
+        {
+            if (upgradeManager == target && upgradeManagerSubscribed)
+            {
+                return;
+            }
+
+            UnsubscribeUpgradeManager();
+            upgradeManager = target;
+            if (upgradeManager != null && isActiveAndEnabled)
+            {
+                upgradeManager.UpgradesChanged += OnUpgradePurchased;
+                upgradeManagerSubscribed = true;
+            }
+        }
+
+        private void UnsubscribeUpgradeManager()
+        {
+            if (upgradeManager != null && upgradeManagerSubscribed)
+            {
+                upgradeManager.UpgradesChanged -= OnUpgradePurchased;
+            }
+
+            upgradeManagerSubscribed = false;
+        }
+
+        private void OnUpgradePurchased()
+        {
+            TriggerUpgradeReaction();
+        }
+
+        private void TriggerUpgradeReaction()
+        {
+            // A purchase and a body-art stage change can arrive in the same
+            // frame. They represent one visible celebration, not two restarts.
+            if (stateMachine == null ||
+                Time.unscaledTime - lastUpgradeReactionAt < 0.25f)
+            {
+                return;
+            }
+
+            lastUpgradeReactionAt = Time.unscaledTime;
+            stateMachine.PlayUpgradeReaction();
         }
 
         private void ResetMouthWhenDue()

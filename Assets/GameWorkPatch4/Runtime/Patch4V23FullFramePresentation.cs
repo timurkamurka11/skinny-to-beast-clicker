@@ -714,16 +714,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                             layerName + "." + candidate))
                 {
                     clipName = candidate;
-                    float targetDuration = Mathf.Max(
-                        0.05f,
-                        ResolvePlaybackDuration(candidate));
-                    float sourceDuration = Mathf.Max(
-                        0.05f,
-                        state.length);
-                    float targetPhase =
-                        state.normalizedTime *
-                        sourceDuration /
-                        targetDuration;
+                    // The generated Animator state already scales its source
+                    // clip to ResolvePlaybackDuration. Multiplying by the
+                    // source/target ratio again made the complete-frame strip
+                    // finish early and hold its final frame, which read as a
+                    // hitch between otherwise valid actions.
+                    float targetPhase = state.normalizedTime;
                     normalizedTime = state.loop
                         ? targetPhase
                         : Mathf.Clamp(targetPhase, 0f, 0.9999f);
@@ -888,7 +884,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 case "FatMan_Turn":
                     return 0.933f;
                 case "FatMan_UpgradeReact":
-                    return 1.135f;
+                    // The V24 correction is already authored at neutral-body
+                    // scale. The older 1.135 compensation over-expanded it and
+                    // caused the fresh room report to reject the silhouette.
+                    return 1f;
                 default:
                     return 1f;
             }
