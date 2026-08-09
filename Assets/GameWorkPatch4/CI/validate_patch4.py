@@ -787,6 +787,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AssertV23FullFrameSheetsAreImportable()",
             "FatMan_WalkRight_V23.png",
             "AssertV24UpgradeCorrectionIsImportable()",
+            "GetRawConstantValue()",
             "AssertWholeFramePlaybackCadence()",
             "layer.name",
             "machine.name",
@@ -796,6 +797,16 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     errors,
                     "EditMode gait regression coverage is missing: " + snippet,
                 )
+        if re.search(
+            r"SkinnyToBeast\.Gameplay\.Patch4\.Editor\s*\.\s*"
+            r"Patch4PrefabBuilder",
+            contract_tests,
+        ):
+            fail(
+                errors,
+                "EditMode tests must resolve Patch4PrefabBuilder through "
+                "reflection instead of crossing the isolated asmdef boundary",
+            )
 
     room_review = read_text(
         root,

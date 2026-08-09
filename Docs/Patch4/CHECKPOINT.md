@@ -6,6 +6,16 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AB compile hotfix
+
+The first P4.0-AB publish (`caa9e98`) compiled the new V24 path assertion as a
+direct reference from the isolated EditMode test assembly to an Editor type.
+Unity `6000.3.19f1` reported deterministic `CS0234` at
+`Patch4ContractEditModeTests.cs:544`. The assertion was not removed: it now
+loads `Patch4PrefabBuilder` through `RequireType`, reads the public const field
+with reflection, and still proves that the corrected V24 upgrade sheet is the
+builder source. No runtime/art behavior or protected scope changed.
+
 ## User goal
 
 Replace the Patch 3.5 procedural/basic-shape character with an original hand-drawn overweight adult man, a completely new named skeleton, separated facial artwork, soft-body deformation and new animations.

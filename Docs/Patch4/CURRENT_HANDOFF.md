@@ -11,6 +11,21 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Latest compile hotfix
+
+- The first P4.0-AB publish (`caa9e98`) added a direct compile-time reference
+  from `Patch4.EditModeTests` to `Patch4PrefabBuilder` in the separate Editor
+  assembly.
+- Unity `6000.3.19f1` correctly rejected that reference with `CS0234` at
+  `Patch4ContractEditModeTests.cs:544` because the test asmdef deliberately has
+  no Editor assembly reference.
+- The V24 path assertion remains active, but now resolves
+  `Patch4PrefabBuilder.V23UpgradeSheetPath` through the same `RequireType` /
+  reflection pattern already used by the surrounding Editor contract tests.
+- No runtime, scene, menu, audio, settings or art behavior changed in this
+  hotfix. The V24 automatic continuation token remains current and should run
+  after the corrected assembly compiles.
+
 ## User workflow preference
 
 The assistant edits and commits Patch 4 files directly to GitHub.

@@ -539,10 +539,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 TextureImporterCompression.Uncompressed,
                 importer.textureCompression,
                 path);
+            Type prefabBuilder = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4PrefabBuilder");
+            FieldInfo upgradeSheetPath = prefabBuilder.GetField(
+                "V23UpgradeSheetPath",
+                BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(
+                upgradeSheetPath,
+                "The prefab builder upgrade-sheet path is missing.");
             Assert.AreEqual(
                 path,
-                SkinnyToBeast.Gameplay.Patch4.Editor
-                    .Patch4PrefabBuilder.V23UpgradeSheetPath,
+                (string)upgradeSheetPath.GetRawConstantValue(),
                 "The prefab builder must bind the corrected full-body " +
                 "upgrade sheet rather than the cropped V23 source.");
         }
