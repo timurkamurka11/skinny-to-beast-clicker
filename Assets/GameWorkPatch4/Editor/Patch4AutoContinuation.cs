@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "safe-room-cadence-direction-v29";
+            "frame-observed-gameplay-routing-v30";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v29.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v30.gameplay.";
 
         private static int idleFrames;
 
@@ -57,7 +57,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V29 safe-room gameplay preview pass started: " +
+                    "Patch 4 V30 frame-observed gameplay route pass started: " +
+                    "the actual-room driver now confirms Animator action " +
+                    "entry after real player updates, retains a bounded " +
+                    "deadline and records current/next state diagnostics " +
+                    "instead of failing after one long Editor frame. A " +
+                    "PlayMode regression also routes Idle to Walk through " +
+                    "Patch4CharacterStateMachine before any direct state " +
+                    "sampling. The V29 safe-room behavior remains active: " +
                     "the attachable Editor-only driver now projects the five " +
                     "legacy room signals into a short collision-safe central " +
                     "standing corridor, mirrors the right-authored Walk from " +

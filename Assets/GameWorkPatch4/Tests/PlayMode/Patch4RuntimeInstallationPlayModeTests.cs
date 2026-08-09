@@ -471,6 +471,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             int stateHash = Animator.StringToHash(statePath);
             int idleStateHash = Animator.StringToHash(
                 layerName + ".FatMan_Idle_Breathe");
+            Type stateMachineType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4CharacterStateMachine");
+            Component stateMachine =
+                patchInstance.GetComponent(stateMachineType);
+            Assert.NotNull(
+                stateMachine,
+                "The generated Patch 4 prefab has no gameplay state bridge.");
+            MethodInfo setReviewActive = stateMachineType.GetMethod(
+                "SetLockedReviewActive",
+                BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo setWalkSpeed = stateMachineType.GetMethod(
+                "SetWalkSpeed",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(setReviewActive);
+            Assert.NotNull(setWalkSpeed);
 
             try
             {
@@ -480,6 +496,32 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.IsTrue(
                     animator.HasState(0, stateHash),
                     "The runtime controller does not expose " + statePath + ".");
+
+                // Exercise the same public gameplay-action route used by the
+                // actual-room review. Direct Animator.Play alone cannot catch
+                // a broken Idle -> Walk transition or a disabled review API.
+                setReviewActive.Invoke(stateMachine, new object[] { true });
+                animator.SetBool("Look", false);
+                animator.SetBool("Turn", false);
+                animator.SetBool("Sit", false);
+                animator.SetFloat("Speed", 0f);
+                animator.speed = 1f;
+                animator.Play(idleStateHash, 0, 0f);
+                animator.Update(0f);
+                setWalkSpeed.Invoke(stateMachine, new object[] { 1f });
+                for (int frame = 0; frame < 12; frame++)
+                {
+                    animator.Update(0.02f);
+                }
+
+                Assert.AreEqual(
+                    stateHash,
+                    animator.GetCurrentAnimatorStateInfo(0).fullPathHash,
+                    "SetWalkSpeed must route Idle into the full-path Walk " +
+                    "state before the room review begins sampling.");
+                Assert.IsFalse(
+                    animator.IsInTransition(0),
+                    "The gameplay-routed Walk transition did not settle.");
 
                 animator.SetBool("Look", false);
                 animator.SetBool("Turn", false);
@@ -543,6 +585,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             }
             finally
             {
+                setWalkSpeed.Invoke(stateMachine, new object[] { 0f });
+                setReviewActive.Invoke(stateMachine, new object[] { false });
                 animator.SetFloat("Speed", 0f);
                 animator.speed = 0f;
                 if (animator.HasState(0, idleStateHash))

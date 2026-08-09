@@ -11,7 +11,47 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
-## Current P4.0-AG / V29 safe-room cadence and facing correction
+## Current P4.0-AH / V30 frame-observed gameplay routing hotfix
+
+The user's first V29 automatic run reached the actual-room live preview but
+stopped before any evidence frame was captured. Unity reported the exact first
+failure:
+
+```text
+Gameplay action did not enter Base Layer.FatMan_Walk_InRoom.
+The uninterrupted real-time gameplay preview did not complete every
+calibrated full-frame state.
+```
+
+The empty contact-sheet cells and `InitTestScene / No cameras rendering` view
+are downstream symptoms of that early exit; they are not evidence that the
+committed Patch 4 art or gameplay room was deleted. Source inspection found a
+frame-timing hole in `RouteGameplayActionToState`: its `0.4 s` real-time loop
+could expire during one heavy Editor frame and return without observing the
+Animator update which occurred during that frame. Its reset also assumed that
+`Animator.Update(0)` had already cleared the preceding one-shot transition.
+
+V30 corrects the review contract without forcing a state or weakening the
+gate:
+
+- the driver resets to Idle and observes a real player update before routing
+  the next public gameplay action;
+- the requested state is checked before the real-time deadline, with minimum
+  and maximum frame bounds plus a `1.25 s` ceiling;
+- a failure now records expected/current/next hashes, transition state,
+  `Speed` and `Patch4CharacterStateMachine.IsReady` instead of returning the
+  ambiguous one-line error;
+- the existing PlayMode installation test now proves the real
+  `SetWalkSpeed(1) -> Idle -> Walk` transition before it uses direct
+  `Animator.Play` for pose sampling;
+- automatic continuation advances to
+  `frame-observed-gameplay-routing-v30` and reruns the complete locked flow.
+
+V29's faster cadence, adjacent Idle ping-pong, reversible safe corridor and
+left/right Walk mirroring remain intact. V30 changes no artwork, menu, scene,
+video, music, audio, settings, readiness or Patch 3.5 rollback behavior.
+
+## Previous P4.0-AG / V29 safe-room cadence and facing correction
 
 The user's first successful V28 normal-game evidence proves that Patch 4 now
 binds and renders in the interactive room. It also rejects three visible
@@ -1217,7 +1257,7 @@ old limb pieces, vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Next automatic V28 run
+## Next automatic V30 run
 
 Run only:
 
@@ -1226,12 +1266,13 @@ git pull origin patch-4.0
 ```
 
 Leave Unity open. Do not click Dashboard, Test Runner, Play or any review
-button. The new V28 token makes `Patch4AutoContinuation` rerun; it will rebuild
-the generated controller and
-prefab, claim exclusive Test Runner PlayMode ownership, run safety plus
-`4/4 + 4/4`, then start the separate locked room review. After that review
-passes, Unity will automatically enter one more normal gameplay session and
-leave Play Mode running.
+button. The V30 token makes `Patch4AutoContinuation` rebuild the generated
+controller and prefab, claim exclusive Test Runner PlayMode ownership, run
+safety plus `4/4 + 4/4`, and then start the separate locked room review. The
+review must prove `SetWalkSpeed -> Base Layer.FatMan_Walk_InRoom` through real
+Animator updates before capturing any frame. After that review passes, Unity
+will automatically enter one more normal gameplay session and leave Play Mode
+running.
 The first live pass must visibly show the event-owned sequence: idle breathing,
 weight shift, blink, look, both taps, a right-facing travelling walk, turn,
 sit/lean and upgrade. The frozen report must contain
@@ -1240,16 +1281,17 @@ scale-expansion failure. In the final Game view, use the normal dumbbell and
 upgrade controls and watch the existing room routine. Patch 4 must remain
 locked throughout.
 
-## Work after the V28 interactive gameplay preview
+## Work after the V30 interactive gameplay preview
 
-- Observe the actual visible footprint at the current `Training`, `Center`,
-  `Sofa`, `Window` and `Mirror` anchors; keep activation locked.
-- Record which route or pose overlaps the sofa, dumbbell, chair/bench, mirror,
-  window or room edge. The technical review's artificial runway is not a
-  production navigation path.
-- Decide from that evidence whether Patch 4 should use only a small central
-  standing zone with more standing actions, or a reduced set of collision-safe
-  room anchors.
+- Observe the actual visible footprint while the five existing routine signals
+  are reversibly projected into the V29 central corridor; keep activation
+  locked.
+- Reject any route or pose that overlaps the sofa, dumbbell rack, laundry
+  basket or room edge. The technical review's artificial runway is not the
+  normal-game corridor.
+- If both directions remain clear, retain the small central standing zone and
+  standing-action emphasis instead of restoring the unsafe sofa/window/mirror
+  destinations for Patch 4.
 - Confirm that taps and purchases interrupt/return to the correct real routine
   action and that the live sequence does not hold its final frame or flash
   through Idle after a one-shot.

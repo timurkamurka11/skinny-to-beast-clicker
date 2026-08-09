@@ -170,6 +170,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumWalkTravelWidthRatio = 0.35f;
         private const int LiveGameplayPreviewPassCount = 2;
         private const int MinimumLivePreviewFrameAdvances = 70;
+        private const float GameplayActionRouteTimeoutSeconds = 1.25f;
+        private const int MinimumGameplayActionRouteObservationFrames = 4;
+        private const int MaximumGameplayActionRouteObservationFrames = 120;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -210,6 +213,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private readonly float[] walkPhaseRootScreenX =
             new float[WalkPhaseCount];
         private string currentClip = string.Empty;
+        private string gameplayActionRoutingFailure = string.Empty;
         private bool started;
         private bool logCaptureRegistered;
 
@@ -531,8 +535,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
                         report.gameplayActionRoutingPassed = false;
                         report.error = AppendError(
                             report.error,
-                            "Gameplay action did not enter " +
-                            ResolveAnimatorStatePath(clipName) + ".");
+                            string.IsNullOrWhiteSpace(
+                                gameplayActionRoutingFailure)
+                                ? "Gameplay action did not enter " +
+                                  ResolveAnimatorStatePath(clipName) + "."
+                                : gameplayActionRoutingFailure);
                         yield break;
                     }
 
@@ -641,24 +648,52 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int expectedStateHash,
             Action<bool> completed)
         {
+            gameplayActionRoutingFailure = string.Empty;
             ClearGameplayActionReviewSignals();
             animator.speed = 1f;
 
             int idleStateHash = Animator.StringToHash(
                 ResolveAnimatorStatePath("FatMan_Idle_Breathe"));
-            if (!animator.HasState(0, idleStateHash) ||
-                !PlayVerifiedAnimatorState(
-                    idleStateHash,
-                    0f,
-                    out _))
+            if (!animator.HasState(0, idleStateHash))
             {
+                gameplayActionRoutingFailure =
+                    "Gameplay action reset could not resolve " +
+                    ResolveAnimatorStatePath("FatMan_Idle_Breathe") + ".";
+                completed(false);
+                yield break;
+            }
+
+            // A short one-shot can still be inside its fixed-duration return
+            // transition when the next gameplay action is requested. Reset to
+            // Idle, then observe the Animator after at least one real player
+            // update instead of assuming Update(0) cleared the transition.
+            animator.Play(idleStateHash, 0, 0f);
+            animator.Update(0f);
+            yield return null;
+            if (!VerifyCurrentAnimatorState(idleStateHash, out _))
+            {
+                animator.Play(idleStateHash, 0, 0f);
+                animator.Update(0f);
+                yield return null;
+            }
+
+            if (!VerifyCurrentAnimatorState(idleStateHash, out _))
+            {
+                gameplayActionRoutingFailure =
+                    DescribeGameplayActionRoutingFailure(
+                        "Gameplay action reset did not settle in Idle",
+                        idleStateHash,
+                        2);
                 completed(false);
                 yield break;
             }
 
             RequestGameplayActionForClip(clipName);
-            float timeoutAt = Time.realtimeSinceStartup + 0.4f;
-            while (Time.realtimeSinceStartup < timeoutAt)
+            float timeoutAt = Time.realtimeSinceStartup +
+                GameplayActionRouteTimeoutSeconds;
+            int observedFrames = 0;
+            while (observedFrames <
+                   MaximumGameplayActionRouteObservationFrames)
             {
                 if (VerifyCurrentAnimatorState(
                         expectedStateHash,
@@ -679,10 +714,50 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     yield break;
                 }
 
+                // Check the state before checking the real-time deadline. A
+                // busy Editor frame may take longer than the entire timeout;
+                // the old loop then exited without observing the state change
+                // that occurred during that frame. Requiring a few actual
+                // player updates keeps the route deterministic without ever
+                // forcing the destination state directly.
+                if (observedFrames >=
+                        MinimumGameplayActionRouteObservationFrames &&
+                    Time.realtimeSinceStartup >= timeoutAt)
+                {
+                    break;
+                }
+
+                observedFrames++;
                 yield return null;
             }
 
+            gameplayActionRoutingFailure =
+                DescribeGameplayActionRoutingFailure(
+                    "Gameplay action did not enter " +
+                    ResolveAnimatorStatePath(clipName),
+                    expectedStateHash,
+                    observedFrames);
             completed(false);
+        }
+
+        private string DescribeGameplayActionRoutingFailure(
+            string prefix,
+            int expectedStateHash,
+            int observedFrames)
+        {
+            AnimatorStateInfo current =
+                animator.GetCurrentAnimatorStateInfo(0);
+            bool inTransition = animator.IsInTransition(0);
+            int nextHash = inTransition
+                ? animator.GetNextAnimatorStateInfo(0).fullPathHash
+                : 0;
+            return prefix + " after " + observedFrames +
+                " observed frame(s): expected hash " + expectedStateHash +
+                ", current hash " + current.fullPathHash +
+                ", transition " + inTransition +
+                ", next hash " + nextHash +
+                ", Speed " + animator.GetFloat("Speed").ToString("0.000") +
+                ", review API ready " + stateMachine.IsReady + ".";
         }
 
         private void RequestGameplayActionForClip(string clipName)

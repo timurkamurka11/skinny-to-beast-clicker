@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"safe-room-cadence-direction-v29"',
+            '"frame-observed-gameplay-routing-v30"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -670,6 +670,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "gameplayActionRoutingPassed",
             "RouteGameplayActionToState(",
             "RequestGameplayActionForClip(",
+            "MinimumGameplayActionRouteObservationFrames",
+            "MaximumGameplayActionRouteObservationFrames",
+            "DescribeGameplayActionRoutingFailure(",
             "stateMachine.SetLockedReviewActive(true)",
         ):
             if snippet not in review_driver:
@@ -1025,6 +1028,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "MinimumV23AdjacentFrameDifference",
             "MinimumV23FaceDifference",
             "animator.Play(stateHash, 0, 0.5f)",
+            'GetMethod(\n                "SetWalkSpeed"',
+            "setWalkSpeed.Invoke(stateMachine, new object[] { 1f })",
+            "animator.IsInTransition(0)",
             "TryMeasureGaitArticulation",
             "Patch4V23FullFramePresentation",
             "GetBoolProperty(v23Presentation, \"IsReady\")",
@@ -1761,6 +1767,7 @@ def main() -> int:
     print("- V26 gives Test Runner exclusive PlayMode ownership after legacy Animator preflight")
     print("- V29 keeps Patch 4 in a short central standing corridor and mirrors left/right travel")
     print("- V29 accelerates whole-frame cadence and closes the Idle loop through adjacent frames")
+    print("- V30 observes gameplay-routed Animator entry across real Editor frames")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")
