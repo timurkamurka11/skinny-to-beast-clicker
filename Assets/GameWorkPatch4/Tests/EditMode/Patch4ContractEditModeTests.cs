@@ -865,7 +865,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
 
             string driverSource = File.ReadAllText(Path.Combine(
                 projectRoot,
-                "Assets/GameWorkPatch4/Editor/" +
+                "Assets/GameWorkPatch4/Runtime/" +
                 "Patch4InteractiveGameplayPreviewDriver.cs"));
             foreach (string snippet in new[]
             {
@@ -881,6 +881,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     driverSource,
                     "Locked visual override is missing: " + snippet);
             }
+
+            StringAssert.StartsWith(
+                "#if UNITY_EDITOR",
+                driverSource.TrimStart(),
+                "The attachable runtime-assembly driver must remain excluded " +
+                "from player builds.");
+            StringAssert.Contains(
+                "if (driver == null)",
+                previewSource,
+                "Interactive preview must fail cleanly if Unity rejects the " +
+                "transient driver component.");
 
             StringAssert.DoesNotContain(
                 "SetPatch4Enabled(true)",

@@ -6,7 +6,26 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
-## Latest P4.0-AE / V27 locked normal-game preview checkpoint
+## Latest P4.0-AF / V28 attachable interactive-preview checkpoint
+
+The first V27 normal-game session failed before Patch 4 could bind. Unity's
+first Console error states that
+`Patch4InteractiveGameplayPreviewDriver` could not be attached because its
+source lived under an `Editor` folder. The subsequent null exception at the
+`driver.Begin` call was a cascade, not a separate rig or artwork failure. The
+old Patch 3.5 character therefore remained visible.
+
+V28 moves that transient `MonoBehaviour` into the normal Patch 4 runtime
+assembly path while wrapping the complete source in `#if UNITY_EDITOR`. This
+keeps it attachable during Editor Play Mode and absent from player builds. The
+orchestrator now validates the `AddComponent` result before calling `Begin`,
+and both EditMode/static contracts reject any future return to an Editor-only
+folder. The continuation token is now
+`interactive-preview-assembly-boundary-v28`, so the user's next pull reruns the
+automatic pipeline. Readiness, anchors and protected menu/video/audio/settings
+scope are unchanged.
+
+## Previous P4.0-AE / V27 locked normal-game preview checkpoint
 
 The user's fresh V26 Unity result now confirms the ownership correction: the
 automatic tests completed, the separate actual-room review ran without a
@@ -1289,11 +1308,12 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull P4.0-AE/V27 into Unity `6000.3.19f1` with only
+1. Pull P4.0-AF/V28 into Unity `6000.3.19f1` with only
    `git pull origin patch-4.0` and leave Unity open.
 2. Do not click Dashboard, Test Runner, Play or a review button.
-3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind the V23 sheets
-   plus the corrected V24 upgrade sheet, claim Test Runner PlayMode ownership,
+3. Let the new V28 continuation token rerun `Patch4AutoContinuation`, rebuild
+   the locked prefab, bind the V23 sheets plus the corrected V24 upgrade sheet,
+   claim Test Runner PlayMode ownership,
    run safety/tests and enter the technical actual-room review after Test
    Runner is quiescent.
 4. Watch the automatically focused Game view before the report opens. It must
@@ -1383,8 +1403,10 @@ Detailed verification instructions:
   and obsolete upgrade scale. P4.0-AC/V25 corrected those issues, but its first
   automatic Unity run was aborted when an Editor asset transaction stopped
   Test Runner PlayMode. P4.0-AD/V26 now owns that lifecycle and its fresh Unity
-  room review passed. P4.0-AE/V27 adds the still-pending normal-game interactive
-  observation; none of these technical passes approves production art.
+  room review passed. P4.0-AE/V27 attempted the normal-game observation but its
+  transient driver was rejected because it lived under an Editor-only folder;
+  P4.0-AF/V28 corrects that assembly boundary and is pending the next Unity
+  pull. None of these technical passes approves production art.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

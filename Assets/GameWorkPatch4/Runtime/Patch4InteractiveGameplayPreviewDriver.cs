@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using SkinnyToBeast.Gameplay;
 using UnityEngine;
 
@@ -193,3 +194,4 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         }
     }
 }
+#endif

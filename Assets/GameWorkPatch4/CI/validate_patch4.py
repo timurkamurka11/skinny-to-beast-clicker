@@ -58,7 +58,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
-    "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreviewDriver.cs",
+    "Assets/GameWorkPatch4/Runtime/Patch4InteractiveGameplayPreviewDriver.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationLibraryBuilder.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimatorControllerSanitizer.cs",
     "Assets/GameWorkPatch4/Editor/Patch4EditorSmokeValidator.cs",
@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"locked-interactive-gameplay-preview-v27"',
+            '"interactive-preview-assembly-boundary-v28"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -335,7 +335,7 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
         "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
         "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
-        "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreviewDriver.cs",
+        "Assets/GameWorkPatch4/Runtime/Patch4InteractiveGameplayPreviewDriver.cs",
         "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
     )
     dangerous = re.compile(r"productionArtApproved[^\n]{0,100}(?:=|boolValue\s*=)\s*true", re.IGNORECASE)
@@ -881,7 +881,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     interactive_driver = read_text(
         root,
-        "Assets/GameWorkPatch4/Editor/"
+        "Assets/GameWorkPatch4/Runtime/"
         "Patch4InteractiveGameplayPreviewDriver.cs",
         errors,
     )
@@ -895,6 +895,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "running-interactive-preview",
             "Play Mode will remain on until you stop it",
             "Patch4AnimationRoomReviewWindow.Open()",
+            "if (driver == null)",
         ):
             if snippet not in interactive_preview:
                 fail(
@@ -908,6 +909,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "visibilityGuard.enabled = false",
             "rollbackGroup.alpha = 0f",
             "SetEditorGameplayPreviewActive(true)",
+            "#if UNITY_EDITOR",
         ):
             if snippet not in interactive_driver:
                 fail(
@@ -919,6 +921,17 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         or "SetPatch4Enabled(true)" in interactive_driver
     ):
         fail(errors, "Interactive gameplay preview must never unlock Patch 4")
+    obsolete_editor_driver = (
+        root
+        / "Assets/GameWorkPatch4/Editor/"
+        "Patch4InteractiveGameplayPreviewDriver.cs"
+    )
+    if obsolete_editor_driver.exists():
+        fail(
+            errors,
+            "Interactive preview MonoBehaviour must not live in an Editor-only "
+            "folder because Unity cannot attach it during Play Mode",
+        )
 
     review_window = read_text(
         root,
@@ -1736,7 +1749,7 @@ def main() -> int:
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
     print("- V25 routes idle, routine, tap, walk, turn and upgrade gameplay actions")
     print("- V26 gives Test Runner exclusive PlayMode ownership after legacy Animator preflight")
-    print("- V27 leaves a separate locked normal-game preview running for human interaction")
+    print("- V28 keeps the locked normal-game driver attachable outside Editor-only folders")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

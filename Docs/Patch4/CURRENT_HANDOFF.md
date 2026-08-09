@@ -11,7 +11,41 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
-## Current P4.0-AE / V27 locked interactive normal-game preview
+## Current P4.0-AF / V28 interactive-preview assembly hotfix
+
+The user's first V27 normal-game attempt did not display Patch 4. Unity emitted
+the deterministic first error:
+
+```text
+Can't add script behaviour 'Patch4InteractiveGameplayPreviewDriver' because
+it is an editor script. To attach a script it needs to be outside of the
+'Editor' folder.
+```
+
+The following `NullReferenceException` at
+`Patch4InteractiveGameplayPreview.cs:346` was secondary: Unity returned no
+component and V27 immediately called `Begin` on that missing driver. The old
+Patch 3.5 body therefore remained visible and the room binding timed out.
+
+V28 fixes that exact assembly-boundary defect without changing gameplay:
+
+- the transient `MonoBehaviour` moved from `Assets/GameWorkPatch4/Editor/` to
+  `Assets/GameWorkPatch4/Runtime/`, preserving its `.meta` GUID;
+- the complete driver source is wrapped in `#if UNITY_EDITOR`, so Unity can
+  attach it during an Editor Play Mode preview while player builds exclude it;
+- the Editor orchestrator checks the `AddComponent` result and exits with one
+  explicit binding error instead of producing a cascading null exception;
+- EditMode and repository guards require the attachable path, forbid the old
+  Editor-folder path and retain the readiness-lock assertions;
+- automatic continuation advances to
+  `interactive-preview-assembly-boundary-v28`, forcing a clean rerun after the
+  next pull.
+
+No menu, scene, video, music, audio, settings, room-anchor or production
+readiness behavior changes in V28. Patch 4 remains locked and Patch 3.5 remains
+the rollback owner.
+
+## Previous P4.0-AE / V27 locked interactive normal-game preview
 
 The user's fresh V26 run closes the Test Runner ownership checkpoint. Unity
 `6000.3.19f1` reached the token-matched actual-room review after the automatic
@@ -1146,7 +1180,7 @@ old limb pieces, vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Next automatic V27 run
+## Next automatic V28 run
 
 Run only:
 
@@ -1155,7 +1189,8 @@ git pull origin patch-4.0
 ```
 
 Leave Unity open. Do not click Dashboard, Test Runner, Play or any review
-button. `Patch4AutoContinuation` will rebuild the generated controller and
+button. The new V28 token makes `Patch4AutoContinuation` rerun; it will rebuild
+the generated controller and
 prefab, claim exclusive Test Runner PlayMode ownership, run safety plus
 `4/4 + 4/4`, then start the separate locked room review. After that review
 passes, Unity will automatically enter one more normal gameplay session and
@@ -1168,7 +1203,7 @@ scale-expansion failure. In the final Game view, use the normal dumbbell and
 upgrade controls and watch the existing room routine. Patch 4 must remain
 locked throughout.
 
-## Work after the V27 interactive gameplay preview
+## Work after the V28 interactive gameplay preview
 
 - Observe the actual visible footprint at the current `Training`, `Center`,
   `Sofa`, `Window` and `Mirror` anchors; keep activation locked.

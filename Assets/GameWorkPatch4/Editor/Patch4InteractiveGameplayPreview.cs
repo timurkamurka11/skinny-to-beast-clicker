@@ -343,6 +343,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             UnityEngine.Object.DontDestroyOnLoad(host);
             Patch4InteractiveGameplayPreviewDriver driver =
                 host.AddComponent<Patch4InteractiveGameplayPreviewDriver>();
+            if (driver == null)
+            {
+                UnityEngine.Object.Destroy(host);
+                FailAndExitPlayMode(
+                    "Unity could not attach the locked interactive preview " +
+                    "driver. Verify that the driver is compiled outside an " +
+                    "Editor-only folder.");
+                return;
+            }
+
             if (!driver.Begin(
                     patchRig,
                     stateMachine,

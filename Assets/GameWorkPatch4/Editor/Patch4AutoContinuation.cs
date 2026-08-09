@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "locked-interactive-gameplay-preview-v27";
+            "interactive-preview-assembly-boundary-v28";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v27.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v28.gameplay.";
 
         private static int idleFrames;
 
@@ -57,7 +57,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V27 locked gameplay preview pass started: " +
+                    "Patch 4 V28 locked gameplay preview hotfix pass started: " +
+                    "the transient normal-game driver now compiles from an " +
+                    "attachable runtime-assembly path while remaining excluded " +
+                    "from player builds. " +
                     "restore the approved master, rebuild the retained v21.1 " +
                     "rollback candidates, verify neutral reconstruction, rebuild " +
                     "the locked prefab and bind six complete-frame RGBA sheets " +
@@ -115,7 +118,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V27 continuation failed: " + exception);
+                    "Patch 4 automatic V28 continuation failed: " + exception);
             }
         }
     }
