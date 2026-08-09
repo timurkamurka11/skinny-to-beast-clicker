@@ -6,6 +6,29 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AG / V29 safe-room cadence checkpoint
+
+Fresh V28 normal-game screenshots prove that the attachable driver works, but
+the user rejects three deterministic issues: four-frame standing playback is
+visibly slow, the right-authored profile Walk does not follow leftward travel,
+and the larger complete-frame character reaches the old `Sofa`, `Window` and
+`Mirror` locations where it overlaps the background art.
+
+V29 keeps the approved legacy routine as the gameplay owner but applies a
+reversible Editor-preview projection. All five route signals are placed at one
+safe floor height in a narrow central horizontal corridor; only `Training`
+retains its special kind, while the other four temporarily request standing
+actions. The driver restarts the existing routine on those transient anchors,
+mirrors only the Walk atlas from the live `SideLeft`/`SideRight` facing signal,
+and restores the exact original anchors when the preview ends. Complete-frame
+durations are faster, and Idle closes its loop through adjacent ping-pong
+frames instead of jumping from frame 3 to frame 0.
+
+The new automatic token is `safe-room-cadence-direction-v29`. Patch 4 remains
+readiness-locked, Patch 3.5 remains the rollback owner, and no protected
+menu/video/music/audio/settings or legacy gameplay file is changed. Static
+validation and publication precede the next Unity `6000.3.19f1` visual run.
+
 ## Latest P4.0-AF / V28 attachable interactive-preview checkpoint
 
 The first V27 normal-game session failed before Patch 4 could bind. Unity's

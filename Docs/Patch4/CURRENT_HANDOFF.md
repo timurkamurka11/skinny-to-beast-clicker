@@ -11,6 +11,43 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AG / V29 safe-room cadence and facing correction
+
+The user's first successful V28 normal-game evidence proves that Patch 4 now
+binds and renders in the interactive room. It also rejects three visible
+behaviors:
+
+- the four-frame standing states advance slowly enough to read as individual
+  slides;
+- the only authored Walk atlas faces screen-right and was never mirrored when
+  the legacy routine moved left;
+- the complete-frame Patch 4 body inherited the smaller Patch 3.5 `Sofa`,
+  `Window` and `Mirror` destinations, visibly standing on the sofa and the
+  right dumbbell rack.
+
+V29 corrects those exact causes inside the locked Editor preview:
+
+- target durations are reduced for every complete-frame state; Idle uses the
+  adjacent sequence `0,1,2,3,2,1`, avoiding the old last-to-first loop jump;
+- the preview driver reads `CharacterRigController.Facing` each frame and
+  mirrors only `FatMan_Walk_InRoom` for `SideLeft`; all front poses retain their
+  authored orientation and fixed shoe line;
+- the driver snapshots the five legacy `RoomAnchor` values, stops the legacy
+  routine, projects them into a short horizontal central corridor
+  (`x = 0.07 .. 0.09`, `y = 0.515`, scale `0.70`) between the sofa and
+  right rack, then restarts that same routine;
+- `Training` remains the gameplay-owned tap destination. The four other route
+  signals become standing `Center` actions during this preview, so the larger
+  body neither climbs the sofa/rack nor performs an unsupported sit in empty
+  floor space;
+- ending the preview restores every original anchor kind, position, scale,
+  facing and stay time before Patch 3.5 becomes visible again.
+
+The continuation token is `safe-room-cadence-direction-v29`. This change does
+not unlock Patch 4 and does not edit legacy gameplay, menu, scene, video, music,
+audio or settings assets. Repository validation is required before publishing;
+Unity `6000.3.19f1` visual confirmation remains pending the user's next pull.
+
 ## Current P4.0-AF / V28 interactive-preview assembly hotfix
 
 The user's first V27 normal-game attempt did not display Patch 4. Unity emitted

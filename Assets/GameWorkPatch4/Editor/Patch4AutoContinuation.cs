@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "interactive-preview-assembly-boundary-v28";
+            "safe-room-cadence-direction-v29";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v28.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v29.gameplay.";
 
         private static int idleFrames;
 
@@ -57,11 +57,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V28 locked gameplay preview hotfix pass started: " +
-                    "the transient normal-game driver now compiles from an " +
-                    "attachable runtime-assembly path while remaining excluded " +
-                    "from player builds. " +
-                    "restore the approved master, rebuild the retained v21.1 " +
+                    "Patch 4 V29 safe-room gameplay preview pass started: " +
+                    "the attachable Editor-only driver now projects the five " +
+                    "legacy room signals into a short collision-safe central " +
+                    "standing corridor, mirrors the right-authored Walk from " +
+                    "the live left/right facing signal and restores the exact " +
+                    "legacy route when the preview ends. Static poses use a " +
+                    "faster whole-frame cadence and Idle returns through an " +
+                    "adjacent ping-pong sequence instead of jumping from its " +
+                    "last painted frame directly to its first. " +
+                    "Restore the approved master, rebuild the retained v21.1 " +
                     "rollback candidates, verify neutral reconstruction, rebuild " +
                     "the locked prefab and bind six complete-frame RGBA sheets " +
                     "covering all ten required clips, including the corrected " +
@@ -69,7 +74,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "experimental Canvas stack is hidden, so " +
                     "no sliced joint, detached face or vacuum-stretched body can " +
                     "leak behind the complete painted frames. The Walk uses eight " +
-                    "strict screen-right profile phases, and blink/look/tap/upgrade " +
+                    "right-authored profile phases mirrored to live travel, and " +
+                    "blink/look/tap/upgrade " +
                     "use independent painted facial expressions. Every frame is " +
                     "aligned to one shoe line and each pose family uses a fixed " +
                     "body scale. Animator state speeds now match the visible " +
@@ -93,7 +99,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "technical pass, Unity will automatically enter a separate " +
                     "Editor-only normal-game preview and leave Play Mode on. " +
                     "The user can tap the dumbbell, buy upgrades and watch the " +
-                    "existing bounded room routine drive Patch 4 without " +
+                    "existing routine drive Patch 4 inside the safe standing " +
+                    "corridor without " +
                     "unlocking production readiness.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
@@ -118,7 +125,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V28 continuation failed: " + exception);
+                    "Patch 4 automatic V29 continuation failed: " + exception);
             }
         }
     }

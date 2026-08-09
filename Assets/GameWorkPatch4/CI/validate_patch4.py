@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"interactive-preview-assembly-boundary-v28"',
+            '"safe-room-cadence-direction-v29"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -473,6 +473,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "LegacyUnderlayHidden",
             "VisibleAlphaThreshold",
             "ResolvePlaybackDuration(",
+            "IdlePingPongFrameCount",
+            "IdlePingPongFrameCount - phaseFrame",
+            "SetEditorWalkFacingSign(",
             "TryMeasureFrameCalibration(",
             "ApplyFrameCalibration(",
             "TargetGroundPixel",
@@ -909,6 +912,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "visibilityGuard.enabled = false",
             "rollbackGroup.alpha = 0f",
             "SetEditorGameplayPreviewActive(true)",
+            "ConfigureSafeRoomRoute()",
+            "RoomAnchorKind.Center",
+            "snapshot.anchor.ConfigureNormalized(",
+            "snapshot.anchor.Configure(",
+            "SafeCharacterScale = 0.7f",
+            "CharacterFacing.SideLeft",
+            "SetEditorWalkFacingSign(walkFacingSign)",
             "#if UNITY_EDITOR",
         ):
             if snippet not in interactive_driver:
@@ -1749,7 +1759,8 @@ def main() -> int:
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
     print("- V25 routes idle, routine, tap, walk, turn and upgrade gameplay actions")
     print("- V26 gives Test Runner exclusive PlayMode ownership after legacy Animator preflight")
-    print("- V28 keeps the locked normal-game driver attachable outside Editor-only folders")
+    print("- V29 keeps Patch 4 in a short central standing corridor and mirrors left/right travel")
+    print("- V29 accelerates whole-frame cadence and closes the Idle loop through adjacent frames")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

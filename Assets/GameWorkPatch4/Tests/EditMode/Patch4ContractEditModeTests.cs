@@ -572,9 +572,24 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 {
                     "FatMan_Walk_InRoom"
                 }),
-                0.8f,
+                0.6f,
                 "The eight-frame walk must play at a responsive whole-frame " +
                 "cadence rather than the slow diagnostic timing.");
+            Assert.LessOrEqual(
+                (float)resolve.Invoke(null, new object[]
+                {
+                    "FatMan_Idle_Breathe"
+                }),
+                0.75f,
+                "The static four-frame body must not visibly crawl from one " +
+                "painted frame to the next.");
+            Assert.LessOrEqual(
+                (float)resolve.Invoke(null, new object[]
+                {
+                    "FatMan_Idle_ShiftWeight"
+                }),
+                0.5f,
+                "Standing weight shifts must stay responsive.");
             Assert.LessOrEqual(
                 (float)resolve.Invoke(null, new object[]
                 {
@@ -840,6 +855,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     BindingFlags.Instance | BindingFlags.Public),
                 "The complete-frame surface cannot follow the live Animator " +
                 "without opening production readiness.");
+            Assert.NotNull(
+                presentation.GetMethod(
+                    "SetEditorWalkFacingSign",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "The right-authored walk cannot mirror live leftward travel.");
 
             string projectRoot =
                 Directory.GetParent(Application.dataPath)?.FullName ??
@@ -873,7 +893,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "stateMachine.SetLockedReviewActive(true)",
                 "visibilityGuard.enabled = false",
                 "rollbackGroup.alpha = 0f",
-                "SetEditorGameplayPreviewActive(true)"
+                "SetEditorGameplayPreviewActive(true)",
+                "ConfigureSafeRoomRoute()",
+                "RoomAnchorKind.Center",
+                "snapshot.anchor.ConfigureNormalized(",
+                "snapshot.anchor.Configure(",
+                "SafeCharacterScale = 0.7f",
+                "CharacterFacing.SideLeft",
+                "SetEditorWalkFacingSign(walkFacingSign)"
             })
             {
                 StringAssert.Contains(

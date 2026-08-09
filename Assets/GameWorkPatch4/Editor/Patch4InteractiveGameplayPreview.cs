@@ -355,6 +355,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (!driver.Begin(
                     patchRig,
+                    legacyRig,
                     stateMachine,
                     visibility,
                     presentation,

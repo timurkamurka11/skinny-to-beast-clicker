@@ -24,6 +24,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const int Columns = 4;
         private const int Rows = 2;
         private const int FramesPerRow = 4;
+        private const int IdlePingPongFrameCount = 6;
         private const byte VisibleAlphaThreshold = 32;
         private const float TargetGroundPixel = 22f;
 
@@ -64,6 +65,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private bool reviewActive;
 #if UNITY_EDITOR
         private bool editorGameplayPreviewActive;
+        private float editorWalkFacingSign = 1f;
 #endif
         private string reviewClipName = "FatMan_Idle_Breathe";
         private float reviewNormalizedTime;
@@ -140,6 +142,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             reviewActive = false;
 #if UNITY_EDITOR
             editorGameplayPreviewActive = false;
+            editorWalkFacingSign = 1f;
 #endif
             SetDisplayed(false);
         }
@@ -263,24 +266,24 @@ namespace SkinnyToBeast.Gameplay.Patch4
             switch (clipName)
             {
                 case "FatMan_Idle_Breathe":
-                    return 1.4f;
+                    return 0.72f;
                 case "FatMan_Idle_ShiftWeight":
-                    return 1.1f;
+                    return 0.48f;
                 case "FatMan_Blink_Random":
-                    return 0.28f;
+                    return 0.2f;
                 case "FatMan_LookAround":
-                    return 0.8f;
+                    return 0.48f;
                 case "FatMan_TapReact_01":
                 case "FatMan_TapReact_02":
-                    return 0.46f;
+                    return 0.32f;
                 case "FatMan_Walk_InRoom":
-                    return 0.78f;
+                    return 0.56f;
                 case "FatMan_Turn":
-                    return 0.62f;
+                    return 0.4f;
                 case "FatMan_SitOrLean":
-                    return 0.78f;
+                    return 0.56f;
                 case "FatMan_UpgradeReact":
-                    return 0.72f;
+                    return 0.48f;
                 default:
                     return 1f;
             }
@@ -394,6 +397,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 reviewActive = false;
             }
+            else
+            {
+                editorWalkFacingSign = 1f;
+            }
 
             if (!EnsurePresentation())
             {
@@ -420,6 +427,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             ApplyPose(clipName, normalizedTime);
             SetDisplayed(true);
             return HasSingleVisibleCompleteFrame;
+        }
+
+        /// <summary>
+        /// Mirrors only the right-authored walk atlas while the Editor-only
+        /// normal-game preview follows a live left-facing legacy walk. Front
+        /// poses and every production-locked path keep their authored scale.
+        /// </summary>
+        public void SetEditorWalkFacingSign(int sign)
+        {
+            editorWalkFacingSign = sign < 0 ? -1f : 1f;
         }
 #endif
 
@@ -623,11 +640,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             frameIndex = 0;
             int row = 0;
             bool walk = false;
+            bool idlePingPong = false;
 
             switch (clipName)
             {
                 case "FatMan_Idle_Breathe":
                     sheet = idleSheet;
+                    idlePingPong = true;
                     break;
                 case "FatMan_Idle_ShiftWeight":
                     sheet = idleSheet;
@@ -671,13 +690,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             float phase = normalizedTime - Mathf.Floor(normalizedTime);
-            int frameCount = walk
+            int phaseCount = walk
                 ? RequiredWalkFrameCount
-                : FramesPerRow;
-            int localFrame = Mathf.Clamp(
-                Mathf.FloorToInt(phase * frameCount),
+                : idlePingPong
+                    ? IdlePingPongFrameCount
+                    : FramesPerRow;
+            int phaseFrame = Mathf.Clamp(
+                Mathf.FloorToInt(phase * phaseCount),
                 0,
-                frameCount - 1);
+                phaseCount - 1);
+            int localFrame = idlePingPong && phaseFrame >= FramesPerRow
+                ? IdlePingPongFrameCount - phaseFrame
+                : phaseFrame;
             frameIndex = walk
                 ? localFrame
                 : row * FramesPerRow + localFrame;
@@ -897,8 +921,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 return;
             }
 
+            float facingSign = 1f;
+#if UNITY_EDITOR
+            if (editorGameplayPreviewActive &&
+                string.Equals(
+                    clipName,
+                    "FatMan_Walk_InRoom",
+                    StringComparison.Ordinal))
+            {
+                facingSign = editorWalkFacingSign;
+            }
+#endif
             presentationRoot.localScale = new Vector3(
-                baseLocalScale.x * activeArtworkScale,
+                baseLocalScale.x * activeArtworkScale * facingSign,
                 baseLocalScale.y * activeArtworkScale,
                 baseLocalScale.z);
             activeGroundCorrectionPixels =
