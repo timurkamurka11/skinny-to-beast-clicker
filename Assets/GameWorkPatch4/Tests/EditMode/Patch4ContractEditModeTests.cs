@@ -143,6 +143,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
             AssertAnimatorControllerRoutesGameplayActions();
             AssertAutomatedTestRunnerOwnsPlayMode();
+            AssertLockedInteractiveGameplayPreview();
         }
 
         [Test]
@@ -781,6 +782,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Patch4AutomatedTestRunner.cs"));
             foreach (string snippet in new[]
             {
+                "Patch4InteractiveGameplayPreview.PrepareForAutomatedTests()",
                 "Patch4AnimationRoomReview.PrepareForAutomatedTests()",
                 "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
                 "SessionState.SetBool(",
@@ -810,6 +812,80 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     "Room review can still steal Test Runner PlayMode: " +
                     snippet);
             }
+        }
+
+        private static void AssertLockedInteractiveGameplayPreview()
+        {
+            Type preview = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4InteractiveGameplayPreview");
+            Assert.NotNull(
+                preview.GetMethod(
+                    "StartAfterFreshReview",
+                    BindingFlags.Static | BindingFlags.Public));
+            Assert.NotNull(
+                preview.GetMethod(
+                    "PrepareForAutomatedTests",
+                    BindingFlags.Static | BindingFlags.Public));
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4InteractiveGameplayPreviewDriver");
+
+            Type presentation = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4V23FullFramePresentation");
+            Assert.NotNull(
+                presentation.GetMethod(
+                    "SetEditorGameplayPreviewActive",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "The complete-frame surface cannot follow the live Animator " +
+                "without opening production readiness.");
+
+            string projectRoot =
+                Directory.GetParent(Application.dataPath)?.FullName ??
+                Application.dataPath;
+            string previewSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/GameWorkPatch4/Editor/" +
+                "Patch4InteractiveGameplayPreview.cs"));
+            foreach (string snippet in new[]
+            {
+                "GameplayWindowController.Show()",
+                "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
+                "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
+                "Play Mode will remain on until you stop it",
+                "Patch4AnimationRoomReviewWindow.Open()"
+            })
+            {
+                StringAssert.Contains(
+                    snippet,
+                    previewSource,
+                    "Interactive actual-room preview is missing: " + snippet);
+            }
+
+            string driverSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/GameWorkPatch4/Editor/" +
+                "Patch4InteractiveGameplayPreviewDriver.cs"));
+            foreach (string snippet in new[]
+            {
+                "rigController.SetPatch4Enabled(false)",
+                "stateMachine.SetLockedReviewActive(true)",
+                "visibilityGuard.enabled = false",
+                "rollbackGroup.alpha = 0f",
+                "SetEditorGameplayPreviewActive(true)"
+            })
+            {
+                StringAssert.Contains(
+                    snippet,
+                    driverSource,
+                    "Locked visual override is missing: " + snippet);
+            }
+
+            StringAssert.DoesNotContain(
+                "SetPatch4Enabled(true)",
+                previewSource + driverSource,
+                "Interactive preview must never activate Patch 4 readiness.");
         }
 
         private static void AssertStateTransition(

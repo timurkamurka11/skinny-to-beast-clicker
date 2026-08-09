@@ -11,6 +11,50 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AE / V27 locked interactive normal-game preview
+
+The user's fresh V26 run closes the Test Runner ownership checkpoint. Unity
+`6000.3.19f1` reached the token-matched actual-room review after the automatic
+tests, emitted zero review warnings/errors and reported:
+
+- two uninterrupted action-routed gameplay passes;
+- `14.8` seconds and `88` visible whole-frame advances;
+- corrected Walk runway travel from `180.0 px` to `324.9 px`;
+- a final locked animation-room technical `PASSED` result.
+
+The user reports that the animation direction is now much better and wants to
+inspect the character through the normal interactive game before changing its
+room navigation. V27 adds that exact continuation without approving Patch 4:
+
+- after a fresh passing technical room review, the read-only report windows
+  are deferred and a separate Editor-only Play Mode session is queued;
+- the generated legacy Animator is synchronously preflighted before Play Mode
+  so its old asset transaction cannot cancel the preview;
+- `GameplayWindowController.Show()` creates the real normal gameplay room and
+  `Patch4RuntimeInstaller` binds the locked Patch 4 instance beside the real
+  character;
+- Patch 3.5 remains logically active and continues to own input, accepted taps,
+  purchases, routine actions, room travel and its existing room anchors; only
+  its character pixels are hidden by a reversible `CanvasGroup`;
+- the existing `Patch4LegacySignalBridge` remains enabled, so real gameplay
+  signals drive the Patch 4 Animator instead of a clip tour;
+- the complete-frame surface gains a `UNITY_EDITOR`-only display override that
+  follows the live Animator while `SetPatch4Enabled(false)` and the production
+  readiness lock remain unchanged;
+- Unity focuses the Game view and deliberately leaves Play Mode running until
+  the user stops it; stopping restores the rollback view and then opens the
+  deferred evidence windows;
+- Test Runner preflight clears any stale interactive-preview ownership before
+  starting a later automated run.
+
+V27 does not add a second movement controller, free roaming, colliders or new
+room paths. The preview inherits the existing five bounded legacy anchors
+(`Center`, `Training`, `Sofa`, `Window`, `Mirror`). The next room-safety pass
+must be based on this normal-game observation: either reduce the allowed anchor
+set and emphasize standing actions, or author Patch 4-specific safe zones that
+respect the visible size of the complete-frame body. No menu, scene, video,
+music, audio or settings asset changes in V27.
+
 ## Current P4.0-AD / V26 Test Runner PlayMode ownership
 
 The user's first V25 automatic Unity run reached PlayMode tests but Unity
@@ -48,10 +92,10 @@ all changes inside Patch 4 and establishes one owner before starting tests:
   `test-runner-playmode-ownership-v26` so the next pull reruns the full flow.
 
 This correction does not alter gameplay animation mappings, artwork, Patch 3
-runtime behavior, readiness, menu, video, music, audio or settings. Patch 4
-remains locked and Patch 3.5 remains active. Repository static validation
-passes; Unity compilation, `EditMode: 4`, `PlayMode: 4` and the fresh V26 room
-review remain pending until the next pull.
+runtime behavior, readiness, menu, video, music, audio or settings. The user's
+fresh V26 result now confirms that Test Runner completed and the separate room
+review entered, played and exited without either lifecycle owner aborting it.
+Patch 4 remains locked and Patch 3.5 remains active outside the review.
 
 ## P4.0-AC / V25 gameplay-action routing foundation
 
@@ -1102,7 +1146,7 @@ old limb pieces, vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Next automatic V26 run
+## Next automatic V27 run
 
 Run only:
 
@@ -1113,20 +1157,30 @@ git pull origin patch-4.0
 Leave Unity open. Do not click Dashboard, Test Runner, Play or any review
 button. `Patch4AutoContinuation` will rebuild the generated controller and
 prefab, claim exclusive Test Runner PlayMode ownership, run safety plus
-`4/4 + 4/4`, then start the separate locked room review.
+`4/4 + 4/4`, then start the separate locked room review. After that review
+passes, Unity will automatically enter one more normal gameplay session and
+leave Play Mode running.
 The first live pass must visibly show the event-owned sequence: idle breathing,
 weight shift, blink, look, both taps, a right-facing travelling walk, turn,
 sit/lean and upgrade. The frozen report must contain
 `gameplayActionRoutingPassed: true`, compatible Walk travel, and no upgrade
-scale-expansion failure. Patch 4 must remain locked after the review.
+scale-expansion failure. In the final Game view, use the normal dumbbell and
+upgrade controls and watch the existing room routine. Patch 4 must remain
+locked throughout.
 
-## Work after the V26 automatic room review
+## Work after the V27 interactive gameplay preview
 
-- Inspect the eight complete Walk frames first and keep activation locked.
-- Confirm that the live sequence changes state promptly instead of holding the
-  final frame or flashing through Idle after a one-shot.
-- Confirm that successful action routing is reported; a direct clip-only tour
-  is no longer sufficient evidence.
+- Observe the actual visible footprint at the current `Training`, `Center`,
+  `Sofa`, `Window` and `Mirror` anchors; keep activation locked.
+- Record which route or pose overlaps the sofa, dumbbell, chair/bench, mirror,
+  window or room edge. The technical review's artificial runway is not a
+  production navigation path.
+- Decide from that evidence whether Patch 4 should use only a small central
+  standing zone with more standing actions, or a reduced set of collision-safe
+  room anchors.
+- Confirm that taps and purchases interrupt/return to the correct real routine
+  action and that the live sequence does not hold its final frame or flash
+  through Idle after a one-shot.
 - Reject any identity drift, foot slide, duplicate underlay, inconsistent scale
   or non-alternating step before extending the approach.
 - Reject any clip that reveals the hidden legacy mesh, facial drift, weak

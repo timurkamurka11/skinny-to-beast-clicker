@@ -57,6 +57,8 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreviewDriver.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationLibraryBuilder.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimatorControllerSanitizer.cs",
     "Assets/GameWorkPatch4/Editor/Patch4EditorSmokeValidator.cs",
@@ -288,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"test-runner-playmode-ownership-v26"',
+            '"locked-interactive-gameplay-preview-v27"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -332,6 +334,8 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
         "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
         "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
         "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreviewDriver.cs",
         "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
     )
     dangerous = re.compile(r"productionArtApproved[^\n]{0,100}(?:=|boolValue\s*=)\s*true", re.IGNORECASE)
@@ -462,6 +466,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "FatMan_Walk_InRoom",
             "SetReviewPose(",
             "SetReviewActive(",
+            "SetEditorGameplayPreviewActive(",
             "TryMeasureGaitArticulation(",
             "TryMeasureFaceArticulation(",
             "HasSingleVisibleCompleteFrame",
@@ -862,11 +867,58 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Patch4AutomatedTestRunner.IsRunInProgress",
             "ClearReviewOwnership()",
             "blocked a stale room-review request",
+            "Patch4InteractiveGameplayPreview.StartAfterFreshReview()",
         ):
             if snippet not in room_review:
                 fail(errors, f"Actual-room review automation is missing: {snippet}")
         if "SetPatch4Enabled(true)" in room_review:
             fail(errors, "Actual-room review automation must not enable Patch 4")
+
+    interactive_preview = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
+        errors,
+    )
+    interactive_driver = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/"
+        "Patch4InteractiveGameplayPreviewDriver.cs",
+        errors,
+    )
+    if interactive_preview:
+        for snippet in (
+            "StartAfterFreshReview()",
+            "PrepareForAutomatedTests()",
+            "GameplayWindowController.Show()",
+            "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
+            "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
+            "running-interactive-preview",
+            "Play Mode will remain on until you stop it",
+            "Patch4AnimationRoomReviewWindow.Open()",
+        ):
+            if snippet not in interactive_preview:
+                fail(
+                    errors,
+                    "Locked interactive gameplay preview is missing: " + snippet,
+                )
+    if interactive_driver:
+        for snippet in (
+            "rigController.SetPatch4Enabled(false)",
+            "stateMachine.SetLockedReviewActive(true)",
+            "visibilityGuard.enabled = false",
+            "rollbackGroup.alpha = 0f",
+            "SetEditorGameplayPreviewActive(true)",
+        ):
+            if snippet not in interactive_driver:
+                fail(
+                    errors,
+                    "Locked gameplay visual override is missing: " + snippet,
+                )
+    if (
+        "SetPatch4Enabled(true)" in interactive_preview
+        or "SetPatch4Enabled(true)" in interactive_driver
+    ):
+        fail(errors, "Interactive gameplay preview must never unlock Patch 4")
 
     review_window = read_text(
         root,
@@ -917,6 +969,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         for snippet in (
             "IsRunInProgress",
             "Patch4AnimationRoomReview.PrepareForAutomatedTests()",
+            "Patch4InteractiveGameplayPreview.PrepareForAutomatedTests()",
             "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
             "LegacyAnimatorResumePlayKey",
         ):
@@ -1683,6 +1736,7 @@ def main() -> int:
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
     print("- V25 routes idle, routine, tap, walk, turn and upgrade gameplay actions")
     print("- V26 gives Test Runner exclusive PlayMode ownership after legacy Animator preflight")
+    print("- V27 leaves a separate locked normal-game preview running for human interaction")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

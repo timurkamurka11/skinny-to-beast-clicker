@@ -127,6 +127,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 return;
             }
 
+            Patch4InteractiveGameplayPreview.PrepareForAutomatedTests();
             Patch4AnimationRoomReview.PrepareForAutomatedTests();
 
             Directory.CreateDirectory(

@@ -6,6 +6,38 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AE / V27 locked normal-game preview checkpoint
+
+The user's fresh V26 Unity result now confirms the ownership correction: the
+automatic tests completed, the separate actual-room review ran without a
+PlayMode abort, and the final room report passed with two uninterrupted passes,
+`14.8` seconds, `88` visible frame advances and corrected Walk travel of
+`324.9 px`. The user now wants to watch Patch 4 through the normal interactive
+game before choosing how tightly its room movement should be constrained.
+
+V27 keeps readiness locked and adds a second Editor-only Play Mode session
+after the passing technical review:
+
+- the real `GameplayWindow` remains open and interactive instead of immediately
+  showing only frozen evidence windows;
+- Patch 3.5 remains the logical gameplay owner for taps, purchases, routine
+  actions and bounded anchor-to-anchor travel, while a reversible CanvasGroup
+  hides only its pixels;
+- the live legacy signal bridge drives the Patch 4 Animator;
+- the V23/V24 complete-frame presentation follows that Animator through a
+  `UNITY_EDITOR`-only override while production activation stays false;
+- Play Mode intentionally remains running until the user stops it, after which
+  rollback visuals and deferred reports return;
+- stale preview ownership is cleared before future automated tests.
+
+This checkpoint does not add free roaming, physics colliders, new room anchors
+or a second locomotion system. The current normal game already travels only
+between `Center`, `Training`, `Sofa`, `Window` and `Mirror`. The next pass will
+use the user's interactive evidence to choose between fewer safe anchors and
+more standing actions, or explicit Patch 4 safe zones around the background
+objects. Protected menu, video, music, audio and settings files remain
+unchanged.
+
 ## Latest P4.0-AD / V26 Test Runner ownership checkpoint
 
 The first V25 automatic run reached Unity Test Runner, but PlayMode aborted
@@ -34,8 +66,9 @@ preflight:
 
 No legacy gameplay file is edited. Readiness remains locked, Patch 3.5 remains
 active, and protected menu/video/music/audio/settings paths remain unchanged.
-Repository static validation passes; Unity compile, `4/4 + 4/4` and the fresh
-V26 room review remain pending until the next pull.
+Repository static validation passed. The user's fresh V26 Unity run now
+confirms that the automatic tests and separate room review completed without a
+PlayMode ownership abort.
 
 ## P4.0-AC / V25 gameplay-action checkpoint
 
@@ -1256,12 +1289,13 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull P4.0-AD/V26 into Unity `6000.3.19f1` with only
+1. Pull P4.0-AE/V27 into Unity `6000.3.19f1` with only
    `git pull origin patch-4.0` and leave Unity open.
 2. Do not click Dashboard, Test Runner, Play or a review button.
 3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind the V23 sheets
    plus the corrected V24 upgrade sheet, claim Test Runner PlayMode ownership,
-   run safety/tests and enter the actual room after Test Runner is quiescent.
+   run safety/tests and enter the technical actual-room review after Test
+   Runner is quiescent.
 4. Watch the automatically focused Game view before the report opens. It must
    route idle, shift, blink, look, both taps, Walk, Turn, Sit and Upgrade through
    the public gameplay-action API and play two uninterrupted target-cadence
@@ -1276,8 +1310,14 @@ Until every condition passes, Patch 3.5 remains visible.
    face metrics, frame calibration, four limb-region
    differences and weakest adjacent-frame difference to reject static,
    front-facing, clipped or duplicated art.
-8. Keep readiness locked until the V26 actual-room motion and identity pass
-   human review.
+8. After the technical pass, Unity must automatically open the real normal
+   gameplay room again and leave Play Mode running. Use the dumbbell and
+   upgrade controls and observe the existing bounded room routine.
+9. Record which of `Training`, `Center`, `Sofa`, `Window` and `Mirror` causes a
+   visible overlap. Do not add free roaming before this evidence decides
+   whether to reduce anchors or create Patch 4-specific safe zones.
+10. Keep readiness locked until normal-game motion, object clearance and
+    identity pass human review.
 
 Detailed art instructions:
 
@@ -1342,8 +1382,9 @@ Detailed verification instructions:
   proof of action ownership; its report also exposed an impossible Walk gate
   and obsolete upgrade scale. P4.0-AC/V25 corrected those issues, but its first
   automatic Unity run was aborted when an Editor asset transaction stopped
-  Test Runner PlayMode. P4.0-AD/V26 owns that lifecycle and awaits its fresh
-  Unity run; it is not approved production art.
+  Test Runner PlayMode. P4.0-AD/V26 now owns that lifecycle and its fresh Unity
+  room review passed. P4.0-AE/V27 adds the still-pending normal-game interactive
+  observation; none of these technical passes approves production art.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

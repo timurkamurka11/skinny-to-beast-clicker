@@ -62,6 +62,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private RectTransform boundGeneratedRoot;
         private CanvasGroup generatedLayersGroup;
         private bool reviewActive;
+#if UNITY_EDITOR
+        private bool editorGameplayPreviewActive;
+#endif
         private string reviewClipName = "FatMan_Idle_Breathe";
         private float reviewNormalizedTime;
         private bool displayed;
@@ -135,6 +138,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void OnDisable()
         {
             reviewActive = false;
+#if UNITY_EDITOR
+            editorGameplayPreviewActive = false;
+#endif
             SetDisplayed(false);
         }
 
@@ -158,7 +164,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 return;
             }
 
-            if (rigController == null || !rigController.Patch4Enabled)
+            bool shouldDisplayGameplay =
+                rigController != null && rigController.Patch4Enabled;
+#if UNITY_EDITOR
+            shouldDisplayGameplay |= editorGameplayPreviewActive;
+#endif
+            if (!shouldDisplayGameplay)
             {
                 SetDisplayed(false);
                 return;
@@ -338,6 +349,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             reviewActive = true;
+#if UNITY_EDITOR
+            editorGameplayPreviewActive = false;
+#endif
             reviewClipName = clipName;
             reviewNormalizedTime = normalizedTime;
             if (!EnsurePresentation())
@@ -365,6 +379,49 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             SetDisplayed(active);
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Shows the locked complete-frame surface from the live Animator while
+        /// leaving the production readiness gate closed. This override is
+        /// compiled only into the Unity Editor and is used by the interactive
+        /// actual-room preview after the technical review has passed.
+        /// </summary>
+        public bool SetEditorGameplayPreviewActive(bool active)
+        {
+            editorGameplayPreviewActive = active;
+            if (active)
+            {
+                reviewActive = false;
+            }
+
+            if (!EnsurePresentation())
+            {
+                SetDisplayed(false);
+                return false;
+            }
+
+            if (!active)
+            {
+                SetDisplayed(
+                    reviewActive ||
+                    (rigController != null && rigController.Patch4Enabled));
+                return true;
+            }
+
+            if (!TryResolveAnimatorPose(
+                    out string clipName,
+                    out float normalizedTime))
+            {
+                clipName = "FatMan_Idle_Breathe";
+                normalizedTime = 0f;
+            }
+
+            ApplyPose(clipName, normalizedTime);
+            SetDisplayed(true);
+            return HasSingleVisibleCompleteFrame;
+        }
+#endif
 
         public bool TryMeasureGaitArticulation(
             out float leftArmDifference,

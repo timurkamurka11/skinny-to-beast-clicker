@@ -593,10 +593,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             SessionState.SetBool(InProgressKey, false);
             SessionState.SetString(StageKey, string.Empty);
 
+            bool hasFreshRoomArtifacts = HasFreshRoomArtifacts();
+            if (passed &&
+                hasFreshRoomArtifacts &&
+                Patch4InteractiveGameplayPreview.StartAfterFreshReview())
+            {
+                Debug.Log(
+                    "Patch 4 fresh technical evidence is complete. A separate " +
+                    "locked interactive gameplay preview is queued; review " +
+                    "windows will open after that Play Mode session ends.");
+                return;
+            }
+
             EditorApplication.ExecuteMenuItem("Window/General/Console");
             Patch4NeutralPoseReviewWindow.Open();
             Patch4FacePoseReviewWindow.Open();
-            bool hasFreshRoomArtifacts = HasFreshRoomArtifacts();
             if (hasFreshRoomArtifacts)
             {
                 Patch4AnimationRoomReviewWindow.Open();

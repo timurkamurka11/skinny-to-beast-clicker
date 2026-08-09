@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "test-runner-playmode-ownership-v26";
+            "locked-interactive-gameplay-preview-v27";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v26.playowner.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v27.gameplay.";
 
         private static int idleFrames;
 
@@ -57,7 +57,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V26 gameplay-action review started: " +
+                    "Patch 4 V27 locked gameplay preview pass started: " +
                     "restore the approved master, rebuild the retained v21.1 " +
                     "rollback candidates, verify neutral reconstruction, rebuild " +
                     "the locked prefab and bind six complete-frame RGBA sheets " +
@@ -86,7 +86,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "frame difference, " +
                     "reject duplicated poses, missing travel, weak blink motion, " +
                     "collapse, over-stretch or Console errors, restore Patch 3.5 " +
-                    "and open only fresh read-only review artifacts.");
+                    "and verify fresh read-only review artifacts. After that " +
+                    "technical pass, Unity will automatically enter a separate " +
+                    "Editor-only normal-game preview and leave Play Mode on. " +
+                    "The user can tap the dumbbell, buy upgrades and watch the " +
+                    "existing bounded room routine drive Patch 4 without " +
+                    "unlocking production readiness.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(
@@ -110,7 +115,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V26 continuation failed: " + exception);
+                    "Patch 4 automatic V27 continuation failed: " + exception);
             }
         }
     }
