@@ -225,6 +225,35 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.IsTrue(
                     GetBoolProperty(v23Presentation, "IsReady"),
                     "One or more V23 complete-frame sheets were not bound.");
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        v23Presentation,
+                        "FrameCalibrationReady"),
+                    "Whole-frame shoe-line and scale calibration is missing.");
+                MethodInfo measureCalibration =
+                    v23PresentationType.GetMethod(
+                        "TryMeasureFrameCalibration",
+                        BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(measureCalibration);
+                object[] calibrationMetrics = { 0, 0f, 0f };
+                Assert.IsTrue(
+                    (bool)measureCalibration.Invoke(
+                        v23Presentation,
+                        calibrationMetrics));
+                Assert.AreEqual(
+                    0,
+                    (int)calibrationMetrics[0],
+                    "A complete-body source frame touches its atlas edge.");
+                Assert.Greater(
+                    (float)calibrationMetrics[1],
+                    0f,
+                    "The test fixture must exercise real source-padding " +
+                    "correction rather than a no-op calibration.");
+                Assert.LessOrEqual(
+                    (float)calibrationMetrics[2],
+                    0.14f,
+                    "Per-state scale correction exceeded the bounded " +
+                    "calibration contract.");
                 Assert.AreEqual(
                     8,
                     GetIntProperty(v23Presentation, "FrameCount"));

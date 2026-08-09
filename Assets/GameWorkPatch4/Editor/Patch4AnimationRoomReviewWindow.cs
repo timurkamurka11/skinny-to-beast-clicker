@@ -20,6 +20,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public bool walkCycleCaptured;
             public bool walkRootTravelPassed;
             public bool walkPhaseAlternationPassed;
+            public bool runtimeFrameCalibrationReady;
+            public bool liveGameplayPreviewCompleted;
+            public float liveGameplayPreviewDurationSeconds;
+            public int liveGameplayPreviewFrameAdvances;
             public string generatedUtc = string.Empty;
             public string error = string.Empty;
         }
@@ -103,7 +107,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "walk also passed opposing left/right arm and leg phases, " +
                     "monotonic room travel, independent silhouette motion, " +
                     "shoulder-relative hand and pelvis-relative foot " +
-                    "articulation. The legacy " +
+                    "articulation. Before these paused evidence images were " +
+                    "captured, Game view automatically played " +
+                    reviewStatus.liveGameplayPreviewDurationSeconds.ToString(
+                        "0.0") +
+                    " seconds of uninterrupted final-cadence animation (" +
+                    reviewStatus.liveGameplayPreviewFrameAdvances +
+                    " visible frame advances) inside the actual room. Judge " +
+                    "timing from that live pass, not from this deliberately " +
+                    "frozen contact sheet. Per-frame shoe-line and per-state " +
+                    "scale calibration stayed active throughout. The legacy " +
                     "robot-like footstep was " +
                     "paused only during this review and restored afterward. " +
                     "Human review is still required and activation remains " +

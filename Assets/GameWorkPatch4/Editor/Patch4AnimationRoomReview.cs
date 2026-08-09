@@ -460,7 +460,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 locked animation-room technical review PASSED: " +
                     "all ten clips were sampled in LivingGameplayScene with " +
-                    "one intact body, frozen Canvas bind anchors, retained " +
+                    "two uninterrupted final-cadence preview passes, one " +
+                    "intact body, fixed per-state scale, a calibrated shoe " +
+                    "line, frozen Canvas bind anchors, retained " +
                     "full silhouettes, " +
                     "measurable motion, an eight-phase opposing-limb walk " +
                     "advancing through the room, no legacy robot " +

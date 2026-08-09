@@ -138,6 +138,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
 
             AssertWalkClipHasArticulatedGait();
             AssertV23FullFrameSheetsAreImportable();
+            AssertV24UpgradeCorrectionIsImportable();
+            AssertWholeFramePlaybackCadence();
             AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
         }
 
@@ -511,6 +513,64 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     importer.textureCompression,
                     path);
             }
+        }
+
+        private static void AssertV24UpgradeCorrectionIsImportable()
+        {
+            const string path =
+                "Assets/GameWorkPatch4/Art/Character/FatMan/" +
+                "V24Corrections/FatMan_Upgrade_V24.png";
+            Texture2D sheet =
+                AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            Assert.NotNull(
+                sheet,
+                "The complete-body V24 upgrade correction is missing.");
+            Assert.AreEqual(1536, sheet.width, path);
+            Assert.AreEqual(1024, sheet.height, path);
+
+            TextureImporter importer =
+                AssetImporter.GetAtPath(path) as TextureImporter;
+            Assert.NotNull(importer, path);
+            Assert.IsTrue(importer.isReadable, path);
+            Assert.IsTrue(importer.alphaIsTransparency, path);
+            Assert.IsFalse(importer.mipmapEnabled, path);
+            Assert.AreEqual(TextureWrapMode.Clamp, importer.wrapMode, path);
+            Assert.AreEqual(
+                TextureImporterCompression.Uncompressed,
+                importer.textureCompression,
+                path);
+            Assert.AreEqual(
+                path,
+                SkinnyToBeast.Gameplay.Patch4.Editor
+                    .Patch4PrefabBuilder.V23UpgradeSheetPath,
+                "The prefab builder must bind the corrected full-body " +
+                "upgrade sheet rather than the cropped V23 source.");
+        }
+
+        private static void AssertWholeFramePlaybackCadence()
+        {
+            Type presentation = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4V23FullFramePresentation");
+            MethodInfo resolve = presentation.GetMethod(
+                "ResolvePlaybackDuration",
+                BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(resolve);
+            Assert.LessOrEqual(
+                (float)resolve.Invoke(null, new object[]
+                {
+                    "FatMan_Walk_InRoom"
+                }),
+                0.8f,
+                "The eight-frame walk must play at a responsive whole-frame " +
+                "cadence rather than the slow diagnostic timing.");
+            Assert.LessOrEqual(
+                (float)resolve.Invoke(null, new object[]
+                {
+                    "FatMan_TapReact_01"
+                }),
+                0.5f,
+                "Tap reactions must not linger at screenshot-review speed.");
         }
 
         private static void AssertCurveSweep(

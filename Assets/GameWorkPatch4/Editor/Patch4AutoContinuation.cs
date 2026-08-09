@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "full-frame-ten-clip-review-v23";
+            "calibrated-live-gameplay-preview-v24";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v23.full-frame.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v24.live-preview.";
 
         private static int idleFrames;
 
@@ -57,17 +57,21 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V23 automatic ten-clip full-frame review started: " +
+                    "Patch 4 V24 calibrated live-gameplay review started: " +
                     "restore the approved master, rebuild the retained v21.1 " +
                     "rollback candidates, verify neutral reconstruction, rebuild " +
                     "the locked prefab and bind six complete-frame RGBA sheets " +
-                    "covering all ten required clips. During every clip the entire " +
+                    "covering all ten required clips, including the corrected " +
+                    "complete-body upgrade sheet. During every clip the entire " +
                     "experimental Canvas stack is hidden, so " +
                     "no sliced joint, detached face or vacuum-stretched body can " +
                     "leak behind the complete painted frames. The Walk uses eight " +
                     "strict screen-right profile phases, and blink/look/tap/upgrade " +
-                    "use independent painted facial expressions. After 4/4, Unity " +
-                    "will enter every full Animator state in the actual room, " +
+                    "use independent painted facial expressions. Every frame is " +
+                    "aligned to one shoe line and each pose family uses a fixed " +
+                    "body scale. After 4/4, Unity will first play two uninterrupted " +
+                    "final-cadence passes in the actual room, then enter every " +
+                    "full Animator state, " +
                     "sample all ten states and eight Walk frames with silent " +
                     "monotonic travel, " +
                     "measure both visible arm silhouettes, both visible leg " +

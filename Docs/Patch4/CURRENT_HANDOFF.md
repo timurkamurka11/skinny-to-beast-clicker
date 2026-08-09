@@ -898,35 +898,51 @@ The v17 result is rejected. Patch 4 remains locked.
 - Patch 3.5 remains active and no protected menu, video, music, audio or
   settings path changed.
 
-## Exact next action
+## Current P4.0-AB / V24 cadence, scale and live-room correction
 
-The V22 Walk-only experiment is superseded by V23. V23 replaces the visible
-surface for **all ten** required clips with complete painted frames:
+The user's fresh V23 Unity review is the current evidence. It confirmed that
+the complete-frame architecture is substantially cleaner: Walk is a real
+right-facing gait, all ten states use intact painted bodies, the old deforming
+mesh stays hidden and the face remains attached. It also exposed two real
+problems and one review-presentation misunderstanding:
 
-- six transparent `1536 × 1024`, `4 × 2` sheets live under
-  `Assets/GameWorkPatch4/Art/Character/FatMan/V23FullFrame/`;
-- `Patch4V23FullFramePresentation` owns one `RawImage` and swaps whole-body
-  frames without cross-fading or mesh deformation;
-- the rejected V21 Canvas stack remains only as a locked rollback diagnostic
-  source and is forced to alpha zero whenever a V23 frame is visible;
-- idle breathe, weight shift, blink, look-around, both tap reactions, turn,
-  sit/lean and upgrade now use V23 frames instead of the old deforming rig;
-- Walk contains eight grounded, right-facing profile poses. It moves
-  monotonically through the room during the locked review; a front-facing body
-  sliding sideways cannot pass the static direction gate;
-- blink and look-around use independent full-body face frames, while tap and
-  upgrade sheets contain stronger painted mouth/eye reactions;
-- static QA requires all six sheets, one visible complete body, ten mapped
-  states, measurable facial changes, four articulated Walk regions and no
-  near-duplicate adjacent gait frame;
-- the new automatic run token is `full-frame-ten-clip-review-v23`;
-- Patch 4 remains disabled and Patch 3.5 remains the active rollback.
+- the room driver deliberately stops at capture phases, so the contact-sheet
+  pass looks slower and more stepped than gameplay;
+- normal V23 frame selection inherited long legacy clip lengths, making the
+  whole-frame cadence too slow even outside screenshot pauses;
+- source sheets use different body scales and shoe-line padding. The face,
+  profile Walk, turn/tap art and upgrade art therefore pop in size or height;
+- V23 upgrade frame 5 is an enlarged torso rather than a complete body, and
+  the raised-arm frame does not share the standing shoe line.
 
-The repository-only static guard passes for this V23 source set. A fresh Unity
-`6000.3.19f1` import/review is still required and must not be described as
-passed before the user's Editor completes it.
+P4.0-AB corrects these findings without cross-fading or reactivating the old
+rig:
 
-After V23 is present on `patch-4.0`, run only:
+- `Patch4V23FullFramePresentation` now defines responsive per-state playback
+  durations. Normal Animator playback and locked preview use the same cadence;
+- every source frame is measured once from its alpha silhouette. A fixed
+  per-pose-family scale and automatic shoe-line correction are applied to the
+  single `RawImage`, so padding cannot resize or float the actor;
+- `V24Corrections/FatMan_Upgrade_V24.png` preserves the accepted identity,
+  outfit and painted style but restores the cropped arms-crossed frame to a
+  complete head-to-shoes body;
+- `Patch4AnimationRoomReviewDriver` first plays two uninterrupted real-time
+  passes inside the actual `LivingGameplayScene` (about 13 seconds, no capture
+  pauses), then performs the frozen technical screenshot pass;
+- the review window explicitly states that its contact sheet is paused
+  evidence and that timing must be judged from the preceding live Game view;
+- reports require the live preview, frame calibration and zero atlas-edge
+  clipping before a technical pass;
+- automatic continuation advances to
+  `calibrated-live-gameplay-preview-v24`;
+- readiness remains locked, Patch 3.5 remains active, and no menu, video,
+  music, audio or settings file is changed.
+
+Repository static validation passes for this P4.0-AB source set. Unity compile,
+`4/4 + 4/4` tests and fresh actual-room visual review remain pending until the
+next pull and must not be described as passed yet.
+
+After P4.0-AB is published on `patch-4.0`, run only:
 
 ```bat
 git pull origin patch-4.0
@@ -936,19 +952,22 @@ Keep Unity open and wait. `Patch4AutoContinuation` will automatically:
 
 1. verify and restore the exact repository master;
 2. regenerate all ten masks and all 40 candidate layers;
-3. rebuild the locked prefab and bind all six V23 full-frame sheets;
+3. rebuild the locked prefab, bind the V23 sheets and the corrected V24
+   upgrade sheet;
 4. keep the exact master and all 40 legacy candidate layers available only as
    hidden rollback diagnostics;
 5. run pixel, rig, compilation, Editor smoke, EditMode and PlayMode checks;
 6. after Test Runner becomes quiescent, create the actual gameplay room in a
    separate Play Mode session;
-7. enter every clip through its verified full Animator path;
-8. hide the entire experimental deformation stack during every clip and show
-   exactly one V23 full-body frame;
-9. capture a fresh eight-phase right-profile Walk strip and ten-clip V23 sheet,
+7. focus Game view and play two uninterrupted final-cadence passes in the
+   actual room with fixed scale and shoe line;
+8. enter every clip through its verified full Animator path;
+9. hide the entire experimental deformation stack during every clip and show
+   exactly one calibrated full-body frame;
+10. capture a fresh eight-phase right-profile Walk strip and ten-clip sheet,
    report all four visible limb-region differences, facial differences and the
    weakest adjacent-frame difference, and keep all technical failures visible;
-10. restore Patch 3.5, exit Play Mode and open the fresh read-only review.
+11. restore Patch 3.5, exit Play Mode and open the fresh read-only review.
 
 Expected final count:
 
@@ -957,12 +976,13 @@ EditMode: 4 passed; PlayMode: 4 passed.
 ```
 
 No Dashboard, Test Runner, Play button or review-window click is required.
-Unity will briefly show the real room while it cycles the clips. Inspect the
-automatically focused review after Unity returns to Edit Mode. The first strip
-must show a right-facing alternating step: bent knees, lifted feet and arm
-swing, moving from left to right. The `5 × 2` sheet must show the same clean
-whole-body art family for all ten clips, with no second body, old limb pieces,
-vacuum stretching or detached face.
+Watch the automatically focused Game view first: that uninterrupted pass is
+the real timing preview. After Unity returns to Edit Mode, inspect the frozen
+evidence window for scale, ground alignment, identity, silhouette and pose
+quality. The first strip must show a right-facing alternating step moving
+left-to-right. The `5 × 2` sheet must show one clean complete body in all ten
+cells, with no second body, scale pop, floating shoes, cropped upgrade pose,
+old limb pieces, vacuum stretching or detached face.
 
 ## Do not do yet
 
@@ -972,7 +992,7 @@ vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Work after the V23 automatic room review
+## Work after the V24 automatic room review
 
 - Inspect the eight complete Walk frames first and keep activation locked.
 - Reject any identity drift, foot slide, duplicate underlay, inconsistent scale

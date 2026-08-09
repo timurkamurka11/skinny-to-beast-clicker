@@ -74,6 +74,8 @@ REQUIRED_FILES = (
     "FatMan_Upgrade_V23.png",
     "Assets/GameWorkPatch4/Art/Character/FatMan/V23FullFrame/"
     "FatMan_WalkRight_V23.png",
+    "Assets/GameWorkPatch4/Art/Character/FatMan/V24Corrections/"
+    "FatMan_Upgrade_V24.png",
     "Assets/GameWorkPatch4/Art/Character/FatMan/master-source.json",
     "Assets/GameWorkPatch4/Art/Character/FatMan/Masks/adobe-mask-manifest.json",
     "Docs/Patch4/CHECKPOINT.md",
@@ -286,7 +288,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"full-frame-ten-clip-review-v23"',
+            '"calibrated-live-gameplay-preview-v24"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -419,7 +421,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "FatMan_Face_V23.png",
             "FatMan_Tap_V23.png",
             "FatMan_Pose_V23.png",
-            "FatMan_Upgrade_V23.png",
+            "FatMan_Upgrade_V24.png",
             "FatMan_WalkRight_V23.png",
             "v23Presentation.RebuildPresentation()",
         ):
@@ -447,6 +449,11 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "HasSingleVisibleCompleteFrame",
             "LegacyUnderlayHidden",
             "VisibleAlphaThreshold",
+            "ResolvePlaybackDuration(",
+            "TryMeasureFrameCalibration(",
+            "ApplyFrameCalibration(",
+            "TargetGroundPixel",
+            "ResolveArtworkScale(",
         ):
             if snippet not in v23_presentation:
                 fail(errors, f"V23 full-frame presentation is missing: {snippet}")
@@ -629,6 +636,11 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "reviewConsoleErrorCount == 0",
             "SetEditorReviewActive(true)",
             "SetEditorReviewActive(false)",
+            "RunUninterruptedGameplayPreview(",
+            "liveGameplayPreviewCompleted",
+            "liveGameplayPreviewFrameAdvances",
+            "runtimeFrameCalibrationReady",
+            "MinimumLivePreviewFrameAdvances",
         ):
             if snippet not in review_driver:
                 fail(errors, f"Locked animation-room driver is missing: {snippet}")
@@ -774,6 +786,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AssertAnimatorControllerHasCanonicalRootStatePaths(clips)",
             "AssertV23FullFrameSheetsAreImportable()",
             "FatMan_WalkRight_V23.png",
+            "AssertV24UpgradeCorrectionIsImportable()",
+            "AssertWholeFramePlaybackCadence()",
             "layer.name",
             "machine.name",
         ):
@@ -827,6 +841,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "An older contact sheet is deliberately blocked",
             "Patch4AnimationRoomReview.WalkCyclePath",
             "DrawWalkLabels(",
+            "liveGameplayPreviewDurationSeconds",
+            "liveGameplayPreviewFrameAdvances",
+            "timing from that live pass, not from this deliberately",
         ):
             if snippet not in review_window:
                 fail(
@@ -882,6 +899,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "GetBoolProperty(v23Presentation, \"IsReady\")",
             "GetIntProperty(v23Presentation, \"StateCount\")",
             "TryMeasureFaceArticulation",
+            "TryMeasureFrameCalibration",
+            "FrameCalibrationReady",
         ):
             if snippet not in playmode_tests:
                 fail(
@@ -1090,6 +1109,136 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
                     errors,
                     f"V23 texture import contract is missing {setting}: "
                     f"{sheet_name}",
+                )
+
+    corrected_upgrade_relative = (
+        "Assets/GameWorkPatch4/Art/Character/FatMan/V24Corrections/"
+        "FatMan_Upgrade_V24.png"
+    )
+    corrected_upgrade_path = root / corrected_upgrade_relative
+    try:
+        corrected_upgrade_data = corrected_upgrade_path.read_bytes()
+    except OSError as exc:
+        fail(errors, f"V24 corrected upgrade sheet is unreadable: {exc}")
+        corrected_upgrade_data = b""
+
+    if corrected_upgrade_data:
+        if (
+            len(corrected_upgrade_data) < 29
+            or corrected_upgrade_data[:8] != b"\x89PNG\r\n\x1a\n"
+            or corrected_upgrade_data[12:16] != b"IHDR"
+        ):
+            fail(errors, "V24 corrected upgrade sheet is not a valid PNG")
+        else:
+            corrected_width, corrected_height = struct.unpack(
+                ">II", corrected_upgrade_data[16:24]
+            )
+            if (corrected_width, corrected_height) != (1536, 1024):
+                fail(
+                    errors,
+                    "V24 corrected upgrade sheet must be 1536 x 1024",
+                )
+            if (
+                corrected_upgrade_data[24] != 8
+                or corrected_upgrade_data[25] != 6
+            ):
+                fail(
+                    errors,
+                    "V24 corrected upgrade sheet must be 8-bit RGBA",
+                )
+            else:
+                try:
+                    corrected_rgba = decode_png_rgba(
+                        corrected_upgrade_data,
+                        corrected_width,
+                        corrected_height,
+                    )
+                    cell_width = corrected_width // 4
+                    cell_height = corrected_height // 2
+                    corrected_bounds = []
+                    for frame in range(8):
+                        column, row = frame % 4, frame // 4
+                        x_min = cell_width
+                        y_min = cell_height
+                        x_max = -1
+                        y_max = -1
+                        for local_y in range(cell_height):
+                            y = row * cell_height + local_y
+                            for local_x in range(cell_width):
+                                x = column * cell_width + local_x
+                                if (
+                                    corrected_rgba[
+                                        (y * corrected_width + x) * 4 + 3
+                                    ]
+                                    >= 32
+                                ):
+                                    x_min = min(x_min, local_x)
+                                    y_min = min(y_min, local_y)
+                                    x_max = max(x_max, local_x)
+                                    y_max = max(y_max, local_y)
+                        if x_max < 0:
+                            fail(
+                                errors,
+                                f"V24 corrected upgrade frame {frame} is empty",
+                            )
+                            corrected_bounds.append(None)
+                            continue
+                        bounds = (
+                            x_min,
+                            y_min,
+                            x_max + 1,
+                            y_max + 1,
+                        )
+                        corrected_bounds.append(bounds)
+                        if (
+                            bounds[0] <= 1
+                            or bounds[1] <= 1
+                            or bounds[2] >= cell_width - 1
+                            or bounds[3] >= cell_height - 1
+                        ):
+                            fail(
+                                errors,
+                                "V24 corrected upgrade frame touches a cell "
+                                f"edge: frame {frame}, bounds {bounds}",
+                            )
+
+                    # V23 frame 5 was only an enlarged torso. Its corrected
+                    # replacement must contain a full head-to-shoes figure.
+                    frame_five = corrected_bounds[5]
+                    if (
+                        frame_five is None
+                        or frame_five[3] - frame_five[1] < 360
+                    ):
+                        fail(
+                            errors,
+                            "V24 upgrade frame 5 is still cropped before the "
+                            "shoes",
+                        )
+                except (ValueError, zlib.error) as exc:
+                    fail(
+                        errors,
+                        "V24 corrected upgrade pixels could not be decoded: "
+                        f"{exc}",
+                    )
+
+        corrected_meta = read_text(
+            root,
+            corrected_upgrade_relative + ".meta",
+            errors,
+        )
+        for setting in (
+            "enableMipMap: 0",
+            "isReadable: 1",
+            "wrapU: 1",
+            "wrapV: 1",
+            "textureCompression: 0",
+            "alphaIsTransparency: 1",
+        ):
+            if corrected_meta and setting not in corrected_meta:
+                fail(
+                    errors,
+                    "V24 corrected upgrade import contract is missing "
+                    f"{setting}",
                 )
 
     relative = sheet_root + "FatMan_WalkRight_V23.png"
@@ -1475,6 +1624,8 @@ def main() -> int:
     print("- V23 uses one complete RGBA body for all ten clips while every legacy mesh layer stays hidden")
     print("- V23 walk is a right-facing eight-phase gait with monotonic room travel")
     print("- V23 blink and look-around use measurable painted facial changes")
+    print("- V24 repairs the cropped upgrade pose and calibrates scale plus shoe line")
+    print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

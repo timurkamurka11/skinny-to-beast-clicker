@@ -1066,6 +1066,38 @@ The repository static guard passes. Unity compilation, EditMode, PlayMode and
 fresh actual-room visual review remain pending until the next user pull. V23
 cannot approve readiness or activate Patch 4. Patch 3.5 remains active.
 
+### P4.0-AB / V24 calibrated cadence and uninterrupted room preview
+
+The first genuine V23 Unity review supersedes the preceding pending statement.
+Human review found the complete-frame direction much better, but reported
+slow/stepped playback and occasional character-size changes. The captured
+evidence also showed that the technical room driver pauses at every screenshot,
+while the source atlases use inconsistent padding, shoe lines and body scale.
+The V23 upgrade sheet additionally contains one torso-only frame.
+
+P4.0-AB keeps the accepted single-body architecture and corrects those exact
+issues:
+
+- normal whole-frame state timing uses explicit responsive durations instead
+  of the long legacy clip lengths;
+- alpha bounds are cached for all 48 atlas cells; the sole visible `RawImage`
+  receives bounded per-state scale calibration and per-frame shoe-line
+  alignment, with no second image and no cross-fade;
+- a versioned corrected upgrade atlas at
+  `V24Corrections/FatMan_Upgrade_V24.png` restores all eight head-to-shoes
+  bodies while preserving identity, outfit and painted style;
+- before any technical screenshot freezes, Unity automatically plays two
+  uninterrupted final-cadence passes in the real `LivingGameplayScene`;
+- fresh reports require the live preview, calibrated frame geometry and zero
+  cell-edge clipping, and the read-only window labels its sheet as deliberately
+  paused evidence rather than a timing preview;
+- the new run token is `calibrated-live-gameplay-preview-v24`.
+
+The repository static guard passes. Unity compilation, `EditMode: 4` and
+`PlayMode: 4`, and the new live-room visual result remain pending until the next
+pull. Patch 4 stays disabled, Patch 3.5 stays active and protected
+menu/video/music/audio/settings paths remain unchanged.
+
 ## Production dashboard
 
 Open in Unity:
@@ -1125,20 +1157,25 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull V23 into Unity `6000.3.19f1` with only
+1. Pull P4.0-AB/V24 into Unity `6000.3.19f1` with only
    `git pull origin patch-4.0` and leave Unity open.
 2. Do not click Dashboard, Test Runner, Play or a review button.
-3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind all six V23
-   sheets, run safety/tests and enter the actual room after Test Runner is
-   quiescent.
-4. Inspect the automatically opened first strip. It must contain eight complete
+3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind the V23 sheets
+   plus the corrected V24 upgrade sheet, run safety/tests and enter the actual
+   room after Test Runner is quiescent.
+4. Watch the automatically focused Game view before the report opens. It must
+   play about 13 seconds of uninterrupted target-cadence animation; this is the
+   gameplay timing preview and requires no click.
+5. Inspect the automatically opened first strip. It must contain eight complete
    profile-right alternating steps moving left-to-right: visible knee bend,
    lifted feet and arm swing, with no duplicate legacy body underneath.
-5. Inspect the ten-clip sheet. Every cell must use a complete V23 body; blink,
-   look, tap and upgrade must show clean attached facial changes.
-6. Use the fresh report's face metrics, four limb-region differences and weakest
-   adjacent-frame difference to reject static, front-facing or duplicated art.
-7. Keep readiness locked until the V23 actual-room motion and identity pass
+6. Inspect the ten-clip sheet for fixed character scale, one common shoe line
+   and eight complete upgrade bodies. The sheet is frozen evidence and must not
+   be used to judge playback speed.
+7. Use the fresh report's face metrics, frame calibration, four limb-region
+   differences and weakest adjacent-frame difference to reject static,
+   front-facing, clipped or duplicated art.
+8. Keep readiness locked until the V24 actual-room motion and identity pass
    human review.
 
 Detailed art instructions:
@@ -1199,9 +1236,11 @@ Detailed verification instructions:
   the flattened Canvas body still stretched and did not read as walking.
 - P4.0-Z/V22 added an isolated complete-frame Walk candidate; it is superseded
   by V23 and remains historical, not approved production art.
-- V23 replaces the visible surface for all ten clips, but its first fresh Unity
-  compile/test/actual-room review is pending and it is not approved production
-  art.
+- V23 replaced the visible surface for all ten clips and its first fresh Unity
+  review was substantially cleaner, but human review found slow diagnostic
+  pacing, real source-scale variation and a cropped upgrade frame. P4.0-AB/V24
+  corrects those issues and still awaits its fresh Unity run; it is not approved
+  production art.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

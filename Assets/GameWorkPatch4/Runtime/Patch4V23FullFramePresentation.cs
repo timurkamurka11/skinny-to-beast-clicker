@@ -10,7 +10,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
     /// The rejected V21 Canvas mesh remains available for rollback diagnostics,
     /// but it is never blended with this surface. A discrete texture swap keeps
     /// the face attached and prevents doubled limbs, sliced joints and rubbery
-    /// interpolation between poses.
+    /// interpolation between poses. P4.0-AB adds deterministic per-clip scale
+    /// calibration and per-frame shoe-line alignment so source-atlas padding
+    /// can never make the character pop larger, smaller or float between
+    /// otherwise valid complete-body frames.
     /// </summary>
     [DefaultExecutionOrder(1240)]
     [DisallowMultipleComponent]
@@ -22,6 +25,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const int Rows = 2;
         private const int FramesPerRow = 4;
         private const byte VisibleAlphaThreshold = 32;
+        private const float TargetGroundPixel = 22f;
+
+        private struct FrameAlphaBounds
+        {
+            public int xMin;
+            public int xMax;
+            public int yMin;
+            public int yMax;
+            public bool valid;
+
+            public bool TouchesCellEdge(int width, int height)
+            {
+                return valid &&
+                    (xMin <= 1 || yMin <= 1 ||
+                     xMax >= width - 1 || yMax >= height - 1);
+            }
+        }
 
         [SerializeField] private Patch4CharacterRigController rigController;
         [SerializeField] private Patch4CanvasPresentation canvasPresentation;
@@ -50,6 +70,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private string activeClipName = string.Empty;
         private int activeFrameIndex;
         private Texture2D activeSheet;
+        private Vector3 baseAnchoredPosition3D;
+        private Vector3 baseLocalScale = Vector3.one;
+        private float presentationHeight;
+        private float activeArtworkScale = 1f;
+        private float activeGroundCorrectionPixels;
+        private bool frameCalibrationReady;
+        private readonly Dictionary<Texture2D, FrameAlphaBounds[]>
+            frameBoundsBySheet = new();
 
         public const int RequiredStateCount = 10;
         public const int RequiredWalkFrameCount = 8;
@@ -61,6 +89,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             IsValidSheet(poseSheet) &&
             IsValidSheet(upgradeSheet) &&
             IsValidSheet(walkRightSheet) &&
+            frameCalibrationReady &&
             presentationRoot != null &&
             presentationImage != null &&
             generatedLayersGroup != null;
@@ -73,6 +102,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
         public Texture2D ActiveSheet => activeSheet;
         public Texture2D WalkSheet => walkRightSheet;
         public RectTransform PresentationRoot => presentationRoot;
+        public bool FrameCalibrationReady => frameCalibrationReady;
+        public float ActiveArtworkScale => activeArtworkScale;
+        public float ActiveGroundCorrectionPixels =>
+            activeGroundCorrectionPixels;
         public bool LegacyUnderlayHidden =>
             displayed &&
             generatedLayersGroup != null &&
@@ -195,6 +228,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     presentationRoot.gameObject.AddComponent<RawImage>();
             }
 
+            if (!frameCalibrationReady)
+            {
+                frameCalibrationReady = RebuildFrameCalibration();
+            }
             ConfigureRect(generated);
             presentationImage.color = Color.white;
             presentationImage.raycastTarget = false;
@@ -203,6 +240,88 @@ namespace SkinnyToBeast.Gameplay.Patch4
             ApplyPose(reviewClipName, reviewNormalizedTime);
             SetDisplayed(reviewActive);
             return IsReady;
+        }
+
+        /// <summary>
+        /// Target whole-frame cadence used by both normal gameplay and the
+        /// uninterrupted locked-room preview. Diagnostic screenshot pauses do
+        /// not alter these durations.
+        /// </summary>
+        public static float ResolvePlaybackDuration(string clipName)
+        {
+            switch (clipName)
+            {
+                case "FatMan_Idle_Breathe":
+                    return 1.4f;
+                case "FatMan_Idle_ShiftWeight":
+                    return 1.1f;
+                case "FatMan_Blink_Random":
+                    return 0.28f;
+                case "FatMan_LookAround":
+                    return 0.8f;
+                case "FatMan_TapReact_01":
+                case "FatMan_TapReact_02":
+                    return 0.46f;
+                case "FatMan_Walk_InRoom":
+                    return 0.78f;
+                case "FatMan_Turn":
+                    return 0.62f;
+                case "FatMan_SitOrLean":
+                    return 0.78f;
+                case "FatMan_UpgradeReact":
+                    return 0.72f;
+                default:
+                    return 1f;
+            }
+        }
+
+        public bool TryMeasureFrameCalibration(
+            out int clippedFrameCount,
+            out float maximumRawGroundDeviationPixels,
+            out float maximumArtworkScaleAdjustment)
+        {
+            clippedFrameCount = 0;
+            maximumRawGroundDeviationPixels = 0f;
+            maximumArtworkScaleAdjustment = 0f;
+            if (!frameCalibrationReady)
+            {
+                return false;
+            }
+
+            foreach (KeyValuePair<Texture2D, FrameAlphaBounds[]> entry
+                     in frameBoundsBySheet)
+            {
+                int cellWidth = entry.Key.width / Columns;
+                int cellHeight = entry.Key.height / Rows;
+                FrameAlphaBounds[] bounds = entry.Value;
+                for (int i = 0; i < bounds.Length; i++)
+                {
+                    if (!bounds[i].valid)
+                    {
+                        return false;
+                    }
+
+                    if (bounds[i].TouchesCellEdge(cellWidth, cellHeight))
+                    {
+                        clippedFrameCount++;
+                    }
+
+                    maximumRawGroundDeviationPixels = Mathf.Max(
+                        maximumRawGroundDeviationPixels,
+                        Mathf.Abs(bounds[i].yMin - TargetGroundPixel));
+                }
+            }
+
+            IReadOnlyList<string> clips =
+                Patch4RigContract.RequiredClipNames;
+            for (int i = 0; i < clips.Count; i++)
+            {
+                maximumArtworkScaleAdjustment = Mathf.Max(
+                    maximumArtworkScaleAdjustment,
+                    Mathf.Abs(ResolveArtworkScale(clips[i]) - 1f));
+            }
+
+            return true;
         }
 
         public bool SetReviewPose(
@@ -412,6 +531,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Vector3.up * sourceHeight * canvasBottomOffsetRatio;
             presentationRoot.localRotation = generated.localRotation;
             presentationRoot.localScale = generated.localScale;
+            baseAnchoredPosition3D = presentationRoot.anchoredPosition3D;
+            baseLocalScale = presentationRoot.localScale;
+            presentationHeight = height;
         }
 
         private bool ApplyPose(string clipName, float normalizedTime)
@@ -430,6 +552,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             activeSheet = sheet;
             presentationImage.texture = sheet;
             SetFrame(frameIndex);
+            ApplyFrameCalibration(clipName, sheet, frameIndex);
             return true;
         }
 
@@ -549,6 +672,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             else
             {
                 RestoreUnderlayAlpha();
+                RestorePresentationTransform();
             }
 
             displayed = valid;
@@ -590,7 +714,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
                             layerName + "." + candidate))
                 {
                     clipName = candidate;
-                    normalizedTime = state.normalizedTime;
+                    float targetDuration = Mathf.Max(
+                        0.05f,
+                        ResolvePlaybackDuration(candidate));
+                    float sourceDuration = Mathf.Max(
+                        0.05f,
+                        state.length);
+                    float targetPhase =
+                        state.normalizedTime *
+                        sourceDuration /
+                        targetDuration;
+                    normalizedTime = state.loop
+                        ? targetPhase
+                        : Mathf.Clamp(targetPhase, 0f, 0.9999f);
                     return true;
                 }
             }
@@ -607,6 +743,155 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 sheet.width % Columns == 0 &&
                 sheet.height % Rows == 0 &&
                 sheet.isReadable;
+        }
+
+        private bool RebuildFrameCalibration()
+        {
+            frameBoundsBySheet.Clear();
+            return
+                TryCacheFrameBounds(idleSheet) &&
+                TryCacheFrameBounds(faceSheet) &&
+                TryCacheFrameBounds(tapSheet) &&
+                TryCacheFrameBounds(poseSheet) &&
+                TryCacheFrameBounds(upgradeSheet) &&
+                TryCacheFrameBounds(walkRightSheet);
+        }
+
+        private bool TryCacheFrameBounds(Texture2D sheet)
+        {
+            if (!IsValidSheet(sheet))
+            {
+                return false;
+            }
+
+            try
+            {
+                Color32[] pixels = sheet.GetPixels32();
+                int cellWidth = sheet.width / Columns;
+                int cellHeight = sheet.height / Rows;
+                FrameAlphaBounds[] bounds =
+                    new FrameAlphaBounds[RequiredWalkFrameCount];
+                for (int frame = 0;
+                     frame < RequiredWalkFrameCount;
+                     frame++)
+                {
+                    ResolveFrameOrigin(
+                        sheet,
+                        frame,
+                        out int originX,
+                        out int originY);
+                    FrameAlphaBounds current = new()
+                    {
+                        xMin = cellWidth,
+                        xMax = -1,
+                        yMin = cellHeight,
+                        yMax = -1,
+                        valid = false
+                    };
+
+                    for (int y = 0; y < cellHeight; y++)
+                    {
+                        int row = (originY + y) * sheet.width + originX;
+                        for (int x = 0; x < cellWidth; x++)
+                        {
+                            if (pixels[row + x].a < VisibleAlphaThreshold)
+                            {
+                                continue;
+                            }
+
+                            current.valid = true;
+                            current.xMin = Mathf.Min(current.xMin, x);
+                            current.xMax = Mathf.Max(current.xMax, x);
+                            current.yMin = Mathf.Min(current.yMin, y);
+                            current.yMax = Mathf.Max(current.yMax, y);
+                        }
+                    }
+
+                    if (!current.valid)
+                    {
+                        return false;
+                    }
+
+                    bounds[frame] = current;
+                }
+
+                frameBoundsBySheet.Add(sheet, bounds);
+                return true;
+            }
+            catch (UnityException)
+            {
+                return false;
+            }
+        }
+
+        private void ApplyFrameCalibration(
+            string clipName,
+            Texture2D sheet,
+            int frameIndex)
+        {
+            activeArtworkScale = ResolveArtworkScale(clipName);
+            activeGroundCorrectionPixels = 0f;
+            if (presentationRoot == null ||
+                sheet == null ||
+                !frameBoundsBySheet.TryGetValue(
+                    sheet,
+                    out FrameAlphaBounds[] bounds) ||
+                frameIndex < 0 ||
+                frameIndex >= bounds.Length ||
+                !bounds[frameIndex].valid)
+            {
+                RestorePresentationTransform();
+                return;
+            }
+
+            presentationRoot.localScale = new Vector3(
+                baseLocalScale.x * activeArtworkScale,
+                baseLocalScale.y * activeArtworkScale,
+                baseLocalScale.z);
+            activeGroundCorrectionPixels =
+                TargetGroundPixel -
+                bounds[frameIndex].yMin * activeArtworkScale;
+            int cellHeight = sheet.height / Rows;
+            float correction =
+                activeGroundCorrectionPixels /
+                Mathf.Max(1, cellHeight) *
+                presentationHeight;
+            presentationRoot.anchoredPosition3D =
+                baseAnchoredPosition3D + Vector3.up * correction;
+        }
+
+        private void RestorePresentationTransform()
+        {
+            if (presentationRoot == null)
+            {
+                return;
+            }
+
+            presentationRoot.anchoredPosition3D =
+                baseAnchoredPosition3D;
+            presentationRoot.localScale = baseLocalScale;
+            activeArtworkScale = 1f;
+            activeGroundCorrectionPixels = 0f;
+        }
+
+        private static float ResolveArtworkScale(string clipName)
+        {
+            switch (clipName)
+            {
+                case "FatMan_Blink_Random":
+                    return 0.986f;
+                case "FatMan_TapReact_01":
+                case "FatMan_TapReact_02":
+                    return 0.94f;
+                case "FatMan_Walk_InRoom":
+                    return 1.06f;
+                case "FatMan_Turn":
+                    return 0.933f;
+                case "FatMan_UpgradeReact":
+                    return 1.135f;
+                default:
+                    return 1f;
+            }
         }
 
         private static bool TryMeasureAlphaDifference(

@@ -110,6 +110,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool v23FaceArticulationReady;
             public float v23BlinkDifference;
             public float v23LookDifference;
+            public bool runtimeFrameCalibrationReady;
+            public int clippedCompleteFrameCount;
+            public float maximumRawGroundDeviationPixels;
+            public float maximumArtworkScaleAdjustment;
+            public bool liveGameplayPreviewCompleted;
+            public float liveGameplayPreviewDurationSeconds;
+            public int liveGameplayPreviewFrameAdvances;
             public bool legacyRoutinePausedForReview;
             public bool legacyRoutineRestored;
             public bool legacySignalBridgePausedForReview;
@@ -160,6 +167,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumV23AdjacentFrameDifference = 0.075f;
         private const float MinimumV23FaceDifference = 0.02f;
         private const float MinimumWalkTravelWidthRatio = 0.55f;
+        private const int LiveGameplayPreviewPassCount = 2;
+        private const int MinimumLivePreviewFrameAdvances = 70;
 
         private Patch4CharacterRigController rigController;
         private Patch4CharacterVisibilityGuard visibilityGuard;
@@ -248,6 +257,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 v23FullFramePresentation.TryMeasureFaceArticulation(
                     out blinkDifference,
                     out lookDifference);
+            int clippedFrameCount = 0;
+            float maximumRawGroundDeviation = 0f;
+            float maximumArtworkScaleAdjustment = 0f;
+            bool frameCalibrationMeasured =
+                v23FullFramePresentation != null &&
+                v23FullFramePresentation.TryMeasureFrameCalibration(
+                    out clippedFrameCount,
+                    out maximumRawGroundDeviation,
+                    out maximumArtworkScaleAdjustment);
             report = new ReviewReport
             {
                 runToken = reviewRunToken,
@@ -294,6 +312,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     lookDifference >= MinimumV23FaceDifference,
                 v23BlinkDifference = blinkDifference,
                 v23LookDifference = lookDifference,
+                runtimeFrameCalibrationReady =
+                    frameCalibrationMeasured &&
+                    v23FullFramePresentation.FrameCalibrationReady &&
+                    clippedFrameCount == 0,
+                clippedCompleteFrameCount = clippedFrameCount,
+                maximumRawGroundDeviationPixels =
+                    maximumRawGroundDeviation,
+                maximumArtworkScaleAdjustment =
+                    maximumArtworkScaleAdjustment,
                 readinessGateRemainedLocked =
                     rigController != null &&
                     !rigController.Patch4Enabled,
@@ -338,6 +365,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Canvas.ForceUpdateCanvases();
             yield return null;
             yield return new WaitForEndOfFrame();
+
+            // First show the character exactly as it should feel in gameplay:
+            // two uninterrupted real-time passes with no screenshot pauses.
+            // Only after this preview finishes do we freeze individual poses
+            // for the technical contact sheet below.
+            yield return RunUninterruptedGameplayPreview(clips);
+            if (!report.liveGameplayPreviewCompleted)
+            {
+                Finish(
+                    false,
+                    "The uninterrupted real-time gameplay preview did not " +
+                    "complete every calibrated full-frame state.");
+                yield break;
+            }
 
             for (int i = 0;
                  i < Patch4RigContract.RequiredClipNames.Count;
@@ -400,6 +441,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.v23WalkFrameSequenceReady &&
                 report.v23TenStateFullFrameReady &&
                 report.v23FaceArticulationReady &&
+                report.runtimeFrameCalibrationReady &&
+                report.liveGameplayPreviewCompleted &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
                 report.walkPhaseAlternationPassed,
@@ -409,6 +452,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.v23WalkFrameSequenceReady &&
                 report.v23TenStateFullFrameReady &&
                 report.v23FaceArticulationReady &&
+                report.runtimeFrameCalibrationReady &&
+                report.liveGameplayPreviewCompleted &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
                 report.walkPhaseAlternationPassed
@@ -417,6 +462,156 @@ namespace SkinnyToBeast.Gameplay.Patch4
                       "Animator state, collapsed or failed the visible " +
                       "motion check, or the walk did not show eight " +
                       "opposing limb phases with real room travel.");
+        }
+
+        private IEnumerator RunUninterruptedGameplayPreview(
+            IReadOnlyDictionary<string, AnimationClip> clips)
+        {
+            float previewDuration = 0f;
+            int frameAdvances = 0;
+            Debug.Log(
+                "Patch 4 LIVE GAMEPLAY PREVIEW started in the real " +
+                "LivingGameplayScene: two uninterrupted passes at final " +
+                "whole-frame cadence. The paused evidence capture follows " +
+                "after this preview and is not a timing demonstration.");
+
+            for (int pass = 0;
+                 pass < LiveGameplayPreviewPassCount;
+                 pass++)
+            {
+                RestoreWalkReviewTravel();
+                for (int i = 0;
+                     i < Patch4RigContract.RequiredClipNames.Count;
+                     i++)
+                {
+                    string clipName =
+                        Patch4RigContract.RequiredClipNames[i];
+                    if (!clips.TryGetValue(
+                            clipName,
+                            out AnimationClip clip) ||
+                        clip == null)
+                    {
+                        report.error = AppendError(
+                            report.error,
+                            "Live preview could not resolve " + clipName + ".");
+                        yield break;
+                    }
+
+                    currentClip = clipName;
+                    ConfigureFaceForClip(clipName);
+                    ConfigureAnimatorParametersForClip(clipName);
+                    int stateHash = Animator.StringToHash(
+                        ResolveAnimatorStatePath(clipName));
+                    if (!animator.HasState(0, stateHash) ||
+                        !PlayVerifiedAnimatorState(
+                            stateHash,
+                            0f,
+                            out _))
+                    {
+                        report.error = AppendError(
+                            report.error,
+                            "Live preview could not enter " +
+                            ResolveAnimatorStatePath(clipName) + ".");
+                        yield break;
+                    }
+
+                    float duration = Mathf.Max(
+                        0.05f,
+                        Patch4V23FullFramePresentation
+                            .ResolvePlaybackDuration(clipName));
+                    animator.speed = Mathf.Max(
+                        0.01f,
+                        clip.length / duration);
+                    bool isWalk = string.Equals(
+                        clipName,
+                        "FatMan_Walk_InRoom",
+                        StringComparison.Ordinal);
+                    if (isWalk)
+                    {
+                        PrepareWalkReviewTravel();
+                        SetWalkReviewTravel(0f);
+                    }
+
+                    int previousFrame = -1;
+                    float elapsed = 0f;
+                    while (elapsed < duration)
+                    {
+                        float normalizedTime = Mathf.Clamp(
+                            elapsed / duration,
+                            0f,
+                            0.9999f);
+                        if (!v23FullFramePresentation.SetReviewPose(
+                                clipName,
+                                normalizedTime))
+                        {
+                            report.error = AppendError(
+                                report.error,
+                                "Live preview could not present a complete " +
+                                "frame for " + clipName + ".");
+                            yield break;
+                        }
+
+                        int currentFrame =
+                            v23FullFramePresentation.ActiveFrameIndex;
+                        if (currentFrame != previousFrame)
+                        {
+                            frameAdvances++;
+                            previousFrame = currentFrame;
+                        }
+
+                        if (isWalk)
+                        {
+                            SetWalkReviewTravel(normalizedTime);
+                        }
+
+                        elapsed += Mathf.Max(
+                            0.001f,
+                            Time.unscaledDeltaTime);
+                        yield return null;
+                    }
+
+                    previewDuration += duration;
+                    if (isWalk)
+                    {
+                        RestoreWalkReviewTravel();
+                    }
+
+                    faceController.SetMouth(
+                        Patch4FaceController.MouthPose.Closed);
+                }
+            }
+
+            RestoreWalkReviewTravel();
+            ConfigureAnimatorParametersForClip(string.Empty);
+            animator.speed = 0f;
+            v23FullFramePresentation.SetReviewPose(
+                "FatMan_Idle_Breathe",
+                0f);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            report.liveGameplayPreviewDurationSeconds = previewDuration;
+            report.liveGameplayPreviewFrameAdvances = frameAdvances;
+            report.liveGameplayPreviewCompleted =
+                frameAdvances >= MinimumLivePreviewFrameAdvances &&
+                v23FullFramePresentation.HasSingleVisibleCompleteFrame &&
+                v23FullFramePresentation.FrameCalibrationReady;
+            if (!report.liveGameplayPreviewCompleted)
+            {
+                report.error = AppendError(
+                    report.error,
+                    "Live gameplay preview advanced " + frameAdvances +
+                    " calibrated frames; minimum " +
+                    MinimumLivePreviewFrameAdvances + ".");
+                yield break;
+            }
+
+            Debug.Log(
+                "Patch 4 LIVE GAMEPLAY PREVIEW completed: " +
+                previewDuration.ToString("0.0") +
+                " seconds, " + frameAdvances +
+                " visible whole-frame advances, fixed shoe line and fixed " +
+                "per-state character scale. Starting paused evidence capture.");
         }
 
         private IEnumerator ReviewClip(
@@ -443,24 +638,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             clipReport.v23FrameSequenceUsed =
                 isWalk && clipReport.v23FrameSequenceReady;
 
-            float reviewDuration = Mathf.Clamp(
-                clip.length,
-                0.55f,
-                2.4f);
+            float reviewDuration =
+                Patch4V23FullFramePresentation.ResolvePlaybackDuration(
+                    clip.name);
             float captureNormalizedTime =
                 ResolveCaptureNormalizedTime(clip.name);
             float captureAt =
                 reviewDuration * captureNormalizedTime;
-            if (string.Equals(
-                    clip.name,
-                    "FatMan_Blink_Random",
-                    StringComparison.Ordinal))
-            {
-                reviewDuration = 0.55f;
-                captureAt = reviewDuration * 0.5f;
-                captureNormalizedTime = captureAt / reviewDuration;
-            }
-
             clipReport.reviewDuration = reviewDuration;
             clipReport.minimumMotionCoverage =
                 ResolveMinimumMotionCoverage(clip.name);
@@ -1091,6 +1275,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 secondaryMotion == null ||
                 v23FullFramePresentation == null ||
                 !v23FullFramePresentation.IsReady ||
+                !v23FullFramePresentation.FrameCalibrationReady ||
                 v23FullFramePresentation.FrameCount != WalkPhaseCount ||
                 v23FullFramePresentation.StateCount !=
                     Patch4RigContract.RequiredClipNames.Count ||
@@ -2467,6 +2652,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.v23WalkFrameSequenceReady &&
                 report.v23TenStateFullFrameReady &&
                 report.v23FaceArticulationReady &&
+                report.runtimeFrameCalibrationReady &&
+                report.liveGameplayPreviewCompleted &&
                 report.walkCycleCaptured &&
                 report.walkRootTravelPassed &&
                 report.walkPhaseAlternationPassed &&

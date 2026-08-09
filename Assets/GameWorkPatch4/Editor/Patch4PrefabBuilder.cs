@@ -22,7 +22,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public const string V23PoseSheetPath =
             V23SheetRoot + "FatMan_Pose_V23.png";
         public const string V23UpgradeSheetPath =
-            V23SheetRoot + "FatMan_Upgrade_V23.png";
+            "Assets/GameWorkPatch4/Art/Character/FatMan/" +
+            "V24Corrections/FatMan_Upgrade_V24.png";
         public const string V23WalkRightSheetPath =
             V23SheetRoot + "FatMan_WalkRight_V23.png";
 
@@ -104,8 +105,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 if (!v23Presentation.RebuildPresentation())
                 {
                     throw new InvalidOperationException(
-                        "The V23 ten-state full-frame presentation could not " +
-                        "be built from " + V23SheetRoot + ".");
+                    "The calibrated ten-state full-frame presentation could " +
+                    "not be built from the V23 sheets plus the V24 artwork " +
+                    "correction.");
                 }
 
                 visualRoot.gameObject.SetActive(false);
