@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using SkinnyToBeast.Editor;
 using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
@@ -72,6 +73,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             "SkinnyToBeast.GameWorkPatch4.AutomatedTests.Stage";
         private const string JobKey =
             "SkinnyToBeast.GameWorkPatch4.AutomatedTests.Job";
+        private const string LegacyAnimatorResumePlayKey =
+            "SkinnyToBeast.LivingAnimatorBuilt.Patch3.ResumePlayV4";
 
         private const string EditModeStage = "edit-mode";
         private const string PlayModePendingStage = "play-mode-pending";
@@ -88,6 +91,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public static string ReportPath => Path.Combine(
             Patch4CompilationMonitor.ReportDirectory,
             "patch4-test-report.json");
+
+        public static bool IsRunInProgress =>
+            SessionState.GetBool(InProgressKey, false);
 
         static Patch4AutomatedTestRunner()
         {
@@ -120,6 +126,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "Patch 4 automated tests are already running.");
                 return;
             }
+
+            Patch4AnimationRoomReview.PrepareForAutomatedTests();
 
             Directory.CreateDirectory(
                 Patch4CompilationMonitor.ReportDirectory);
@@ -225,10 +233,35 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 return;
             }
 
+            try
+            {
+                // The legacy Animator builder owns normal Play requests and
+                // deliberately cancels Play Mode when its generated assets
+                // need an Edit Mode transaction. Test Runner must never enter
+                // that transaction: an external stop aborts its whole suite.
+                // Validate the generated controller synchronously, then clear
+                // any stale request to resume a non-test Play session.
+                SessionState.SetBool(
+                    LegacyAnimatorResumePlayKey,
+                    false);
+                LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets();
+                SessionState.SetBool(
+                    LegacyAnimatorResumePlayKey,
+                    false);
+            }
+            catch (Exception exception)
+            {
+                SessionState.SetString(StageKey, PlayModeStage);
+                RecordStartFailure(PlayModeStage, exception);
+                CompleteWorkflow();
+                return;
+            }
+
             SessionState.SetString(StageKey, PlayModeStage);
             Debug.Log(
-                "Patch 4 EditMode tests finished. Starting PlayMode tests " +
-                "automatically.");
+                "Patch 4 EditMode tests finished. Legacy Animator assets " +
+                "are current and Test Runner exclusively owns the next " +
+                "PlayMode session.");
 
             try
             {

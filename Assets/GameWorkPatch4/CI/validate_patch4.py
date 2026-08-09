@@ -288,7 +288,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"gameplay-action-routing-v25"',
+            '"test-runner-playmode-ownership-v26"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -858,6 +858,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "hasFreshRoomArtifacts",
             "Patch4AnimationRoomReviewWindow.Open()",
             "WalkCyclePath",
+            "PrepareForAutomatedTests()",
+            "Patch4AutomatedTestRunner.IsRunInProgress",
+            "ClearReviewOwnership()",
+            "blocked a stale room-review request",
         ):
             if snippet not in room_review:
                 fail(errors, f"Actual-room review automation is missing: {snippet}")
@@ -909,6 +913,18 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     errors,
                     "Automated test reporting still hides child failures: "
                     + snippet,
+                )
+        for snippet in (
+            "IsRunInProgress",
+            "Patch4AnimationRoomReview.PrepareForAutomatedTests()",
+            "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
+            "LegacyAnimatorResumePlayKey",
+        ):
+            if snippet not in automated_tests:
+                fail(
+                    errors,
+                    "Automated tests do not exclusively own PlayMode: " +
+                    snippet,
                 )
 
     playmode_tests = read_text(
@@ -1666,6 +1682,7 @@ def main() -> int:
     print("- V24 repairs the cropped upgrade pose and calibrates scale plus shoe line")
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
     print("- V25 routes idle, routine, tap, walk, turn and upgrade gameplay actions")
+    print("- V26 gives Test Runner exclusive PlayMode ownership after legacy Animator preflight")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

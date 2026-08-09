@@ -121,6 +121,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public static bool StartAfterTests()
         {
             if (Application.isBatchMode ||
+                Patch4AutomatedTestRunner.IsRunInProgress ||
                 SessionState.GetBool(InProgressKey, false))
             {
                 return false;
@@ -150,6 +151,32 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             return true;
+        }
+
+        public static void PrepareForAutomatedTests()
+        {
+            if (Application.isBatchMode)
+            {
+                return;
+            }
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode ||
+                EditorApplication.isPlaying)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 automated tests can only claim PlayMode " +
+                    "ownership from stable Edit Mode.");
+            }
+
+            bool supersededReview =
+                SessionState.GetBool(InProgressKey, false);
+            ClearReviewOwnership();
+            if (supersededReview)
+            {
+                Debug.LogWarning(
+                    "Patch 4 cleared a stale animation-room review session " +
+                    "before starting the automated Test Runner.");
+            }
         }
 
         private static void BeginEditorQuiescence()
@@ -182,6 +209,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (EditorApplication.isCompiling ||
                 EditorApplication.isUpdating ||
+                Patch4AutomatedTestRunner.IsRunInProgress ||
                 EditorApplication.isPlayingOrWillChangePlaymode ||
                 EditorApplication.isPlaying)
             {
@@ -224,6 +252,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (EditorApplication.isCompiling ||
                 EditorApplication.isUpdating ||
+                Patch4AutomatedTestRunner.IsRunInProgress ||
                 EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 EditorApplication.delayCall += EnterPlayModeWhenReady;
@@ -249,6 +278,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             if (state == PlayModeStateChange.EnteredPlayMode)
             {
+                if (Patch4AutomatedTestRunner.IsRunInProgress)
+                {
+                    return;
+                }
+
                 string enteredStage =
                     SessionState.GetString(StageKey, string.Empty);
                 if (!string.Equals(
@@ -314,6 +348,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static void TryBindRealRoom()
         {
+            if (Patch4AutomatedTestRunner.IsRunInProgress)
+            {
+                Debug.LogWarning(
+                    "Patch 4 discarded stale room-review ownership while " +
+                    "Test Runner controlled PlayMode.");
+                ClearReviewOwnership();
+                return;
+            }
+
             if (!SessionState.GetBool(InProgressKey, false) ||
                 !EditorApplication.isPlaying)
             {
@@ -493,6 +536,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static void ExitPlayMode()
         {
             EditorApplication.delayCall -= ExitPlayMode;
+            if (Patch4AutomatedTestRunner.IsRunInProgress)
+            {
+                Debug.LogWarning(
+                    "Patch 4 blocked a stale room-review request from " +
+                    "stopping Test Runner PlayMode.");
+                ClearReviewOwnership();
+                return;
+            }
+
             if (EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 EditorApplication.isPlaying = false;
@@ -501,6 +553,27 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 EditorApplication.delayCall += CompleteAfterExit;
             }
+        }
+
+        private static void ClearReviewOwnership()
+        {
+            EditorApplication.delayCall -= EnterPlayModeWhenReady;
+            EditorApplication.delayCall -= ExitPlayMode;
+            EditorApplication.delayCall -= CompleteAfterExit;
+            EditorApplication.update -= TryBindRealRoom;
+            EditorApplication.update -= WaitForEditorQuiescence;
+
+            SessionState.SetBool(InProgressKey, false);
+            SessionState.SetBool(ResultKey, false);
+            SessionState.SetString(StageKey, string.Empty);
+            SessionState.SetString(MessageKey, string.Empty);
+            SessionState.SetString(RunTokenKey, string.Empty);
+
+            gameplayWindowRequested = false;
+            driverStarted = false;
+            startDeadline = 0d;
+            quiescenceStartedAt = 0d;
+            quiescentUpdateCount = 0;
         }
 
         private static void CompleteAfterExit()

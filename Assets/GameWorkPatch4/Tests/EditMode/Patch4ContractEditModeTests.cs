@@ -142,6 +142,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             AssertWholeFramePlaybackCadence();
             AssertAnimatorControllerHasCanonicalRootStatePaths(clips);
             AssertAnimatorControllerRoutesGameplayActions();
+            AssertAutomatedTestRunnerOwnsPlayMode();
         }
 
         [Test]
@@ -749,6 +750,66 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     transition.conditions.Length == 0),
                 "ShiftWeight must be requested by the real routine action, " +
                 "not entered automatically after every idle loop.");
+        }
+
+        private static void AssertAutomatedTestRunnerOwnsPlayMode()
+        {
+            Type automatedRunner = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4AutomatedTestRunner");
+            Assert.NotNull(
+                automatedRunner.GetProperty(
+                    "IsRunInProgress",
+                    BindingFlags.Static | BindingFlags.Public),
+                "Room-review code cannot identify Test Runner ownership.");
+
+            Type roomReview = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4AnimationRoomReview");
+            Assert.NotNull(
+                roomReview.GetMethod(
+                    "PrepareForAutomatedTests",
+                    BindingFlags.Static | BindingFlags.Public),
+                "Automated tests cannot clear stale room-review ownership.");
+
+            string projectRoot =
+                Directory.GetParent(Application.dataPath)?.FullName ??
+                Application.dataPath;
+            string runnerSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/GameWorkPatch4/Editor/" +
+                "Patch4AutomatedTestRunner.cs"));
+            foreach (string snippet in new[]
+            {
+                "Patch4AnimationRoomReview.PrepareForAutomatedTests()",
+                "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
+                "SessionState.SetBool(",
+                "LegacyAnimatorResumePlayKey"
+            })
+            {
+                StringAssert.Contains(
+                    snippet,
+                    runnerSource,
+                    "PlayMode preflight is missing: " + snippet);
+            }
+
+            string roomReviewSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/GameWorkPatch4/Editor/" +
+                "Patch4AnimationRoomReview.cs"));
+            foreach (string snippet in new[]
+            {
+                "Patch4AutomatedTestRunner.IsRunInProgress",
+                "ClearReviewOwnership()",
+                "blocked a stale room-review request"
+            })
+            {
+                StringAssert.Contains(
+                    snippet,
+                    roomReviewSource,
+                    "Room review can still steal Test Runner PlayMode: " +
+                    snippet);
+            }
         }
 
         private static void AssertStateTransition(

@@ -6,7 +6,38 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
-## Latest P4.0-AC / V25 gameplay-action checkpoint
+## Latest P4.0-AD / V26 Test Runner ownership checkpoint
+
+The first V25 automatic run reached Unity Test Runner, but PlayMode aborted
+with `Playmode tests were aborted because the player was stopped`. This was not
+an animation-test failure. The legacy Patch 3 Animator asset builder can cancel
+an incoming Play request while it performs a required Edit Mode rebuild, then
+resume an ordinary Play session itself. Patch 4 room-review callbacks can also
+survive a script reload in SessionState. Neither may control PlayMode while the
+test framework owns it.
+
+V26 preserves the V25 gameplay-action mapping and adds an isolated lifecycle
+preflight:
+
+- stale Patch 4 room-review enter, bind and exit callbacks are removed before
+  the automated tests start;
+- the legacy generated Animator is synchronously checked before the PlayMode
+  suite;
+- the old non-test `ResumePlayV4` request is cleared before and after that
+  check;
+- room-review code explicitly detects active Test Runner ownership and cannot
+  stop its Player;
+- the actual-room review still begins only after a completed passing PlayMode
+  result and a stable return to Edit Mode;
+- EditMode/static contracts require this ownership barrier;
+- the new automatic token is `test-runner-playmode-ownership-v26`.
+
+No legacy gameplay file is edited. Readiness remains locked, Patch 3.5 remains
+active, and protected menu/video/music/audio/settings paths remain unchanged.
+Repository static validation passes; Unity compile, `4/4 + 4/4` and the fresh
+V26 room review remain pending until the next pull.
+
+## P4.0-AC / V25 gameplay-action checkpoint
 
 Fresh V24 human review confirmed that all ten complete-frame motions now play
 and are substantially cleaner. The remaining request is architectural: improve
@@ -39,8 +70,9 @@ Upgrade scale is `1.0`. Walk target travel and its minimum are compatible.
 The locked actual-room live pass now exercises every public gameplay-action
 method and verifies the resulting full-path state before rendering the motion;
 the report cannot pass without `gameplayActionRoutingPassed`. The automatic run
-token is `gameplay-action-routing-v25`. Repository static validation passes;
-Unity compilation, tests and fresh visual review remain pending until pull.
+token was `gameplay-action-routing-v25`. Repository static validation passed;
+the first Unity run was externally stopped during PlayMode and is superseded
+by the V26 lifecycle correction above.
 
 ## Latest P4.0-AB compile hotfix
 
@@ -1224,12 +1256,12 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull P4.0-AC/V25 into Unity `6000.3.19f1` with only
+1. Pull P4.0-AD/V26 into Unity `6000.3.19f1` with only
    `git pull origin patch-4.0` and leave Unity open.
 2. Do not click Dashboard, Test Runner, Play or a review button.
 3. Let `Patch4AutoContinuation` rebuild the locked prefab, bind the V23 sheets
-   plus the corrected V24 upgrade sheet, run safety/tests and enter the actual
-   room after Test Runner is quiescent.
+   plus the corrected V24 upgrade sheet, claim Test Runner PlayMode ownership,
+   run safety/tests and enter the actual room after Test Runner is quiescent.
 4. Watch the automatically focused Game view before the report opens. It must
    route idle, shift, blink, look, both taps, Walk, Turn, Sit and Upgrade through
    the public gameplay-action API and play two uninterrupted target-cadence
@@ -1244,7 +1276,7 @@ Until every condition passes, Patch 3.5 remains visible.
    face metrics, frame calibration, four limb-region
    differences and weakest adjacent-frame difference to reject static,
    front-facing, clipped or duplicated art.
-8. Keep readiness locked until the V25 actual-room motion and identity pass
+8. Keep readiness locked until the V26 actual-room motion and identity pass
    human review.
 
 Detailed art instructions:
@@ -1308,8 +1340,10 @@ Detailed verification instructions:
 - V23 replaced the visible surface for all ten clips. V24 made it substantially
   cleaner and visibly animated, but the user still found cadence hitches and no
   proof of action ownership; its report also exposed an impossible Walk gate
-  and obsolete upgrade scale. P4.0-AC/V25 corrects those exact issues and awaits
-  its fresh Unity run; it is not approved production art.
+  and obsolete upgrade scale. P4.0-AC/V25 corrected those issues, but its first
+  automatic Unity run was aborted when an Editor asset transaction stopped
+  Test Runner PlayMode. P4.0-AD/V26 owns that lifecycle and awaits its fresh
+  Unity run; it is not approved production art.
 - The ten clips have not yet received final visual review with the production
   character visible in the actual room.
 - The Canvas presentation remains hidden behind readiness.

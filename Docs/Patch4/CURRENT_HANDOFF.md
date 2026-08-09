@@ -11,7 +11,49 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
-## Current P4.0-AC / V25 gameplay-action routing
+## Current P4.0-AD / V26 Test Runner PlayMode ownership
+
+The user's first V25 automatic Unity run reached PlayMode tests but Unity
+reported:
+
+```text
+Playmode tests were aborted because the player was stopped.
+An unexpected error happened while running tests.
+```
+
+This is a lifecycle failure, not an animation assertion. Source tracing found
+two Editor owners capable of controlling the same PlayMode session:
+
+- the legacy `LivingGameplayAnimatorAssetBuilder` intentionally cancels a
+  normal Play request with `EditorApplication.isPlaying = false` whenever its
+  generated Patch 3 Animator requires an Edit Mode transaction, then queues a
+  separate non-test Play resume;
+- a stale Patch 4 room-review session can retain delayed enter/exit callbacks
+  across script reloads.
+
+Either owner is invalid while Unity Test Runner controls PlayMode. V26 keeps
+all changes inside Patch 4 and establishes one owner before starting tests:
+
+- `Patch4AutomatedTestRunner` exposes its active ownership state;
+- any stale room-review callbacks and SessionState are cleared in stable Edit
+  Mode before EditMode tests begin;
+- immediately before PlayMode tests, the generated Patch 3 Animator is
+  synchronously validated, and the obsolete legacy non-test resume flag is
+  cleared before and after that validation;
+- room-review enter, bind and exit paths refuse to enter or stop PlayMode while
+  Test Runner owns it;
+- the separate actual-room review still starts only after a completed passing
+  PlayMode result and the normal Test Runner return to Edit Mode;
+- automatic continuation advances to
+  `test-runner-playmode-ownership-v26` so the next pull reruns the full flow.
+
+This correction does not alter gameplay animation mappings, artwork, Patch 3
+runtime behavior, readiness, menu, video, music, audio or settings. Patch 4
+remains locked and Patch 3.5 remains active. Repository static validation
+passes; Unity compilation, `EditMode: 4`, `PlayMode: 4` and the fresh V26 room
+review remain pending until the next pull.
+
+## P4.0-AC / V25 gameplay-action routing foundation
 
 The user's fresh V24 actual-room review is the current human evidence. The
 single-body complete-frame architecture is now substantially better and the
@@ -58,11 +100,11 @@ P4.0-AC/V25 corrects the event architecture and those measured failures:
   an unconditional Shift transition;
 - automatic continuation advances to `gameplay-action-routing-v25`.
 
-Repository static validation passes for the P4.0-AC/V25 source set. Unity
-compilation, `EditMode: 4`, `PlayMode: 4` and a fresh V25 actual-room review are
-pending until the next pull and must not be described as passed yet. Readiness
-remains locked, Patch 3.5 remains active, and no protected menu, video, music,
-audio or settings file changed.
+Repository static validation passed for the P4.0-AC/V25 source set. Its first
+Unity run reached Test Runner but the Player was externally stopped before a
+PlayMode result or fresh room review could be accepted. V26 supersedes that
+lifecycle. Readiness remains locked, Patch 3.5 remains active, and no protected
+menu, video, music, audio or settings file changed.
 
 ## Latest compile hotfix
 
@@ -1060,7 +1102,7 @@ old limb pieces, vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Next automatic V25 run
+## Next automatic V26 run
 
 Run only:
 
@@ -1070,14 +1112,15 @@ git pull origin patch-4.0
 
 Leave Unity open. Do not click Dashboard, Test Runner, Play or any review
 button. `Patch4AutoContinuation` will rebuild the generated controller and
-prefab, run safety plus `4/4 + 4/4`, then start the separate locked room review.
+prefab, claim exclusive Test Runner PlayMode ownership, run safety plus
+`4/4 + 4/4`, then start the separate locked room review.
 The first live pass must visibly show the event-owned sequence: idle breathing,
 weight shift, blink, look, both taps, a right-facing travelling walk, turn,
 sit/lean and upgrade. The frozen report must contain
 `gameplayActionRoutingPassed: true`, compatible Walk travel, and no upgrade
 scale-expansion failure. Patch 4 must remain locked after the review.
 
-## Work after the V25 automatic room review
+## Work after the V26 automatic room review
 
 - Inspect the eight complete Walk frames first and keep activation locked.
 - Confirm that the live sequence changes state promptly instead of holding the

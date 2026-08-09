@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "gameplay-action-routing-v25";
+            "test-runner-playmode-ownership-v26";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v25.actions.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v26.playowner.";
 
         private static int idleFrames;
 
@@ -57,7 +57,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V25 gameplay-action review started: " +
+                    "Patch 4 V26 gameplay-action review started: " +
                     "restore the approved master, rebuild the retained v21.1 " +
                     "rollback candidates, verify neutral reconstruction, rebuild " +
                     "the locked prefab and bind six complete-frame RGBA sheets " +
@@ -74,7 +74,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "idle, shift, blink, look, both taps, walking, turning, " +
                     "sitting and upgrade through the same gameplay API used at " +
                     "runtime, and play two uninterrupted passes in the actual " +
-                    "room. It will then enter every full Animator state, " +
+                    "room. Before Test Runner enters PlayMode, Patch 4 now " +
+                    "validates the generated Patch 3 Animator, cancels any " +
+                    "stale non-test Play resume and clears stale room-review " +
+                    "ownership so no Editor callback can stop the player. " +
+                    "It will then enter every full Animator state, " +
                     "sample all ten states and eight Walk frames with silent " +
                     "monotonic travel, " +
                     "measure both visible arm silhouettes, both visible leg " +
@@ -106,7 +110,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V25 continuation failed: " + exception);
+                    "Patch 4 automatic V26 continuation failed: " + exception);
             }
         }
     }
