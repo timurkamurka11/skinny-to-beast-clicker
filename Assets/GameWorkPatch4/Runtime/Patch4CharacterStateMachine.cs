@@ -9,6 +9,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
     [DisallowMultipleComponent]
     public sealed class Patch4CharacterStateMachine : MonoBehaviour
     {
+        private const float WalkThreshold = 0.1f;
+        private const float LocomotionTransitionSeconds = 0.06f;
+
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int LookHash = Animator.StringToHash("Look");
         private static readonly int ShiftHash = Animator.StringToHash("Shift");
@@ -18,6 +21,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private static readonly int TapHash = Animator.StringToHash("Tap");
         private static readonly int BlinkHash = Animator.StringToHash("Blink");
         private static readonly int UpgradeHash = Animator.StringToHash("Upgrade");
+        private static readonly int IdleStateHash = Animator.StringToHash(
+            "Base Layer.FatMan_Idle_Breathe");
+        private static readonly int WalkStateHash = Animator.StringToHash(
+            "Base Layer.FatMan_Walk_InRoom");
 
         [SerializeField] private Patch4CharacterRigController rigController;
         [SerializeField] private Animator animator;
@@ -57,7 +64,72 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 return;
             }
 
-            animator.SetFloat(SpeedHash, Mathf.Clamp01(normalizedSpeed));
+            float speed = Mathf.Clamp01(normalizedSpeed);
+            bool nextWalkRequested = speed > WalkThreshold;
+            animator.SetFloat(SpeedHash, speed);
+
+            if (nextWalkRequested)
+            {
+                // The real room can keep the controller in Idle even after
+                // accepting Speed = 1. Route the locomotion edge explicitly,
+                // just like the established gameplay animation driver does,
+                // instead of depending on a serialized float transition.
+                // Repeated movement ticks do not restart the walk cycle, and
+                // a one-shot reaction already in progress remains free to use
+                // its conditional exit back to Walk.
+                if (IsCurrentState(IdleStateHash))
+                {
+                    CrossFadePersistentState(WalkStateHash);
+                }
+
+                return;
+            }
+
+            if (IsCurrentOrTransitioningTo(WalkStateHash))
+            {
+                CrossFadePersistentState(IdleStateHash);
+            }
+        }
+
+        private bool IsCurrentState(int stateHash)
+        {
+            return animator != null &&
+                   !animator.IsInTransition(0) &&
+                   animator.GetCurrentAnimatorStateInfo(0).fullPathHash ==
+                       stateHash;
+        }
+
+        private bool IsCurrentOrTransitioningTo(int stateHash)
+        {
+            if (animator == null)
+            {
+                return false;
+            }
+
+            if (animator.IsInTransition(0))
+            {
+                return animator.GetNextAnimatorStateInfo(0).fullPathHash ==
+                    stateHash;
+            }
+
+            return animator.GetCurrentAnimatorStateInfo(0).fullPathHash ==
+                stateHash;
+        }
+
+        private void CrossFadePersistentState(int stateHash)
+        {
+            if (animator == null ||
+                !animator.HasState(0, stateHash) ||
+                IsCurrentOrTransitioningTo(stateHash))
+            {
+                return;
+            }
+
+            animator.CrossFadeInFixedTime(
+                stateHash,
+                LocomotionTransitionSeconds,
+                0,
+                0f);
         }
 
         public void SetLooking(bool active)

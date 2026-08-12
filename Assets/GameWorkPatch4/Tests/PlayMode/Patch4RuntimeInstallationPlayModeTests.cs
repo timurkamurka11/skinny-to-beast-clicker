@@ -502,6 +502,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 // a broken Idle -> Walk transition or a disabled review API.
                 setReviewActive.Invoke(stateMachine, new object[] { true });
                 animator.SetBool("Look", false);
+                animator.SetBool("Shift", false);
                 animator.SetBool("Turn", false);
                 animator.SetBool("Sit", false);
                 animator.SetFloat("Speed", 0f);
@@ -523,7 +524,24 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     animator.IsInTransition(0),
                     "The gameplay-routed Walk transition did not settle.");
 
+                float walkTimeBeforeRepeatedTick =
+                    animator.GetCurrentAnimatorStateInfo(0).normalizedTime;
+                setWalkSpeed.Invoke(stateMachine, new object[] { 1f });
+                animator.Update(0.02f);
+                AnimatorStateInfo walkAfterRepeatedTick =
+                    animator.GetCurrentAnimatorStateInfo(0);
+                Assert.AreEqual(
+                    stateHash,
+                    walkAfterRepeatedTick.fullPathHash,
+                    "A repeated movement tick left the Walk state.");
+                Assert.Greater(
+                    walkAfterRepeatedTick.normalizedTime,
+                    walkTimeBeforeRepeatedTick,
+                    "Repeated Speed = 1 ticks must not restart the walk " +
+                    "cycle every gameplay frame.");
+
                 animator.SetBool("Look", false);
+                animator.SetBool("Shift", false);
                 animator.SetBool("Turn", false);
                 animator.SetBool("Sit", false);
                 animator.SetFloat("Speed", 1f);

@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-08-09**
+Last updated: **2026-08-12**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -10,6 +10,47 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
+
+## Current P4.0-AI / V31 direct locomotion action routing
+
+The user's first V30 automatic run reached the actual-room live preview and
+returned the new bounded diagnostics instead of an ambiguous timeout:
+
+```text
+Gameplay action did not enter Base Layer.FatMan_Walk_InRoom after 27
+observed frame(s): expected hash -1614043475, current hash -212395280,
+transition False, next hash 0, Speed 1.000, review API ready True.
+```
+
+The observed full-path hash `-212395280` resolves exactly to
+`Base Layer.FatMan_Idle_Breathe` (and the expected hash resolves to Walk).
+This proves that the public action bridge accepted `Speed = 1`, the review API
+was enabled and the layer was not blocked by a one-shot or transition: the
+generated controller simply remained in Idle. The blank review cells and
+camera-less view are consequences of that early technical stop, not missing
+art.
+
+V31 moves persistent locomotion ownership into the public gameplay bridge:
+
+- `SetWalkSpeed` still writes the `Speed` float used by contextual exits and
+  the serialized controller, but an Idle movement request now uses one
+  fixed-time `CrossFadeInFixedTime` into the full-path Walk state;
+- repeated real-game `Speed = 1` ticks cannot restart the gait because the
+  router does nothing when Walk already owns or is entering the layer;
+- `Speed = 0` explicitly leaves current/pending Walk for Idle, while an active
+  tap, blink, turn or upgrade one-shot is allowed to finish and use its
+  existing context exit;
+- the existing PlayMode installation test now clears every persistent intent,
+  proves the public action reaches Walk, then issues another movement tick and
+  proves normalized Walk time advances instead of resetting;
+- static guards require the direct action route and the non-restart
+  regression; the automatic token advances to
+  `direct-locomotion-action-routing-v31`.
+
+V31 changes no artwork, room layout, menu, scene, video, music, audio,
+settings, readiness or Patch 3.5 rollback behavior. Repository static
+validation must pass before publication. Unity `6000.3.19f1` runtime proof is
+the automatic run after the user's next pull.
 
 ## Current P4.0-AH / V30 frame-observed gameplay routing hotfix
 

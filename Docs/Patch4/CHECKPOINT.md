@@ -1,10 +1,34 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-08-09
+Last updated: 2026-08-12
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
+
+## Latest P4.0-AI / V31 direct locomotion-route checkpoint
+
+The first V30 actual-room run failed with the now-decisive diagnostic:
+expected Walk hash `-1614043475`, current hash `-212395280`, no active or next
+transition, `Speed 1.000`, and a ready public review API. The current hash is
+the exact full-path hash of `Base Layer.FatMan_Idle_Breathe`. Therefore the
+room driver, action request, readiness override and timing ceiling all worked;
+the generated Idle-to-Walk float transition did not consume the accepted
+movement value in the live player.
+
+V31 makes the action bridge authoritative for the persistent Idle/Walk edge.
+`SetWalkSpeed` retains the controller parameter, cross-fades Idle to the full
+Walk path once, never restarts an already active/pending gait on repeated
+movement ticks, and cross-fades current/pending Walk back to Idle when movement
+stops. One-shots remain uninterrupted and keep their existing contextual
+returns. The PlayMode regression now verifies both public action entry and
+monotonic normalized Walk time after a repeated `Speed = 1` tick. The static
+guard requires this route and automatic continuation advances to
+`direct-locomotion-action-routing-v31`.
+
+No artwork, protected menu/video/music/audio/settings path, room layout,
+readiness state or Patch 3.5 behavior changes. Runtime confirmation remains
+the next Unity `6000.3.19f1` automatic run after pull.
 
 ## Latest P4.0-AH / V30 frame-observed gameplay-routing checkpoint
 

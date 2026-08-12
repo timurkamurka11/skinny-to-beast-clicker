@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "frame-observed-gameplay-routing-v30";
+            "direct-locomotion-action-routing-v31";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v30.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v31.gameplay.";
 
         private static int idleFrames;
 
@@ -57,14 +57,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V30 frame-observed gameplay route pass started: " +
-                    "the actual-room driver now confirms Animator action " +
-                    "entry after real player updates, retains a bounded " +
-                    "deadline and records current/next state diagnostics " +
-                    "instead of failing after one long Editor frame. A " +
-                    "PlayMode regression also routes Idle to Walk through " +
-                    "Patch4CharacterStateMachine before any direct state " +
-                    "sampling. The V29 safe-room behavior remains active: " +
+                    "Patch 4 V31 direct locomotion action pass started: " +
+                    "the fresh V30 room evidence proved that Speed reached " +
+                    "1 while the Animator remained in Idle with no pending " +
+                    "transition. Patch4CharacterStateMachine now routes the " +
+                    "movement edge through one fixed-time Walk cross-fade, " +
+                    "keeps Speed as the exit/context parameter and ignores " +
+                    "repeated movement ticks so the gait never restarts each " +
+                    "frame. The player-frame regression proves both entry and " +
+                    "continuous phase advancement. V30 diagnostics and the " +
+                    "V29 safe-room behavior remain active: " +
                     "the attachable Editor-only driver now projects the five " +
                     "legacy room signals into a short collision-safe central " +
                     "standing corridor, mirrors the right-authored Walk from " +
@@ -132,7 +134,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V29 continuation failed: " + exception);
+                    "Patch 4 automatic V31 continuation failed: " + exception);
             }
         }
     }

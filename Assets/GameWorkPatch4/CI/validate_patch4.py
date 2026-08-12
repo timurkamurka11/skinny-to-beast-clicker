@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"frame-observed-gameplay-routing-v30"',
+            '"direct-locomotion-action-routing-v31"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -386,6 +386,25 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         ):
             if snippet not in signal_bridge:
                 fail(errors, f"Gameplay action routing is missing: {snippet}")
+
+    state_machine = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4CharacterStateMachine.cs",
+        errors,
+    )
+    if state_machine:
+        for snippet in (
+            "animator.SetFloat(SpeedHash, speed)",
+            "CrossFadePersistentState(WalkStateHash)",
+            "animator.CrossFadeInFixedTime(",
+            "IsCurrentOrTransitioningTo(WalkStateHash)",
+        ):
+            if snippet not in state_machine:
+                fail(
+                    errors,
+                    "Walk gameplay action does not own its Animator route: "
+                    + snippet,
+                )
 
     presentation = read_text(
         root,
@@ -1031,6 +1050,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             'GetMethod(\n                "SetWalkSpeed"',
             "setWalkSpeed.Invoke(stateMachine, new object[] { 1f })",
             "animator.IsInTransition(0)",
+            "walkTimeBeforeRepeatedTick",
+            "Repeated Speed = 1 ticks must not restart the walk",
             "TryMeasureGaitArticulation",
             "Patch4V23FullFramePresentation",
             "GetBoolProperty(v23Presentation, \"IsReady\")",
@@ -1768,6 +1789,7 @@ def main() -> int:
     print("- V29 keeps Patch 4 in a short central standing corridor and mirrors left/right travel")
     print("- V29 accelerates whole-frame cadence and closes the Idle loop through adjacent frames")
     print("- V30 observes gameplay-routed Animator entry across real Editor frames")
+    print("- V31 gives the movement API one-shot ownership of Idle/Walk routing")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")
