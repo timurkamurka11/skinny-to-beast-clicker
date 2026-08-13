@@ -6,14 +6,11 @@ using UnityEngine.UI;
 namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
-    /// Presents every Patch 4 animation as one complete painted body frame.
-    /// The rejected V21 Canvas mesh remains available for rollback diagnostics,
-    /// but it is never blended with this surface. A discrete texture swap keeps
-    /// the face attached and prevents doubled limbs, sliced joints and rubbery
-    /// interpolation between poses. P4.0-AB adds deterministic per-clip scale
-    /// calibration and per-frame shoe-line alignment so source-atlas padding
-    /// can never make the character pop larger, smaller or float between
-    /// otherwise valid complete-body frames.
+    /// Keeps the complete-frame sheets as read-only art references while the
+    /// live character is rendered by the continuous V21 Canvas rig. V33 never
+    /// swaps a whole painted body during an animation: the same torso, head,
+    /// face and four continuous limbs remain visible while Animator curves
+    /// interpolate their bones every rendered frame.
     /// </summary>
     [DefaultExecutionOrder(1240)]
     [DisallowMultipleComponent]
@@ -23,9 +20,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             "V23FullFramePresentation";
         private const int Columns = 4;
         private const int StandardRows = 2;
-        private const int SmoothWalkRows = 4;
-        private const int FramesPerRow = 4;
-        private const int IdlePingPongFrameCount = 6;
         private const byte VisibleAlphaThreshold = 32;
         private const float TargetGroundPixel = 22f;
 
@@ -66,21 +60,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private bool reviewActive;
 #if UNITY_EDITOR
         private bool editorGameplayPreviewActive;
-        private float editorWalkFacingSign = 1f;
 #endif
         private string reviewClipName = "FatMan_Idle_Breathe";
         private float reviewNormalizedTime;
         private bool displayed;
-        private bool underlayAlphaCaptured;
-        private float underlayAlpha = 1f;
+        private bool layeredRigActive;
         private string activeClipName = string.Empty;
         private int activeFrameIndex;
-        private Texture2D activeSheet;
         private Vector3 baseAnchoredPosition3D;
         private Vector3 baseLocalScale = Vector3.one;
-        private float presentationHeight;
-        private float activeArtworkScale = 1f;
-        private float activeGroundCorrectionPixels;
         private bool frameCalibrationReady;
         private readonly Dictionary<Texture2D, FrameAlphaBounds[]>
             frameBoundsBySheet = new();
@@ -101,27 +89,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
             generatedLayersGroup != null;
 
         public bool IsDisplaying => displayed;
+        public bool IsLayeredRigActive => layeredRigActive;
+        public bool UsesContinuousLayeredRig => true;
         public int FrameCount => RequiredWalkFrameCount;
         public int StateCount => RequiredStateCount;
         public int ActiveFrameIndex => activeFrameIndex;
         public string ActiveClipName => activeClipName;
-        public Texture2D ActiveSheet => activeSheet;
         public Texture2D WalkSheet => walkRightSheet;
         public RectTransform PresentationRoot => presentationRoot;
         public bool FrameCalibrationReady => frameCalibrationReady;
-        public float ActiveArtworkScale => activeArtworkScale;
-        public float ActiveGroundCorrectionPixels =>
-            activeGroundCorrectionPixels;
-        public bool LegacyUnderlayHidden =>
-            displayed &&
+        public bool HasSingleVisibleLayeredCharacter =>
+            layeredRigActive &&
+            !displayed &&
             generatedLayersGroup != null &&
-            generatedLayersGroup.alpha <= 0.001f;
-        public bool HasSingleVisibleCompleteFrame =>
-            displayed &&
-            presentationImage != null &&
-            presentationImage.enabled &&
-            presentationImage.texture != null &&
-            LegacyUnderlayHidden;
+            generatedLayersGroup.alpha > 0.001f;
 
         private void Reset()
         {
@@ -141,9 +122,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void OnDisable()
         {
             reviewActive = false;
+            layeredRigActive = false;
 #if UNITY_EDITOR
             editorGameplayPreviewActive = false;
-            editorWalkFacingSign = 1f;
 #endif
             SetDisplayed(false);
         }
@@ -157,6 +138,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             if (!EnsurePresentation())
             {
+                layeredRigActive = false;
                 SetDisplayed(false);
                 return;
             }
@@ -164,7 +146,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (reviewActive)
             {
                 ApplyPose(reviewClipName, reviewNormalizedTime);
-                SetDisplayed(true);
+                SetLayeredRigActive(true);
                 return;
             }
 
@@ -175,6 +157,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 #endif
             if (!shouldDisplayGameplay)
             {
+                layeredRigActive = false;
                 SetDisplayed(false);
                 return;
             }
@@ -188,7 +171,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             ApplyPose(clipName, normalizedTime);
-            SetDisplayed(true);
+            SetLayeredRigActive(true);
         }
 
         public bool RebuildPresentation()
@@ -213,8 +196,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     generatedLayersGroup =
                         generated.gameObject.AddComponent<CanvasGroup>();
                 }
-
-                underlayAlphaCaptured = false;
             }
 
             Transform existing = generated.parent.Find(PresentationName);
@@ -251,14 +232,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
             presentationImage.color = Color.white;
             presentationImage.raycastTarget = false;
             presentationImage.maskable = false;
+            presentationImage.uvRect = new Rect(0f, 0f, 1f, 1f);
             presentationRoot.SetAsLastSibling();
             ApplyPose(reviewClipName, reviewNormalizedTime);
-            SetDisplayed(reviewActive);
+            SetLayeredRigActive(reviewActive);
             return IsReady;
         }
 
         /// <summary>
-        /// Target whole-frame cadence used by both normal gameplay and the
+        /// Target Animator cadence used by both normal gameplay and the
         /// uninterrupted locked-room preview. Diagnostic screenshot pauses do
         /// not alter these durations.
         /// </summary>
@@ -267,24 +249,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
             switch (clipName)
             {
                 case "FatMan_Idle_Breathe":
-                    return 0.72f;
+                    return 3.2f;
                 case "FatMan_Idle_ShiftWeight":
-                    return 0.48f;
+                    return 3.2f;
                 case "FatMan_Blink_Random":
-                    return 0.2f;
+                    return 0.18f;
                 case "FatMan_LookAround":
-                    return 0.48f;
+                    return 3f;
                 case "FatMan_TapReact_01":
+                    return 0.65f;
                 case "FatMan_TapReact_02":
-                    return 0.32f;
+                    return 0.72f;
                 case "FatMan_Walk_InRoom":
-                    return 1.28f;
+                    return 1.6f;
                 case "FatMan_Turn":
-                    return 0.4f;
+                    return 0.72f;
                 case "FatMan_SitOrLean":
-                    return 0.56f;
+                    return 1.15f;
                 case "FatMan_UpgradeReact":
-                    return 0.48f;
+                    return 1.05f;
                 default:
                     return 1f;
             }
@@ -327,14 +310,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 }
             }
 
-            IReadOnlyList<string> clips =
-                Patch4RigContract.RequiredClipNames;
-            for (int i = 0; i < clips.Count; i++)
-            {
-                maximumArtworkScaleAdjustment = Mathf.Max(
-                    maximumArtworkScaleAdjustment,
-                    Mathf.Abs(ResolveArtworkScale(clips[i]) - 1f));
-            }
+            // The live V33 rig never applies per-state image scale. The
+            // reference sheets are measured only for source-art QA.
+            maximumArtworkScaleAdjustment = 0f;
 
             return true;
         }
@@ -343,11 +321,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             string clipName,
             float normalizedTime)
         {
-            if (!TryResolvePose(
-                    clipName,
-                    normalizedTime,
-                    out _,
-                    out _))
+            if (!IsSupportedClip(clipName))
             {
                 return false;
             }
@@ -364,8 +338,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             ApplyPose(reviewClipName, reviewNormalizedTime);
-            SetDisplayed(true);
-            return HasSingleVisibleCompleteFrame;
+            SetLayeredRigActive(true);
+            return HasSingleVisibleLayeredCharacter;
         }
 
         public void SetReviewActive(bool active)
@@ -381,12 +355,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 ApplyPose(reviewClipName, reviewNormalizedTime);
             }
 
-            SetDisplayed(active);
+            SetLayeredRigActive(active);
         }
 
 #if UNITY_EDITOR
         /// <summary>
-        /// Shows the locked complete-frame surface from the live Animator while
+        /// Shows the locked continuous layered rig from the live Animator while
         /// leaving the production readiness gate closed. This override is
         /// compiled only into the Unity Editor and is used by the interactive
         /// actual-room preview after the technical review has passed.
@@ -400,7 +374,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
             else
             {
-                editorWalkFacingSign = 1f;
+                Patch4V21HybridPuppetController hybrid =
+                    GetComponent<Patch4V21HybridPuppetController>();
+                if (hybrid != null)
+                {
+                    hybrid.SetFacingSign(1);
+                }
             }
 
             if (!EnsurePresentation())
@@ -411,7 +390,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             if (!active)
             {
-                SetDisplayed(
+                SetLayeredRigActive(
                     reviewActive ||
                     (rigController != null && rigController.Patch4Enabled));
                 return true;
@@ -426,95 +405,24 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             ApplyPose(clipName, normalizedTime);
-            SetDisplayed(true);
-            return HasSingleVisibleCompleteFrame;
+            SetLayeredRigActive(true);
+            return HasSingleVisibleLayeredCharacter;
         }
 
         /// <summary>
-        /// Mirrors only the right-authored walk atlas while the Editor-only
-        /// normal-game preview follows a live left-facing legacy walk. Front
-        /// poses and every production-locked path keep their authored scale.
+        /// Mirrors the one continuous layered character from the same live
+        /// left/right signal that drives room travel.
         /// </summary>
         public void SetEditorWalkFacingSign(int sign)
         {
-            editorWalkFacingSign = sign < 0 ? -1f : 1f;
+            Patch4V21HybridPuppetController hybrid =
+                GetComponent<Patch4V21HybridPuppetController>();
+            if (hybrid != null)
+            {
+                hybrid.SetFacingSign(sign);
+            }
         }
 #endif
-
-        public bool TryMeasureGaitArticulation(
-            out float leftArmDifference,
-            out float rightArmDifference,
-            out float leftLegDifference,
-            out float rightLegDifference,
-            out float minimumAdjacentFrameDifference)
-        {
-            leftArmDifference = 0f;
-            rightArmDifference = 0f;
-            leftLegDifference = 0f;
-            rightLegDifference = 0f;
-            minimumAdjacentFrameDifference = 0f;
-            if (!IsValidSheet(walkRightSheet))
-            {
-                return false;
-            }
-
-            try
-            {
-                Color32[] pixels = walkRightSheet.GetPixels32();
-                bool measured =
-                    TryMeasureAlphaDifference(
-                        walkRightSheet,
-                        pixels,
-                        0,
-                        2,
-                        new Rect(0.10f, 0.33f, 0.38f, 0.52f),
-                        out leftArmDifference) &&
-                    TryMeasureAlphaDifference(
-                        walkRightSheet,
-                        pixels,
-                        0,
-                        2,
-                        new Rect(0.52f, 0.33f, 0.38f, 0.52f),
-                        out rightArmDifference) &&
-                    TryMeasureAlphaDifference(
-                        walkRightSheet,
-                        pixels,
-                        0,
-                        2,
-                        new Rect(0.22f, 0.02f, 0.28f, 0.46f),
-                        out leftLegDifference) &&
-                    TryMeasureAlphaDifference(
-                        walkRightSheet,
-                        pixels,
-                        0,
-                        2,
-                        new Rect(0.50f, 0.02f, 0.28f, 0.46f),
-                        out rightLegDifference);
-
-                minimumAdjacentFrameDifference = 1f;
-                for (int frame = 0;
-                     frame < RequiredWalkFrameCount;
-                     frame++)
-                {
-                    measured &= TryMeasureAlphaDifference(
-                        walkRightSheet,
-                        pixels,
-                        frame,
-                        (frame + 1) % RequiredWalkFrameCount,
-                        new Rect(0f, 0f, 1f, 1f),
-                        out float adjacentDifference);
-                    minimumAdjacentFrameDifference = Mathf.Min(
-                        minimumAdjacentFrameDifference,
-                        adjacentDifference);
-                }
-
-                return measured;
-            }
-            catch (UnityException)
-            {
-                return false;
-            }
-        }
 
         public bool TryMeasureFaceArticulation(
             out float blinkDifference,
@@ -609,167 +517,71 @@ namespace SkinnyToBeast.Gameplay.Patch4
             presentationRoot.localScale = generated.localScale;
             baseAnchoredPosition3D = presentationRoot.anchoredPosition3D;
             baseLocalScale = presentationRoot.localScale;
-            presentationHeight = height;
         }
 
         private bool ApplyPose(string clipName, float normalizedTime)
         {
-            if (!TryResolvePose(
-                    clipName,
-                    normalizedTime,
-                    out Texture2D sheet,
-                    out int frameIndex))
+            if (!IsSupportedClip(clipName))
             {
                 return false;
             }
 
             activeClipName = clipName;
-            activeFrameIndex = frameIndex;
-            activeSheet = sheet;
-            presentationImage.texture = sheet;
-            SetFrame(frameIndex);
-            ApplyFrameCalibration(clipName, sheet, frameIndex);
-            return true;
-        }
-
-        private bool TryResolvePose(
-            string clipName,
-            float normalizedTime,
-            out Texture2D sheet,
-            out int frameIndex)
-        {
-            sheet = null;
-            frameIndex = 0;
-            int row = 0;
-            bool walk = false;
-            bool idlePingPong = false;
-
-            switch (clipName)
-            {
-                case "FatMan_Idle_Breathe":
-                    sheet = idleSheet;
-                    idlePingPong = true;
-                    break;
-                case "FatMan_Idle_ShiftWeight":
-                    sheet = idleSheet;
-                    row = 1;
-                    break;
-                case "FatMan_Blink_Random":
-                    sheet = faceSheet;
-                    break;
-                case "FatMan_LookAround":
-                    sheet = faceSheet;
-                    row = 1;
-                    break;
-                case "FatMan_TapReact_01":
-                    sheet = tapSheet;
-                    break;
-                case "FatMan_TapReact_02":
-                    sheet = tapSheet;
-                    row = 1;
-                    break;
-                case "FatMan_Walk_InRoom":
-                    sheet = walkRightSheet;
-                    walk = true;
-                    break;
-                case "FatMan_Turn":
-                    sheet = poseSheet;
-                    break;
-                case "FatMan_SitOrLean":
-                    sheet = poseSheet;
-                    row = 1;
-                    break;
-                case "FatMan_UpgradeReact":
-                    sheet = upgradeSheet;
-                    break;
-                default:
-                    return false;
-            }
-
-            if (!IsValidSheet(sheet))
-            {
-                return false;
-            }
-
             float phase = normalizedTime - Mathf.Floor(normalizedTime);
-            int phaseCount = walk
-                ? RequiredWalkFrameCount
-                : idlePingPong
-                    ? IdlePingPongFrameCount
-                    : FramesPerRow;
-            int phaseFrame = Mathf.Clamp(
-                Mathf.FloorToInt(phase * phaseCount),
-                0,
-                phaseCount - 1);
-            int localFrame = idlePingPong && phaseFrame >= FramesPerRow
-                ? IdlePingPongFrameCount - phaseFrame
-                : phaseFrame;
-            frameIndex = walk
-                ? localFrame
-                : row * FramesPerRow + localFrame;
-            return true;
-        }
-
-        private void SetFrame(int frameIndex)
-        {
-            int clamped = Mathf.Clamp(
-                frameIndex,
+            activeFrameIndex = Mathf.Clamp(
+                Mathf.FloorToInt(phase * RequiredWalkFrameCount),
                 0,
                 RequiredWalkFrameCount - 1);
-            int column = clamped % Columns;
-            int topRow = clamped / Columns;
-            float width = 1f / Columns;
-            int rows = ResolveRows(presentationImage.texture as Texture2D);
-            float height = 1f / rows;
-            float bottomRow = rows - 1 - topRow;
-            presentationImage.uvRect = new Rect(
-                column * width,
-                bottomRow * height,
-                width,
-                height);
+            RestorePresentationTransform();
+            return true;
         }
 
-        private void SetDisplayed(bool visible)
+        private static bool IsSupportedClip(string clipName)
         {
-            bool valid = visible && activeSheet != null;
+            IReadOnlyList<string> names = Patch4RigContract.RequiredClipNames;
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (string.Equals(names[i], clipName, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void SetDisplayed(bool _)
+        {
+            // V33 keeps this RawImage as a disabled art-reference surface.
+            // Runtime motion always comes from the continuous layered rig;
+            // no gameplay or review path may hide it and swap whole frames.
             if (presentationImage != null)
             {
-                presentationImage.enabled = valid;
+                presentationImage.enabled = false;
             }
 
-            if (generatedLayersGroup == null)
+            RestoreUnderlayAlpha();
+            RestorePresentationTransform();
+            displayed = false;
+        }
+
+        private void SetLayeredRigActive(bool active)
+        {
+            SetDisplayed(false);
+            layeredRigActive = active && generatedLayersGroup != null;
+            if (layeredRigActive && generatedLayersGroup.alpha <= 0.001f)
             {
-                displayed = false;
-                return;
+                generatedLayersGroup.alpha = 1f;
             }
-
-            if (valid)
-            {
-                if (!underlayAlphaCaptured)
-                {
-                    underlayAlpha = generatedLayersGroup.alpha;
-                    underlayAlphaCaptured = true;
-                }
-
-                generatedLayersGroup.alpha = 0f;
-            }
-            else
-            {
-                RestoreUnderlayAlpha();
-                RestorePresentationTransform();
-            }
-
-            displayed = valid;
         }
 
         private void RestoreUnderlayAlpha()
         {
-            if (generatedLayersGroup != null && underlayAlphaCaptured)
+            if (generatedLayersGroup != null &&
+                generatedLayersGroup.alpha <= 0.001f)
             {
-                generatedLayersGroup.alpha = underlayAlpha;
+                generatedLayersGroup.alpha = 1f;
             }
-
-            underlayAlphaCaptured = false;
         }
 
         private bool TryResolveAnimatorPose(
@@ -800,9 +612,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     clipName = candidate;
                     // The generated Animator state already scales its source
                     // clip to ResolvePlaybackDuration. Multiplying by the
-                    // source/target ratio again made the complete-frame strip
-                    // finish early and hold its final frame, which read as a
-                    // hitch between otherwise valid actions.
+                    // source/target ratio again would make the rig phase finish
+                    // early and visibly hitch between otherwise valid actions.
                     float targetPhase = state.normalizedTime;
                     normalizedTime = state.loop
                         ? targetPhase
@@ -833,8 +644,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 TryCacheFrameBounds(faceSheet) &&
                 TryCacheFrameBounds(tapSheet) &&
                 TryCacheFrameBounds(poseSheet) &&
-                TryCacheFrameBounds(upgradeSheet) &&
-                TryCacheFrameBounds(walkRightSheet);
+                TryCacheFrameBounds(upgradeSheet);
         }
 
         private bool TryCacheFrameBounds(Texture2D sheet)
@@ -849,9 +659,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Color32[] pixels = sheet.GetPixels32();
                 int cellWidth = sheet.width / Columns;
                 int cellHeight = sheet.height / ResolveRows(sheet);
-                int frameCount = ReferenceEquals(sheet, walkRightSheet)
-                    ? RequiredWalkFrameCount
-                    : Columns * StandardRows;
+                int frameCount = Columns * StandardRows;
                 FrameAlphaBounds[] bounds =
                     new FrameAlphaBounds[frameCount];
                 for (int frame = 0;
@@ -907,53 +715,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
         }
 
-        private void ApplyFrameCalibration(
-            string clipName,
-            Texture2D sheet,
-            int frameIndex)
-        {
-            activeArtworkScale = ResolveArtworkScale(clipName);
-            activeGroundCorrectionPixels = 0f;
-            if (presentationRoot == null ||
-                sheet == null ||
-                !frameBoundsBySheet.TryGetValue(
-                    sheet,
-                    out FrameAlphaBounds[] bounds) ||
-                frameIndex < 0 ||
-                frameIndex >= bounds.Length ||
-                !bounds[frameIndex].valid)
-            {
-                RestorePresentationTransform();
-                return;
-            }
-
-            float facingSign = 1f;
-#if UNITY_EDITOR
-            if (editorGameplayPreviewActive &&
-                string.Equals(
-                    clipName,
-                    "FatMan_Walk_InRoom",
-                    StringComparison.Ordinal))
-            {
-                facingSign = editorWalkFacingSign;
-            }
-#endif
-            presentationRoot.localScale = new Vector3(
-                baseLocalScale.x * activeArtworkScale * facingSign,
-                baseLocalScale.y * activeArtworkScale,
-                baseLocalScale.z);
-            activeGroundCorrectionPixels =
-                TargetGroundPixel -
-                bounds[frameIndex].yMin * activeArtworkScale;
-            int cellHeight = sheet.height / ResolveRows(sheet);
-            float correction =
-                activeGroundCorrectionPixels /
-                Mathf.Max(1, cellHeight) *
-                presentationHeight;
-            presentationRoot.anchoredPosition3D =
-                baseAnchoredPosition3D + Vector3.up * correction;
-        }
-
         private void RestorePresentationTransform()
         {
             if (presentationRoot == null)
@@ -964,99 +725,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             presentationRoot.anchoredPosition3D =
                 baseAnchoredPosition3D;
             presentationRoot.localScale = baseLocalScale;
-            activeArtworkScale = 1f;
-            activeGroundCorrectionPixels = 0f;
-        }
-
-        private static float ResolveArtworkScale(string clipName)
-        {
-            switch (clipName)
-            {
-                case "FatMan_Blink_Random":
-                    return 0.986f;
-                case "FatMan_TapReact_01":
-                case "FatMan_TapReact_02":
-                    return 0.94f;
-                case "FatMan_Walk_InRoom":
-                    return 1.06f;
-                case "FatMan_Turn":
-                    return 0.933f;
-                case "FatMan_UpgradeReact":
-                    // The V24 correction is already authored at neutral-body
-                    // scale. The older 1.135 compensation over-expanded it and
-                    // caused the fresh room report to reject the silhouette.
-                    return 1f;
-                default:
-                    return 1f;
-            }
-        }
-
-        private static bool TryMeasureAlphaDifference(
-            Texture2D sheet,
-            Color32[] pixels,
-            int firstFrame,
-            int secondFrame,
-            Rect normalizedRegion,
-            out float coverage)
-        {
-            coverage = 0f;
-            if (sheet == null ||
-                pixels == null ||
-                pixels.Length != sheet.width * sheet.height ||
-                firstFrame < 0 ||
-                firstFrame >= RequiredWalkFrameCount ||
-                secondFrame < 0 ||
-                secondFrame >= RequiredWalkFrameCount)
-            {
-                return false;
-            }
-
-            ResolveRegion(
-                sheet,
-                normalizedRegion,
-                out int xMin,
-                out int xMax,
-                out int yMin,
-                out int yMax);
-            ResolveFrameOrigin(
-                sheet,
-                firstFrame,
-                out int firstX,
-                out int firstY);
-            ResolveFrameOrigin(
-                sheet,
-                secondFrame,
-                out int secondX,
-                out int secondY);
-            int different = 0;
-            int union = 0;
-
-            for (int y = yMin; y < yMax; y++)
-            {
-                int firstRow = (firstY + y) * sheet.width;
-                int secondRow = (secondY + y) * sheet.width;
-                for (int x = xMin; x < xMax; x++)
-                {
-                    bool firstVisible =
-                        pixels[firstRow + firstX + x].a >=
-                        VisibleAlphaThreshold;
-                    bool secondVisible =
-                        pixels[secondRow + secondX + x].a >=
-                        VisibleAlphaThreshold;
-                    if (firstVisible || secondVisible)
-                    {
-                        union++;
-                    }
-
-                    if (firstVisible != secondVisible)
-                    {
-                        different++;
-                    }
-                }
-            }
-
-            coverage = union > 0 ? different / (float)union : 0f;
-            return union > 0;
         }
 
         private static bool TryMeasureColorDifference(
@@ -1165,11 +833,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             y = bottomRow * cellHeight;
         }
 
-        private int ResolveRows(Texture2D sheet)
+        private static int ResolveRows(Texture2D sheet)
         {
-            return ReferenceEquals(sheet, walkRightSheet)
-                ? SmoothWalkRows
-                : StandardRows;
+            return StandardRows;
         }
     }
 }

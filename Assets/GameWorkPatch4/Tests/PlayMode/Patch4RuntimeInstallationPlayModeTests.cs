@@ -15,9 +15,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             "UI/Gameplay/Living/CharacterRig2D";
         private const string Patch4PrefabResourcePath = "FatMan_Patch4";
         private const string Patch4InstanceName = "FatMan_Patch4_Instance";
-        private const float MinimumV23ArmSilhouetteDifference = 0.14f;
-        private const float MinimumV23LegSilhouetteDifference = 0.14f;
-        private const float MinimumV23AdjacentFrameDifference = 0.075f;
         private const float MinimumV23FaceDifference = 0.02f;
 
         [UnityTest]
@@ -566,40 +563,68 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Component v23Presentation =
                     patchInstance.GetComponent(v23PresentationType);
                 Assert.NotNull(v23Presentation);
-                MethodInfo measure = v23PresentationType.GetMethod(
-                    "TryMeasureGaitArticulation",
-                    BindingFlags.Instance | BindingFlags.Public);
-                Assert.NotNull(
-                    measure,
-                    "The complete-frame walk has no visible-articulation " +
-                    "measurement contract.");
-                object[] metrics = { 0f, 0f, 0f, 0f, 0f };
                 Assert.IsTrue(
-                    (bool)measure.Invoke(v23Presentation, metrics),
-                    "The V23 walk sheet is unreadable or incomplete.");
-                Assert.GreaterOrEqual(
-                    (float)metrics[0],
-                    MinimumV23ArmSilhouetteDifference,
-                    "The visible left arm does not change between contact " +
-                    "poses.");
-                Assert.GreaterOrEqual(
-                    (float)metrics[1],
-                    MinimumV23ArmSilhouetteDifference,
-                    "The visible right arm does not change between contact " +
-                    "poses.");
-                Assert.GreaterOrEqual(
-                    (float)metrics[2],
-                    MinimumV23LegSilhouetteDifference,
-                    "The visible left leg does not step.");
-                Assert.GreaterOrEqual(
-                    (float)metrics[3],
-                    MinimumV23LegSilhouetteDifference,
-                    "The visible right leg does not step.");
-                Assert.GreaterOrEqual(
-                    (float)metrics[4],
-                    MinimumV23AdjacentFrameDifference,
-                    "The V23 walk contains a duplicated or nearly static " +
-                    "adjacent pose.");
+                    GetBoolProperty(v23Presentation, "UsesContinuousLayeredRig"),
+                    "Live animation must use one persistent layered character.");
+                MethodInfo setReviewPose = v23PresentationType.GetMethod(
+                    "SetReviewPose",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(setReviewPose);
+                Assert.IsTrue(
+                    (bool)setReviewPose.Invoke(
+                        v23Presentation,
+                        new object[] { "FatMan_Walk_InRoom", 0.5f }),
+                    "The layered walk review surface could not be activated.");
+                Assert.IsTrue(
+                    GetBoolProperty(v23Presentation, "IsLayeredRigActive"));
+                Assert.IsFalse(
+                    GetBoolProperty(v23Presentation, "IsDisplaying"),
+                    "A full-body atlas frame must never cover the live walk.");
+
+                Component patchRig = patchInstance.GetComponent(
+                    RequireType(
+                        "SkinnyToBeast.Gameplay.Patch4." +
+                        "Patch4CharacterRigController"));
+                MethodInfo getBone = patchRig.GetType().GetMethod(
+                    "GetBone",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(getBone);
+                Transform handL = (Transform)getBone.Invoke(
+                    patchRig,
+                    new object[] { "HandL" });
+                Transform handR = (Transform)getBone.Invoke(
+                    patchRig,
+                    new object[] { "HandR" });
+                Transform footL = (Transform)getBone.Invoke(
+                    patchRig,
+                    new object[] { "FootL" });
+                Transform footR = (Transform)getBone.Invoke(
+                    patchRig,
+                    new object[] { "FootR" });
+                Assert.NotNull(handL);
+                Assert.NotNull(handR);
+                Assert.NotNull(footL);
+                Assert.NotNull(footR);
+
+                Vector3 handLStart = handL.position;
+                Vector3 handRStart = handR.position;
+                Vector3 footLStart = footL.position;
+                Vector3 footRStart = footR.position;
+                animator.Play(stateHash, 0, 0.25f);
+                animator.Update(0f);
+                Assert.Greater(
+                    Vector3.Distance(handLStart, handL.position),
+                    0.01f,
+                    "The left hand has no continuous walk trajectory.");
+                Assert.Greater(
+                    Vector3.Distance(handRStart, handR.position),
+                    0.01f,
+                    "The right hand has no continuous walk trajectory.");
+                Assert.Greater(
+                    Vector3.Distance(footLStart, footL.position) +
+                    Vector3.Distance(footRStart, footR.position),
+                    0.01f,
+                    "The feet do not articulate during the walk cycle.");
             }
             finally
             {

@@ -25,8 +25,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             "Assets/GameWorkPatch4/Art/Character/FatMan/" +
             "V24Corrections/FatMan_Upgrade_V24.png";
         public const string V23WalkRightSheetPath =
-            "Assets/GameWorkPatch4/Art/Character/FatMan/V32Smooth/" +
-            "FatMan_WalkRight_16_V32.png";
+            V23SheetRoot + "FatMan_WalkRight_V23.png";
 
         private sealed class BoneSpec
         {

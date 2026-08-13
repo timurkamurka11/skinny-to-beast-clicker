@@ -5,15 +5,10 @@ using UnityEngine;
 namespace SkinnyToBeast.Gameplay.Patch4.Editor
 {
     /// <summary>
-    /// Final normalization pass for the v18 walk clip. The authored eight-phase
-    /// gait uses strong contact/lift poses, but the loop seam and half-cycle seam
-    /// must remain neutral so Animator sampling begins from an undistorted bind
-    /// pose and the next half-cycle can reverse cleanly.
-    ///
-    /// v18b also balances the arm peaks. The first v18 runtime review measured
-    /// the right hand at only ~0.63 units from its neutral shoulder-relative pose
-    /// while the contract requires 0.68. We correct the actual gait amplitude,
-    /// not the test threshold, and keep both arms visually symmetric.
+    /// Final normalization pass for the continuous V33 walk clip. Only the loop
+    /// seam returns to its authored first pose. The old half-cycle reset forced
+    /// every bone to neutral exactly between left and right support, producing
+    /// the visible hitch that remained even with smooth curve tangents.
     /// </summary>
     public static class Patch4WalkV18Finalizer
     {
@@ -83,22 +78,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Visual,
                 "m_LocalPosition.y");
 
-            // Balance the two arm chains at the two sampled gait peaks. This is
-            // intentionally done after seam normalization so phase 0 / phase 4
-            // stay neutral while phase 2 / phase 6 carry the readable arm swing.
-            SetOpposingPeakValues(walk, UpperArmL, 30f, -28f);
-            SetOpposingPeakValues(walk, ForearmL, -20f, 18f);
-            SetOpposingPeakValues(walk, HandL, 7f, -7f);
-            SetOpposingPeakValues(walk, UpperArmR, 28f, -30f);
-            SetOpposingPeakValues(walk, ForearmR, -18f, 20f);
-            SetOpposingPeakValues(walk, HandR, 7f, -7f);
+            // Balance the two arm chains at their opposing support peaks. The
+            // phase-four values authored by BuildWalk remain intact so motion
+            // continues through the complete cycle instead of snapping neutral.
+            SetOpposingPeakValues(walk, UpperArmL, 18f, -14f);
+            SetOpposingPeakValues(walk, ForearmL, -13f, 8f);
+            SetOpposingPeakValues(walk, HandL, 5f, -4f);
+            SetOpposingPeakValues(walk, UpperArmR, 14f, -18f);
+            SetOpposingPeakValues(walk, ForearmR, -7f, 13f);
+            SetOpposingPeakValues(walk, HandR, 4f, -5f);
 
             EditorUtility.SetDirty(walk);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log(
-                "Patch 4 v18b walk finalized: neutral seams retained and " +
-                "balanced opposing arm peaks applied for full hand articulation.");
+                "Patch 4 V33 walk finalized: clamped-auto curves, a loop-only seam " +
+                "and restrained opposing arm peaks applied for a heavy smooth gait.");
         }
 
         private static void NormalizeEightPhaseCurve(
@@ -120,9 +115,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             Keyframe[] keys = curve.keys;
-            keys[0].value = 0f;
-            keys[4].value = 0f;
-            keys[keys.Length - 1].value = 0f;
+            keys[keys.Length - 1].value = keys[0].value;
             WriteCurve(clip, binding, keys);
         }
 

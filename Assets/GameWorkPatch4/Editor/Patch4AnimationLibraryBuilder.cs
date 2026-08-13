@@ -332,7 +332,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             // each side. Hip/shoulder bind anchors remain fixed; only articulated
             // joints rotate, preventing the rubber/vacuum deformation seen in
             // earlier reviews.
-            const float duration = 1.12f;
+            const float duration = 1.6f;
             AnimationClip clip = Prepare(
                 "FatMan_Walk_InRoom",
                 true,
@@ -344,13 +344,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "m_LocalPosition.y",
                 duration,
                 0f,
-                -0.018f,
-                0.052f,
-                0.018f,
+                -0.010f,
+                0.030f,
+                0.012f,
                 0f,
-                -0.018f,
-                0.052f,
-                0.018f);
+                -0.010f,
+                0.030f,
+                0.012f);
 
             // Balance stays deliberately small. The gait must read from the
             // limbs, not from rocking the entire painted body.
@@ -384,20 +384,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 ThighL,
                 duration,
-                -14f, -20f, -28f, -16f,
-                6f, 12f, 16f, 4f);
+                -10f, -15f, -22f, -13f,
+                5f, 9f, 13f, 3f);
             SetEightPhaseRotation(
                 clip,
                 ShinL,
                 duration,
-                10f, 24f, 40f, 28f,
-                4f, -2f, -8f, 2f);
+                8f, 18f, 30f, 21f,
+                3f, -1f, -6f, 1f);
             SetEightPhaseRotation(
                 clip,
                 FootL,
                 duration,
-                -4f, -10f, -20f, -10f,
-                2f, 5f, 8f, 2f);
+                -3f, -7f, -13f, -7f,
+                2f, 4f, 6f, 2f);
 
             // Right side is phase-shifted by half a cycle. Matching raw thigh
             // signs are intentional because the authored right chain is mirrored.
@@ -405,20 +405,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 ThighR,
                 duration,
-                -6f, -10f, -14f, 4f,
-                14f, 20f, 30f, 16f);
+                -5f, -8f, -11f, 3f,
+                10f, 15f, 22f, 13f);
             SetEightPhaseRotation(
                 clip,
                 ShinR,
                 duration,
-                -8f, -2f, 6f, 2f,
-                10f, 24f, -40f, -26f);
+                -6f, -1f, 4f, 1f,
+                8f, 18f, -30f, -20f);
             SetEightPhaseRotation(
                 clip,
                 FootR,
                 duration,
-                -2f, -4f, -6f, -1f,
-                4f, 10f, 20f, 10f);
+                -2f, -3f, -5f, -1f,
+                3f, 7f, 13f, 7f);
 
             // Arms counter-swing against their same-side legs. Elbow and hand
             // follow-through prevents the old rigid pendulum look.
@@ -426,39 +426,39 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 clip,
                 UpperArmL,
                 duration,
-                8f, 18f, 30f, 18f,
-                0f, -10f, -20f, -8f);
+                6f, 12f, 18f, 11f,
+                0f, -7f, -14f, -6f);
             SetEightPhaseRotation(
                 clip,
                 ForearmL,
                 duration,
-                -6f, -12f, -20f, -12f,
-                0f, 5f, 10f, 4f);
+                -4f, -8f, -13f, -8f,
+                0f, 4f, 8f, 3f);
             SetEightPhaseRotation(
                 clip,
                 HandL,
                 duration,
-                2f, 4f, 7f, 4f,
-                0f, -2f, -5f, -2f);
+                1f, 3f, 5f, 3f,
+                0f, -2f, -4f, -2f);
 
             SetEightPhaseRotation(
                 clip,
                 UpperArmR,
                 duration,
-                4f, 10f, 16f, 8f,
-                0f, -18f, -30f, -16f);
+                3f, 7f, 14f, 7f,
+                0f, -12f, -18f, -11f);
             SetEightPhaseRotation(
                 clip,
                 ForearmR,
                 duration,
-                -3f, -6f, -8f, -4f,
-                0f, 10f, 20f, 10f);
+                -2f, -4f, -7f, -3f,
+                0f, 8f, 13f, 8f);
             SetEightPhaseRotation(
                 clip,
                 HandR,
                 duration,
                 1f, 2f, 4f, 2f,
-                0f, -4f, -7f, -4f);
+                0f, -3f, -5f, -3f);
 
             return clip;
         }
@@ -719,14 +719,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "Speed",
                 0.1f,
                 AnimatorConditionMode.Greater,
-                0.06f);
-            AddFloatReturn(walk, idle, "Speed", 0.1f, 0.06f);
-            AddBoolTransition(idle, look, "Look", true, 0.06f);
-            AddBoolTransition(look, idle, "Look", false, 0.06f);
-            AddBoolTransition(idle, shift, "Shift", true, 0.06f);
-            AddBoolTransition(shift, idle, "Shift", false, 0.06f);
-            AddBoolTransition(idle, sit, "Sit", true, 0.08f);
-            AddBoolTransition(sit, idle, "Sit", false, 0.08f);
+                0.18f);
+            AddFloatReturn(walk, idle, "Speed", 0.1f, 0.18f);
+            AddBoolTransition(idle, look, "Look", true, 0.12f);
+            AddBoolTransition(look, idle, "Look", false, 0.12f);
+            AddBoolTransition(idle, shift, "Shift", true, 0.12f);
+            AddBoolTransition(shift, idle, "Shift", false, 0.12f);
+            AddBoolTransition(idle, sit, "Sit", true, 0.16f);
+            AddBoolTransition(sit, idle, "Sit", false, 0.16f);
 
             // One-shot gameplay reactions take priority over a facing pulse.
             // Blink is deliberately last because the runtime only schedules it
@@ -822,7 +822,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             AnimatorStateTransition transition = machine.AddAnyStateTransition(state);
             transition.hasExitTime = false;
             transition.hasFixedDuration = true;
-            transition.duration = 0.08f;
+            transition.duration = 0.12f;
             transition.canTransitionToSelf = false;
             transition.AddCondition(AnimatorConditionMode.If, 0f, parameter);
         }
@@ -835,7 +835,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             AnimatorStateTransition transition = machine.AddAnyStateTransition(state);
             transition.hasExitTime = false;
             transition.hasFixedDuration = true;
-            transition.duration = 0.05f;
+            transition.duration = 0.10f;
             transition.canTransitionToSelf = true;
             transition.AddCondition(AnimatorConditionMode.If, 0f, "Tap");
             transition.AddCondition(
@@ -853,7 +853,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             AnimatorStateTransition transition = machine.AddAnyStateTransition(state);
             transition.hasExitTime = false;
             transition.hasFixedDuration = true;
-            transition.duration = 0.05f;
+            transition.duration = 0.10f;
             transition.canTransitionToSelf = canTransitionToSelf;
             transition.AddCondition(AnimatorConditionMode.If, 0f, trigger);
         }
@@ -890,7 +890,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 "Shift",
                 AnimatorConditionMode.If,
                 0f);
-            AddExitToIdle(from, idle, 0.06f);
+            AddExitToIdle(from, idle, 0.12f);
         }
 
         private static void AddConditionalExit(
@@ -905,7 +905,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             transition.hasExitTime = true;
             transition.exitTime = 0.94f;
             transition.hasFixedDuration = true;
-            transition.duration = 0.06f;
+            transition.duration = 0.12f;
             transition.AddCondition(mode, threshold, parameter);
         }
 

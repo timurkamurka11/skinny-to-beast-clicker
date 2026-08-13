@@ -64,10 +64,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Transform visualRoot;
         private Transform generatedRoot;
         private int appliedGeneratedRootId;
+        private float facingSign = 1f;
+        private Vector3 visualRootBindScale = Vector3.one;
 
         public bool IsApplied =>
             generatedRoot != null &&
             appliedGeneratedRootId == generatedRoot.GetInstanceID();
+
+        public void SetFacingSign(int sign)
+        {
+            facingSign = sign < 0 ? -1f : 1f;
+            ApplyFacing();
+        }
 
         private void Reset()
         {
@@ -89,6 +97,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void Update()
         {
             TryApplyWhenVisible();
+            ApplyFacing();
         }
 
         private void ResolveReferences()
@@ -110,7 +119,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 generatedRoot = candidate;
                 appliedGeneratedRootId = 0;
+                visualRootBindScale = visualRoot != null
+                    ? visualRoot.localScale
+                    : Vector3.one;
             }
+        }
+
+        private void ApplyFacing()
+        {
+            if (visualRoot == null)
+            {
+                return;
+            }
+
+            visualRoot.localScale = new Vector3(
+                Mathf.Abs(visualRootBindScale.x) * facingSign,
+                visualRootBindScale.y,
+                visualRootBindScale.z);
         }
 
         private void TryApplyWhenVisible()

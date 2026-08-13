@@ -163,9 +163,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const float MinimumWalkLimbMotionCoverage = 0.04f;
         private const float MinimumWalkArmMotionCoverage = 0.035f;
         private const float MinimumWalkLegMotionCoverage = 0.04f;
-        private const float MinimumV23WalkArmSilhouetteDifference = 0.14f;
-        private const float MinimumV23WalkLegSilhouetteDifference = 0.14f;
-        private const float MinimumV23AdjacentFrameDifference = 0.075f;
+        private const float MinimumWalkArmTrajectoryRatio = 0.10f;
+        private const float MinimumWalkLegTrajectoryRatio = 0.10f;
+        private const float MinimumWalkContinuityScore = 0.55f;
         private const float MinimumV23FaceDifference = 0.02f;
         private const float MinimumWalkTravelWidthRatio = 0.35f;
         private const int LiveGameplayPreviewPassCount = 2;
@@ -209,9 +209,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private bool neutralReferenceCaptured;
         private Vector3 reviewBaseLocalPosition;
         private bool reviewBasePositionCaptured;
-        private float reviewTravelLocalDistance;
-        private readonly float[] walkPhaseRootScreenX =
-            new float[WalkPhaseCount];
+        private Vector2 reviewTravelLocalOffset;
+        private readonly Vector2[] walkPhaseRootScreenPosition =
+            new Vector2[WalkPhaseCount];
+        private readonly Vector2[] walkHandLRelative =
+            new Vector2[WalkPhaseCount];
+        private readonly Vector2[] walkHandRRelative =
+            new Vector2[WalkPhaseCount];
+        private readonly Vector2[] walkFootLRelative =
+            new Vector2[WalkPhaseCount];
+        private readonly Vector2[] walkFootRRelative =
+            new Vector2[WalkPhaseCount];
         private string currentClip = string.Empty;
         private string gameplayActionRoutingFailure = string.Empty;
         private bool started;
@@ -308,11 +316,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 v23WalkFrameSequenceReady =
                     v23FullFramePresentation != null &&
                     v23FullFramePresentation.IsReady &&
+                    v23FullFramePresentation.UsesContinuousLayeredRig &&
                     v23FullFramePresentation.FrameCount ==
                         Patch4V23FullFramePresentation.RequiredWalkFrameCount,
                 v23TenStateFullFrameReady =
                     v23FullFramePresentation != null &&
                     v23FullFramePresentation.IsReady &&
+                    v23FullFramePresentation.UsesContinuousLayeredRig &&
                     v23FullFramePresentation.StateCount ==
                         Patch4RigContract.RequiredClipNames.Count,
                 v23FaceArticulationReady =
@@ -484,7 +494,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Debug.Log(
                 "Patch 4 LIVE GAMEPLAY PREVIEW started in the real " +
                 "LivingGameplayScene: two uninterrupted passes at final " +
-                "whole-frame cadence. Every state is entered through the " +
+                "continuous-rig cadence. Every state is entered through the " +
                 "same Patch 4 gameplay-action API used at runtime. The paused " +
                 "evidence capture follows after this preview and is not a " +
                 "timing demonstration.");
@@ -572,8 +582,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                         {
                             report.error = AppendError(
                                 report.error,
-                                "Live preview could not present a complete " +
-                                "frame for " + clipName + ".");
+                                "Live preview could not present the continuous " +
+                                "layered rig for " + clipName + ".");
                             yield break;
                         }
 
@@ -622,7 +632,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             report.liveGameplayPreviewCompleted =
                 report.gameplayActionRoutingPassed &&
                 frameAdvances >= MinimumLivePreviewFrameAdvances &&
-                v23FullFramePresentation.HasSingleVisibleCompleteFrame &&
+                v23FullFramePresentation.HasSingleVisibleLayeredCharacter &&
                 v23FullFramePresentation.FrameCalibrationReady;
             if (!report.liveGameplayPreviewCompleted)
             {
@@ -638,8 +648,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 "Patch 4 LIVE GAMEPLAY PREVIEW completed: " +
                 previewDuration.ToString("0.0") +
                 " seconds, " + frameAdvances +
-                " visible whole-frame advances, all gameplay actions routed, " +
-                "fixed shoe line and fixed per-state character scale. " +
+                " continuous pose samples, all gameplay actions routed, " +
+                "one persistent layered character and no frame swaps. " +
                 "Starting paused evidence capture.");
         }
 
@@ -832,6 +842,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     0f);
             clipReport.v23FrameSequenceReady =
                 v23FullFramePresentation.IsReady &&
+                v23FullFramePresentation.UsesContinuousLayeredRig &&
                 v23FullFramePresentation.FrameCount == WalkPhaseCount &&
                 v23FullFramePresentation.StateCount ==
                     Patch4RigContract.RequiredClipNames.Count &&
@@ -1062,9 +1073,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     yield break;
                 }
 
+                RecordWalkLimbPose(phaseIndex);
                 phaseFramesCaptured &=
-                    v23FullFramePresentation.IsDisplaying &&
-                    v23FullFramePresentation.HasSingleVisibleCompleteFrame &&
+                    v23FullFramePresentation.IsLayeredRigActive &&
+                    v23FullFramePresentation.HasSingleVisibleLayeredCharacter &&
                     string.Equals(
                         v23FullFramePresentation.ActiveClipName,
                         clipReport.clipName,
@@ -1074,7 +1086,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 Rect currentRect = ResolveExpectedScreenRect(
                     backgroundWidth,
                     backgroundHeight);
-                walkPhaseRootScreenX[phaseIndex] = currentRect.center.x;
+                walkPhaseRootScreenPosition[phaseIndex] = currentRect.center;
 
                 if (phaseIndex == WalkContactPhaseIndex)
                 {
@@ -1125,18 +1137,27 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void AnalyzeWalkSequence(ClipReview clipReport)
         {
-            clipReport.walkRootTravelPixels = Mathf.Abs(
-                walkPhaseRootScreenX[WalkPhaseCount - 1] -
-                walkPhaseRootScreenX[0]);
+            Vector2 reviewDirection =
+                walkPhaseRootScreenPosition[WalkPhaseCount - 1] -
+                walkPhaseRootScreenPosition[0];
+            clipReport.walkRootTravelPixels = reviewDirection.magnitude;
             clipReport.minimumWalkRootTravelPixels = Mathf.Max(
                 48f,
                 neutralSilhouetteWidth * MinimumWalkTravelWidthRatio);
-            bool monotonicTravel = true;
+            bool monotonicTravel = reviewDirection.sqrMagnitude > 0.01f;
+            Vector2 normalizedDirection = monotonicTravel
+                ? reviewDirection.normalized
+                : Vector2.right;
+            float previousProgress = 0f;
             for (int i = 1; i < WalkPhaseCount; i++)
             {
+                float progress = Vector2.Dot(
+                    walkPhaseRootScreenPosition[i] -
+                        walkPhaseRootScreenPosition[0],
+                    normalizedDirection);
                 monotonicTravel &=
-                    walkPhaseRootScreenX[i] >=
-                    walkPhaseRootScreenX[i - 1] - 0.5f;
+                    progress >= previousProgress - 0.5f;
+                previousProgress = progress;
             }
 
             clipReport.walkRootTravelPassed =
@@ -1144,25 +1165,30 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 clipReport.walkRootTravelPixels >=
                 clipReport.minimumWalkRootTravelPixels;
 
-            bool sourceArticulationMeasured =
-                v23FullFramePresentation.TryMeasureGaitArticulation(
-                    out clipReport.v23LeftArmSilhouetteDifference,
-                    out clipReport.v23RightArmSilhouetteDifference,
-                    out clipReport.v23LeftLegSilhouetteDifference,
-                    out clipReport.v23RightLegSilhouetteDifference,
-                    out clipReport.v23MinimumAdjacentFrameDifference);
+            clipReport.v23LeftArmSilhouetteDifference =
+                MeasureNormalizedTrajectoryRange(walkHandLRelative);
+            clipReport.v23RightArmSilhouetteDifference =
+                MeasureNormalizedTrajectoryRange(walkHandRRelative);
+            clipReport.v23LeftLegSilhouetteDifference =
+                MeasureNormalizedTrajectoryRange(walkFootLRelative);
+            clipReport.v23RightLegSilhouetteDifference =
+                MeasureNormalizedTrajectoryRange(walkFootRRelative);
+            clipReport.v23MinimumAdjacentFrameDifference = Mathf.Min(
+                MeasureContinuityScore(walkHandLRelative),
+                MeasureContinuityScore(walkHandRRelative),
+                MeasureContinuityScore(walkFootLRelative),
+                MeasureContinuityScore(walkFootRRelative));
             clipReport.walkPhaseAlternationPassed =
-                sourceArticulationMeasured &&
                 clipReport.v23LeftArmSilhouetteDifference >=
-                    MinimumV23WalkArmSilhouetteDifference &&
+                    MinimumWalkArmTrajectoryRatio &&
                 clipReport.v23RightArmSilhouetteDifference >=
-                    MinimumV23WalkArmSilhouetteDifference &&
+                    MinimumWalkArmTrajectoryRatio &&
                 clipReport.v23LeftLegSilhouetteDifference >=
-                    MinimumV23WalkLegSilhouetteDifference &&
+                    MinimumWalkLegTrajectoryRatio &&
                 clipReport.v23RightLegSilhouetteDifference >=
-                    MinimumV23WalkLegSilhouetteDifference &&
+                    MinimumWalkLegTrajectoryRatio &&
                 clipReport.v23MinimumAdjacentFrameDifference >=
-                    MinimumV23AdjacentFrameDifference;
+                    MinimumWalkContinuityScore;
 
             if (!clipReport.walkRootTravelPassed)
             {
@@ -1173,7 +1199,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     clipReport.walkRootTravelPixels.ToString("0.0") +
                     " px, minimum " +
                     clipReport.minimumWalkRootTravelPixels.ToString("0.0") +
-                    " px with monotonic room travel).");
+                    " px with monotonic 2D room travel).");
             }
 
             if (!clipReport.walkPhaseAlternationPassed)
@@ -1181,26 +1207,94 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.error = AppendError(
                     report.error,
                     clipReport.clipName +
-                    ": the visible V23 frames do not contain a complete " +
-                    "articulated gait (left/right arm silhouette difference " +
+                    ": the continuous rig does not contain a complete " +
+                    "articulated gait (left/right hand trajectory " +
                     clipReport.v23LeftArmSilhouetteDifference.ToString("0.000") +
                     "/" +
                     clipReport.v23RightArmSilhouetteDifference.ToString("0.000") +
                     ", minimum " +
-                    MinimumV23WalkArmSilhouetteDifference.ToString("0.000") +
-                    "; left/right leg silhouette difference " +
+                    MinimumWalkArmTrajectoryRatio.ToString("0.000") +
+                    "; left/right foot trajectory " +
                     clipReport.v23LeftLegSilhouetteDifference.ToString("0.000") +
                     "/" +
                     clipReport.v23RightLegSilhouetteDifference.ToString("0.000") +
                     ", minimum " +
-                    MinimumV23WalkLegSilhouetteDifference.ToString("0.000") +
-                    "; weakest adjacent-frame difference " +
+                    MinimumWalkLegTrajectoryRatio.ToString("0.000") +
+                    "; weakest continuity score " +
                     clipReport.v23MinimumAdjacentFrameDifference.ToString(
                         "0.000") +
                     ", minimum " +
-                    MinimumV23AdjacentFrameDifference.ToString("0.000") +
-                    "). Repeated poses or body-only twitch cannot pass.");
+                    MinimumWalkContinuityScore.ToString("0.000") +
+                    "). Body-only twitch or discrete frame jumps cannot pass.");
             }
+        }
+
+        private void RecordWalkLimbPose(int phaseIndex)
+        {
+            Transform shoulderL = rigController.GetBone("UpperArmL");
+            Transform shoulderR = rigController.GetBone("UpperArmR");
+            Transform pelvis = rigController.GetBone("Pelvis");
+            Transform handL = rigController.GetBone("HandL");
+            Transform handR = rigController.GetBone("HandR");
+            Transform footL = rigController.GetBone("FootL");
+            Transform footR = rigController.GetBone("FootR");
+            if (shoulderL == null || shoulderR == null || pelvis == null ||
+                handL == null || handR == null || footL == null || footR == null)
+            {
+                return;
+            }
+
+            walkHandLRelative[phaseIndex] =
+                (Vector2)(handL.position - shoulderL.position);
+            walkHandRRelative[phaseIndex] =
+                (Vector2)(handR.position - shoulderR.position);
+            walkFootLRelative[phaseIndex] =
+                (Vector2)(footL.position - pelvis.position);
+            walkFootRRelative[phaseIndex] =
+                (Vector2)(footR.position - pelvis.position);
+        }
+
+        private static float MeasureTrajectoryRange(IReadOnlyList<Vector2> samples)
+        {
+            float range = 0f;
+            for (int i = 0; i < samples.Count; i++)
+            {
+                for (int j = i + 1; j < samples.Count; j++)
+                {
+                    range = Mathf.Max(range, Vector2.Distance(samples[i], samples[j]));
+                }
+            }
+            return range;
+        }
+
+        private static float MeasureNormalizedTrajectoryRange(
+            IReadOnlyList<Vector2> samples)
+        {
+            float referenceRadius = 0f;
+            for (int i = 0; i < samples.Count; i++)
+            {
+                referenceRadius = Mathf.Max(referenceRadius, samples[i].magnitude);
+            }
+            return MeasureTrajectoryRange(samples) /
+                Mathf.Max(0.0001f, referenceRadius);
+        }
+
+        private static float MeasureContinuityScore(IReadOnlyList<Vector2> samples)
+        {
+            float largestStep = 0f;
+            for (int i = 1; i < samples.Count; i++)
+            {
+                float step = Vector2.Distance(samples[i - 1], samples[i]);
+                largestStep = Mathf.Max(largestStep, step);
+            }
+
+            float range = MeasureTrajectoryRange(samples);
+            if (range <= 0.0001f)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp01(1f - largestStep / range);
         }
 
         private string ResolveAnimatorStatePath(string clipName)
@@ -1566,7 +1660,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             reviewBaseLocalPosition = rigController.transform.localPosition;
             reviewBasePositionCaptured = true;
-            reviewTravelLocalDistance = 0f;
+            reviewTravelLocalOffset = Vector2.zero;
             rigController.SetPatch4Enabled(false);
             stateMachine.SetLockedReviewActive(true);
             visibilityGuard.enabled = false;
@@ -1592,9 +1686,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 patch35RollbackRoot.activeInHierarchy;
             PauseLegacyMotionAndFootsteps();
             patch4VisualRoot.SetActive(true);
-            // Arm the complete-frame surface before the visual root returns.
-            // This prevents even a single rendered frame of the rejected V21
-            // mesh at the start of the review.
+            // Arm the persistent layered character before the visual root
+            // returns so no full-frame fallback can flash for one render.
             v23FullFramePresentation.SetReviewPose(
                 "FatMan_Idle_Breathe",
                 0f);
@@ -1612,7 +1705,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Transform parent = target != null ? target.parent : null;
             if (target == null || parent == null)
             {
-                reviewTravelLocalDistance = 0f;
+                reviewTravelLocalOffset = Vector2.zero;
                 return;
             }
 
@@ -1629,15 +1722,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 RectTransformUtility.WorldToScreenPoint(
                     camera,
                     parent.TransformPoint(Vector3.zero));
-            Vector2 screenUnit =
+            Vector2 screenRight =
                 RectTransformUtility.WorldToScreenPoint(
                     camera,
                     parent.TransformPoint(Vector3.right));
-            float pixelsPerLocalUnit = Mathf.Abs(
-                screenUnit.x - screenOrigin.x);
-            if (pixelsPerLocalUnit < 0.001f)
+            Vector2 screenUp =
+                RectTransformUtility.WorldToScreenPoint(
+                    camera,
+                    parent.TransformPoint(Vector3.up));
+            float pixelsPerLocalUnitX = Mathf.Abs(
+                screenRight.x - screenOrigin.x);
+            float pixelsPerLocalUnitY = Mathf.Abs(
+                screenUp.y - screenOrigin.y);
+            if (pixelsPerLocalUnitX < 0.001f)
             {
-                pixelsPerLocalUnit = 1f;
+                pixelsPerLocalUnitX = 1f;
+            }
+            if (pixelsPerLocalUnitY < 0.001f)
+            {
+                pixelsPerLocalUnitY = 1f;
             }
 
             // Keep one stride visibly translational without moving the actor
@@ -1651,8 +1754,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 referenceWidth * 0.48f,
                 128f,
                 320f);
-            reviewTravelLocalDistance =
-                targetTravelPixels / pixelsPerLocalUnit;
+            Vector2 screenDirection = new Vector2(0.30f, 0.954f).normalized;
+            reviewTravelLocalOffset = new Vector2(
+                targetTravelPixels * screenDirection.x /
+                    pixelsPerLocalUnitX,
+                targetTravelPixels * screenDirection.y /
+                    pixelsPerLocalUnitY);
         }
 
         private void SetWalkReviewTravel(float progress)
@@ -1663,8 +1770,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             Vector3 position = reviewBaseLocalPosition;
-            position.x += reviewTravelLocalDistance *
+            Vector2 offset = reviewTravelLocalOffset *
                 Mathf.Clamp01(progress);
+            position.x += offset.x;
+            position.y += offset.y;
             rigController.transform.localPosition = position;
         }
 
@@ -1926,7 +2035,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             clipReport.singleCompleteFramePassed =
                 v23FullFramePresentation != null &&
-                v23FullFramePresentation.HasSingleVisibleCompleteFrame &&
+                v23FullFramePresentation.HasSingleVisibleLayeredCharacter &&
                 string.Equals(
                     v23FullFramePresentation.ActiveClipName,
                     clipReport.clipName,
@@ -1936,8 +2045,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 report.error = AppendError(
                     report.error,
                     clipReport.clipName +
-                    ": the V23 complete frame was not the only visible " +
-                    "Patch 4 body. The rejected V21 mesh must stay hidden.");
+                    ": the continuous layered character was not the only " +
+                    "visible Patch 4 body.");
                 return false;
             }
 

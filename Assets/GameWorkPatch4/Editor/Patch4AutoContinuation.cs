@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "smooth-sixteen-phase-locomotion-v32";
+            "continuous-layered-motion-v33";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v32.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v33.gameplay.";
 
         private static int idleFrames;
 
@@ -57,65 +57,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V32 smooth locomotion pass started: " +
-                    "the rejected eight-frame Walk has been replaced by a " +
-                    "sixteen-phase complete-body cycle with adjacent painted " +
-                    "poses, a 1.28-second cadence and the same reversible " +
-                    "left/right gameplay routing. No runtime cross-fade, " +
-                    "ghost body or mesh stretching is used. " +
-                    "the fresh V30 room evidence proved that Speed reached " +
-                    "1 while the Animator remained in Idle with no pending " +
-                    "transition. Patch4CharacterStateMachine now routes the " +
-                    "movement edge through one fixed-time Walk cross-fade, " +
-                    "keeps Speed as the exit/context parameter and ignores " +
-                    "repeated movement ticks so the gait never restarts each " +
-                    "frame. The player-frame regression proves both entry and " +
-                    "continuous phase advancement. V30 diagnostics and the " +
-                    "V29 safe-room behavior remain active: " +
-                    "the attachable Editor-only driver now projects the five " +
-                    "legacy room signals into a short collision-safe central " +
-                    "standing corridor, mirrors the right-authored Walk from " +
-                    "the live left/right facing signal and restores the exact " +
-                    "legacy route when the preview ends. Static poses use a " +
-                    "faster whole-frame cadence and Idle returns through an " +
-                    "adjacent ping-pong sequence instead of jumping from its " +
-                    "last painted frame directly to its first. " +
-                    "Restore the approved master, rebuild the retained v21.1 " +
-                    "rollback candidates, verify neutral reconstruction, rebuild " +
-                    "the locked prefab and bind six complete-frame RGBA sheets " +
-                    "covering all ten required clips, including the corrected " +
-                    "complete-body upgrade sheet. During every clip the entire " +
-                    "experimental Canvas stack is hidden, so " +
-                    "no sliced joint, detached face or vacuum-stretched body can " +
-                    "leak behind the complete painted frames. The Walk uses sixteen " +
-                    "right-authored profile phases mirrored to live travel, and " +
-                    "blink/look/tap/upgrade " +
-                    "use independent painted facial expressions. Every frame is " +
-                    "aligned to one shoe line and each pose family uses a fixed " +
-                    "body scale. Animator state speeds now match the visible " +
-                    "whole-frame cadence. After 4/4, Unity will first route " +
-                    "idle, shift, blink, look, both taps, walking, turning, " +
-                    "sitting and upgrade through the same gameplay API used at " +
-                    "runtime, and play two uninterrupted passes in the actual " +
-                    "room. Before Test Runner enters PlayMode, Patch 4 now " +
-                    "validates the generated Patch 3 Animator, cancels any " +
-                    "stale non-test Play resume and clears stale room-review " +
-                    "ownership so no Editor callback can stop the player. " +
-                    "It will then enter every full Animator state, " +
-                    "sample all ten states and sixteen Walk frames with silent " +
-                    "monotonic travel, " +
-                    "measure both visible arm silhouettes, both visible leg " +
-                    "silhouettes, facial differences and the weakest adjacent-" +
-                    "frame difference, " +
-                    "reject duplicated poses, missing travel, weak blink motion, " +
-                    "collapse, over-stretch or Console errors, restore Patch 3.5 " +
-                    "and verify fresh read-only review artifacts. After that " +
-                    "technical pass, Unity will automatically enter a separate " +
-                    "Editor-only normal-game preview and leave Play Mode on. " +
-                    "The user can tap the dumbbell, buy upgrades and watch the " +
-                    "existing routine drive Patch 4 inside the safe standing " +
-                    "corridor without " +
-                    "unlocking production readiness.");
+                    "Patch 4 V33 continuous layered motion pass started: the " +
+                    "corrupt V32 whole-body atlas and every live frame swap are " +
+                    "removed. One persistent torso, head, face and four continuous " +
+                    "limbs now follow clamped-auto Animator curves every render " +
+                    "frame. Walk uses a restrained 1.6-second heavy gait, 0.18-second " +
+                    "locomotion blends, loop-only seam normalization, direction-" +
+                    "aware planted-foot IK and visible depth travel across a " +
+                    "narrow central route. Gameplay signals still select " +
+                    "idle, shift, blink, look, taps, walk, turn, sit and upgrade. " +
+                    "Unity will rebuild the local hybrid art and locked prefab, " +
+                    "then validate 16 continuous walk-time samples by live hand " +
+                    "and foot trajectories; body twitch and discrete slides cannot " +
+                    "pass. Patch 3.5 remains the active rollback and readiness stays " +
+                    "locked.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(
@@ -139,7 +94,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V32 continuation failed: " + exception);
+                    "Patch 4 automatic V33 continuation failed: " + exception);
             }
         }
     }

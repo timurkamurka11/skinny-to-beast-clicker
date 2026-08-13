@@ -10,7 +10,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
     public sealed class Patch4CharacterStateMachine : MonoBehaviour
     {
         private const float WalkThreshold = 0.1f;
-        private const float LocomotionTransitionSeconds = 0.06f;
+        private const float LocomotionTransitionSeconds = 0.18f;
 
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int LookHash = Animator.StringToHash("Look");

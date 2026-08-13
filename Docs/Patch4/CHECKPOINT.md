@@ -1,12 +1,40 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
-## Latest P4.0-AJ / V32 smooth sixteen-phase checkpoint
+## Latest P4.0-AK / V33 continuous layered-motion checkpoint
+
+The first V32 Unity import exposed the exact immediate errors: static helpers
+called an instance `ResolveRows`, the new V32 walk PNG was unreadable, and the
+tests remained in a camera-less `InitTestScene`. The deeper failure was by
+design: V32 still hid the rig and switched complete-body atlas frames, so it
+could only look like a faster slideshow.
+
+V33 deletes the corrupt atlas and the obsolete V22 frame presenter. V23's
+complete-frame sheets remain bound only for disabled art QA; no runtime path
+can show that RawImage or hide the live layers. One torso/head/face/four-limb
+Canvas character stays visible while clamped-auto bone curves interpolate at
+render rate. Walk lasts `1.6 s`, preserves all eight authored gait phases and
+closes only the loop seam. The prior forced neutral at half cycle is removed.
+Planted feet follow actual two-axis room motion; normal preview anchors now use
+safe depth, modest lateral spread and continuous scale interpolation instead of
+one horizontal corridor. The frontal rig also stays front-facing instead of
+being mirrored by legacy side-facing signals. All actions retain the V25
+gameplay mapping and use longer state blends.
+
+The fresh review contract samples sixteen continuous times and measures hand/
+foot trajectories, continuity, single-character visibility and monotonic 2D
+travel. It does not accept frozen limbs, body-only twitch or frame swaps.
+Automatic token: `continuous-layered-motion-v33`. Static validation, whitespace
+checks and C# syntax parsing pass; Unity compile/tests/visual review are the
+next automatic step after pull. Patch 4 remains locked, Patch 3.5 remains
+active, and protected menu/video/music/audio/settings files are untouched.
+
+## Superseded P4.0-AJ / V32 smooth sixteen-phase checkpoint
 
 V31 proved that real gameplay action routing can own Walk, but human review
 correctly rejected its eight-cell V23 playback as a fast slideshow. Source

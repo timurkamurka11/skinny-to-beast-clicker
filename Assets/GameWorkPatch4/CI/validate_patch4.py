@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"smooth-sixteen-phase-locomotion-v32"',
+            '"continuous-layered-motion-v33"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -463,7 +463,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "FatMan_Tap_V23.png",
             "FatMan_Pose_V23.png",
             "FatMan_Upgrade_V24.png",
-            "FatMan_WalkRight_16_V32.png",
+            "FatMan_WalkRight_V23.png",
             "v23Presentation.RebuildPresentation()",
         ):
             if snippet not in builder:
@@ -480,30 +480,113 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "RequiredWalkFrameCount = 16",
             "typeof(RawImage)",
             "presentationImage.uvRect",
-            "generatedLayersGroup.alpha = 0f",
             "rigController.Patch4Enabled",
             "FatMan_Walk_InRoom",
             "SetReviewPose(",
             "SetReviewActive(",
             "SetEditorGameplayPreviewActive(",
-            "TryMeasureGaitArticulation(",
+            "UsesContinuousLayeredRig",
+            "HasSingleVisibleLayeredCharacter",
             "TryMeasureFaceArticulation(",
-            "HasSingleVisibleCompleteFrame",
-            "LegacyUnderlayHidden",
             "VisibleAlphaThreshold",
             "ResolvePlaybackDuration(",
-            "IdlePingPongFrameCount",
-            "IdlePingPongFrameCount - phaseFrame",
             "SetEditorWalkFacingSign(",
             "TryMeasureFrameCalibration(",
-            "ApplyFrameCalibration(",
             "TargetGroundPixel",
-            "ResolveArtworkScale(",
+            "presentationImage.enabled = false",
         ):
             if snippet not in v23_presentation:
                 fail(errors, f"V23 full-frame presentation is missing: {snippet}")
-        if "SetPatch4Enabled(true)" in v23_presentation:
-            fail(errors, "V23 presentation must never unlock Patch 4")
+        for forbidden in (
+            "SetDisplayed(true)",
+            "generatedLayersGroup.alpha = 0f",
+            "presentationImage.texture =",
+        ):
+            if forbidden in v23_presentation:
+                fail(
+                    errors,
+                    "V33 continuous presentation must not swap or reveal "
+                    f"whole-frame artwork at runtime: {forbidden}",
+                )
+
+    v22_slideshow = root / (
+        "Assets/GameWorkPatch4/Runtime/" +
+        "Patch4V22WalkCyclePresentation.cs"
+    )
+    if v22_slideshow.exists():
+        fail(
+            errors,
+            "Obsolete V22 whole-frame walk component must stay deleted; "
+            "it can hide the layered rig and reintroduce slideshow playback.",
+        )
+    if v23_presentation and "SetPatch4Enabled(true)" in v23_presentation:
+        fail(errors, "V23 presentation must never unlock Patch 4")
+
+    walk_finalizer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4WalkV18Finalizer.cs",
+        errors,
+    )
+    if walk_finalizer:
+        for snippet in (
+            "keys[keys.Length - 1].value = keys[0].value",
+            "AnimationUtility.TangentMode.ClampedAuto",
+        ):
+            if snippet not in walk_finalizer:
+                fail(
+                    errors,
+                    "V33 continuous walk finalizer is missing: " + snippet,
+                )
+        for forbidden in (
+            "keys[0].value = 0f",
+            "keys[4].value = 0f",
+        ):
+            if forbidden in walk_finalizer:
+                fail(
+                    errors,
+                    "V33 must not force a neutral gait pose inside the loop: "
+                    + forbidden,
+                )
+
+    foot_plant = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4V21FootPlantController.cs",
+        errors,
+    )
+    if foot_plant:
+        for snippet in (
+            "Vector3 travelDirection = Vector3.right",
+            "Vector3 delta = characterRoot.position - previousRootPosition",
+            "travelDirection = delta.normalized",
+            "BeginCycle(phase, false)",
+            "SwingArc(",
+            "SolveLeg(",
+        ):
+            if snippet not in foot_plant:
+                fail(
+                    errors,
+                    "V33 direction-aware foot planting is missing: " + snippet,
+                )
+
+    preview_driver = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/"
+        "Patch4InteractiveGameplayPreviewDriver.cs",
+        errors,
+    )
+    if preview_driver:
+        for snippet in (
+            "ResolveSafeRouteY(",
+            "ResolveSafeRouteScale(",
+            "CharacterFacing.Front",
+            "KeepFrontFacingRig(",
+            "SetEditorWalkFacingSign(1)",
+        ):
+            if snippet not in preview_driver:
+                fail(
+                    errors,
+                    "V33 depth-aware gameplay route is missing: " + snippet,
+                )
 
     deformer = read_text(
         root,
@@ -635,9 +718,11 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "rightArmMotionCoverage",
             "leftLegMotionCoverage",
             "rightLegMotionCoverage",
-            "MinimumV23WalkArmSilhouetteDifference",
-            "MinimumV23WalkLegSilhouetteDifference",
-            "MinimumV23AdjacentFrameDifference",
+            "MinimumWalkArmTrajectoryRatio",
+            "MinimumWalkLegTrajectoryRatio",
+            "MinimumWalkContinuityScore",
+            "RecordWalkLimbPose(",
+            "MeasureTrajectoryRange(",
             "MinimumV23FaceDifference",
             "IsForeground(",
             "neutralWidthRetention",
@@ -939,8 +1024,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "snapshot.anchor.ConfigureNormalized(",
             "snapshot.anchor.Configure(",
             "SafeCharacterScale = 0.7f",
-            "CharacterFacing.SideLeft",
-            "SetEditorWalkFacingSign(walkFacingSign)",
+            "CharacterFacing.Front",
+            "KeepFrontFacingRig(",
+            "SetEditorWalkFacingSign(1)",
             "#if UNITY_EDITOR",
         ):
             if snippet not in interactive_driver:
@@ -1042,9 +1128,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "AssertWalkAnimatorStateProducesArticulation(",
             "animator.HasState(0, stateHash)",
             "GetCurrentAnimatorStateInfo(0).fullPathHash",
-            "MinimumV23ArmSilhouetteDifference",
-            "MinimumV23LegSilhouetteDifference",
-            "MinimumV23AdjacentFrameDifference",
+            "UsesContinuousLayeredRig",
+            "IsLayeredRigActive",
             "MinimumV23FaceDifference",
             "animator.Play(stateHash, 0, 0.5f)",
             'GetMethod(\n                "SetWalkSpeed"',
@@ -1052,7 +1137,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "animator.IsInTransition(0)",
             "walkTimeBeforeRepeatedTick",
             "Repeated Speed = 1 ticks must not restart the walk",
-            "TryMeasureGaitArticulation",
+            "SetReviewPose",
             "Patch4V23FullFramePresentation",
             "GetBoolProperty(v23Presentation, \"IsReady\")",
             "GetIntProperty(v23Presentation, \"StateCount\")",
@@ -1399,15 +1484,12 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
                     f"{setting}",
                 )
 
-    relative = (
-        "Assets/GameWorkPatch4/Art/Character/FatMan/V32Smooth/"
-        "FatMan_WalkRight_16_V32.png"
-    )
+    relative = sheet_root + "FatMan_WalkRight_V23.png"
     path = root / relative
     try:
         data = path.read_bytes()
     except OSError as exc:
-        fail(errors, f"V23 right-profile walk sheet is unreadable: {exc}")
+        fail(errors, f"V23 walk reference is unreadable: {exc}")
         return
 
     if (
@@ -1419,10 +1501,10 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         return
 
     width, height = struct.unpack(">II", data[16:24])
-    if (width, height) != (1536, 1024) or height % 4 != 0:
+    if (width, height) != (1536, 1024) or height % 2 != 0:
         fail(
             errors,
-            "V32 walk sheet must divide into four equal columns and four rows",
+            "V23 walk reference must divide into four columns and two rows",
         )
     if data[24] != 8 or data[25] != 6:
         fail(errors, "V23 walk sheet must be 8-bit RGBA PNG data")
@@ -1435,7 +1517,7 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         return
 
     cell_width = width // 4
-    cell_height = height // 4
+    cell_height = height // 2
     arm_regions = (
         (0.10, 0.48, 0.15, 0.67),
         (0.52, 0.90, 0.15, 0.67),
@@ -1463,10 +1545,10 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
             cell_width,
             cell_height,
             frame,
-            (frame + 1) % 16,
+            (frame + 1) % 8,
             (0.0, 1.0, 0.0, 1.0),
         )
-        for frame in range(16)
+        for frame in range(8)
     ]
     if min(arm_differences) < 0.14:
         fail(
@@ -1488,7 +1570,7 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         )
 
     profile_offsets = []
-    for frame in range(16):
+    for frame in range(8):
         head_x = alpha_centroid_x(
             rgba, width, cell_width, cell_height, frame, (0.0, 1.0, 0.05, 0.32)
         )
@@ -1498,7 +1580,7 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         profile_offsets.append(head_x - torso_x)
     if (
         sum(profile_offsets) / len(profile_offsets) < 3.5
-        or sum(offset > 3.0 for offset in profile_offsets) < 10
+        or sum(offset > 3.0 for offset in profile_offsets) < 5
     ):
         fail(
             errors,
@@ -1782,18 +1864,17 @@ def main() -> int:
     print("- exact neutral face and feathered expression replacements share the Head matrix")
     print("- Test Runner exit must stay quiescent before the separate room review")
     print("- actual-room review blocks weak limbs, collapse, over-stretch and Console errors")
-    print("- V23 uses one complete RGBA body for all ten clips while every legacy mesh layer stays hidden")
-    print("- V32 walk is a right-facing sixteen-phase gait with monotonic room travel")
+    print("- V33 uses one persistent layered character and never swaps a live whole-body frame")
+    print("- V33 walk samples sixteen continuous times with live hand/foot trajectories and room travel")
     print("- V23 blink and look-around use measurable painted facial changes")
     print("- V24 repairs the cropped upgrade pose and calibrates scale plus shoe line")
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
     print("- V25 routes idle, routine, tap, walk, turn and upgrade gameplay actions")
     print("- V26 gives Test Runner exclusive PlayMode ownership after legacy Animator preflight")
-    print("- V29 keeps Patch 4 in a short central standing corridor and mirrors left/right travel")
-    print("- V29 accelerates whole-frame cadence and closes the Idle loop through adjacent frames")
+    print("- V33 uses a narrow collision-safe route with foreground/background depth travel")
     print("- V30 observes gameplay-routed Animator entry across real Editor frames")
     print("- V31 gives the movement API one-shot ownership of Idle/Walk routing")
-    print("- V32 replaces the eight-pose slideshow with a 1.28-second sixteen-phase complete-body cycle")
+    print("- V33 removes the slideshow and uses a 1.6-second clamped-auto layered gait")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

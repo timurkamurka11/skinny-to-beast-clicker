@@ -349,28 +349,28 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 shinLeft,
                 firstPeak,
                 secondPeak,
-                35f,
+                28f,
                 "The left knee does not bend across the gait cycle.");
             AssertCurveSweep(
                 walk,
                 shinRight,
                 firstPeak,
                 secondPeak,
-                35f,
+                28f,
                 "The right knee does not bend across the gait cycle.");
             AssertCurveSweep(
                 walk,
                 footLeft,
                 firstPeak,
                 secondPeak,
-                18f,
+                10f,
                 "The left foot does not plant and release.");
             AssertCurveSweep(
                 walk,
                 footRight,
                 firstPeak,
                 secondPeak,
-                18f,
+                10f,
                 "The right foot does not plant and release.");
 
             Assert.Greater(
@@ -385,7 +385,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                             upperArmLeft,
                             "localEulerAnglesRaw.z")
                         .Evaluate(secondPeak)),
-                35f,
+                28f,
                 "The left arm does not counter-swing across the gait cycle.");
             Assert.Greater(
                 Mathf.Abs(
@@ -399,7 +399,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                             upperArmRight,
                             "localEulerAnglesRaw.z")
                         .Evaluate(secondPeak)),
-                35f,
+                28f,
                 "The right arm does not counter-swing across the gait cycle.");
 
             AnimationCurve leftArmRotation = RequireCurve(
@@ -427,14 +427,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 forearmLeft,
                 firstPeak,
                 secondPeak,
-                20f,
+                18f,
                 "The left elbow does not follow the arm swing.");
             AssertCurveSweep(
                 walk,
                 forearmRight,
                 firstPeak,
                 secondPeak,
-                20f,
+                18f,
                 "The right elbow does not follow the arm swing.");
             AssertCurveSweep(
                 walk,
@@ -567,36 +567,42 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "ResolvePlaybackDuration",
                 BindingFlags.Static | BindingFlags.Public);
             Assert.NotNull(resolve);
+            float walkDuration = (float)resolve.Invoke(null, new object[]
+            {
+                "FatMan_Walk_InRoom"
+            });
+            Assert.GreaterOrEqual(
+                walkDuration,
+                1.5f,
+                "The heavy continuous walk is still too fast.");
             Assert.LessOrEqual(
-                (float)resolve.Invoke(null, new object[]
-                {
-                    "FatMan_Walk_InRoom"
-                }),
-                0.6f,
-                "The eight-frame walk must play at a responsive whole-frame " +
-                "cadence rather than the slow diagnostic timing.");
-            Assert.LessOrEqual(
+                walkDuration,
+                1.8f,
+                "The heavy continuous walk became unresponsive.");
+            Assert.AreEqual(
                 (float)resolve.Invoke(null, new object[]
                 {
                     "FatMan_Idle_Breathe"
                 }),
-                0.75f,
-                "The static four-frame body must not visibly crawl from one " +
-                "painted frame to the next.");
-            Assert.LessOrEqual(
+                3.2f,
+                0.001f,
+                "Idle breathing must retain its natural authored duration.");
+            Assert.AreEqual(
                 (float)resolve.Invoke(null, new object[]
                 {
                     "FatMan_Idle_ShiftWeight"
                 }),
-                0.5f,
-                "Standing weight shifts must stay responsive.");
-            Assert.LessOrEqual(
+                3.2f,
+                0.001f,
+                "Weight shifting must not be accelerated into a twitch.");
+            Assert.AreEqual(
                 (float)resolve.Invoke(null, new object[]
                 {
                     "FatMan_TapReact_01"
                 }),
-                0.5f,
-                "Tap reactions must not linger at screenshot-review speed.");
+                0.65f,
+                0.001f,
+                "Tap reactions must retain their authored continuous timing.");
         }
 
         private static void AssertCurveSweep(

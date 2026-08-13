@@ -47,7 +47,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Vector3 swingEndL;
         private Vector3 swingEndR;
         private Vector3 previousRootPosition;
-        private float travelDirection = 1f;
+        private Vector3 travelDirection = Vector3.right;
         private float previousPhase;
         private bool wasWalking;
         private bool leftSwingInitialized;
@@ -96,9 +96,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             float phase = Mathf.Repeat(state.normalizedTime, 1f);
             UpdateTravelDirection();
 
-            if (!wasWalking || phase + .45f < previousPhase)
+            if (!wasWalking)
             {
                 BeginCycle(phase);
+            }
+            else if (phase + .45f < previousPhase)
+            {
+                BeginCycle(phase, false);
             }
 
             // Right leg swings during the first half; left leg during the
@@ -199,10 +203,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             previousRootPosition = characterRoot.position;
         }
 
-        private void BeginCycle(float phase)
+        private void BeginCycle(float phase, bool resetPlants = true)
         {
-            plantL = footL.position;
-            plantR = footR.position;
+            if (resetPlants)
+            {
+                plantL = footL.position;
+                plantR = footR.position;
+            }
             previousRootPosition = characterRoot.position;
             previousPhase = phase;
             leftSwingInitialized = false;
@@ -215,7 +222,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             float length = LegLength(thighR, shinR, footR);
             Vector3 neutral = pelvis.TransformPoint(bindFootPelvisR);
             swingEndR = neutral +
-                Vector3.right * travelDirection * length * stepLengthRatio;
+                travelDirection * length * stepLengthRatio;
         }
 
         private void BeginLeftSwing()
@@ -224,16 +231,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
             float length = LegLength(thighL, shinL, footL);
             Vector3 neutral = pelvis.TransformPoint(bindFootPelvisL);
             swingEndL = neutral +
-                Vector3.right * travelDirection * length * stepLengthRatio;
+                travelDirection * length * stepLengthRatio;
         }
 
         private void UpdateTravelDirection()
         {
-            float deltaX = characterRoot.position.x - previousRootPosition.x;
+            Vector3 delta = characterRoot.position - previousRootPosition;
+            delta.z = 0f;
             float threshold = .00005f * Mathf.Max(1f, transform.lossyScale.x);
-            if (Mathf.Abs(deltaX) > threshold)
+            if (delta.sqrMagnitude > threshold * threshold)
             {
-                travelDirection = Mathf.Sign(deltaX);
+                travelDirection = delta.normalized;
             }
         }
 

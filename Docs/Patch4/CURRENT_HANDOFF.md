@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-08-12**
+Last updated: **2026-08-13**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -11,7 +11,64 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
-## Current P4.0-AJ / V32 sixteen-phase smooth locomotion
+## Current P4.0-AK / V33 continuous layered motion
+
+The user's first V32 import proved that the sixteen-image atlas was both
+technically and architecturally wrong for this target. Unity reported two
+`CS0120` calls to the instance-only row resolver, rejected
+`FatMan_WalkRight_16_V32.png` as unreadable, and entered a camera-less
+`InitTestScene`. More importantly, the user correctly rejected the visible
+result as a faster slideshow: a complete-body `RawImage` still replaced the
+character pose by pose instead of animating one rig.
+
+V33 removes that path globally:
+
+- the corrupt `V32Smooth` PNG and the obsolete
+  `Patch4V22WalkCyclePresentation` component are deleted;
+- `Patch4V23FullFramePresentation` keeps the old sheets only as disabled
+  reference/QA sources and can no longer assign a live texture, show the
+  `RawImage`, or hide the layered character;
+- the one persistent Canvas character now consists of torso, rigid head,
+  head-bound independent face and four continuous whole-limb sprites; its
+  bones are interpolated every rendered frame by clamped-auto curves;
+- Walk is a `1.6 s` heavy eight-pose control curve sampled at sixteen
+  continuous review times. The finalizer preserves the phase-four support pose
+  and closes only the loop seam; the former forced half-cycle neutral reset
+  that caused a visible hitch is gone;
+- arm, forearm, hand, thigh, shin and foot all carry opposing motion. The
+  planted-foot solver now follows the actual 2D travel vector, not only X;
+- Idle, shift, look, taps, turn, sit and upgrade keep their natural authored
+  durations. Persistent state transitions use `0.12-0.18 s` blends and tap/
+  trigger entries use `0.10 s` blends;
+- the locked normal-game route is no longer a single horizontal line. It uses
+  a narrow central X range, distinct safe Y depths and continuously interpolated
+  scale, so the front-authored rig walks mainly into/out of the room instead of
+  sliding sideways;
+- the preview no longer mirrors that frontal artwork from legacy
+  `SideLeft`/`SideRight` signals. All projected anchors request `Front`, and the
+  continuous rig keeps one stable facing while it travels through depth;
+- actual-room QA no longer grades atlas silhouettes. It measures live hand and
+  foot trajectories, their continuity, one persistent visible body and
+  monotonic 2D room travel. Body twitch, frozen limbs and frame swapping cannot
+  pass;
+- the existing gameplay mapping remains authoritative: idle, routine actions,
+  accepted taps, movement, facing changes and purchases select their matching
+  Animator states through `Patch4CharacterStateMachine` and
+  `Patch4LegacySignalBridge`.
+
+Automatic continuation token: `continuous-layered-motion-v33`. Repository
+static validation, whitespace checks and C# syntax parsing pass. Unity
+`6000.3.19f1` compilation, automated EditMode/PlayMode tests and fresh human
+motion review run automatically after the next pull. Readiness remains locked
+and Patch 3.5 remains the rollback owner.
+
+No protected menu, `MainMenuLoop.mp4`, music/audio, settings or production
+readiness asset was changed. A true side-profile layered rig remains a separate
+art deliverable: generating or slicing one flat profile image would recreate
+the already rejected cut-joint/vacuum artifacts, so V33 deliberately uses the
+clean continuous front rig with depth travel rather than faking a paper doll.
+
+## Superseded P4.0-AJ / V32 sixteen-phase smooth locomotion
 
 The user's fresh normal-game observation confirms that V31 routes Walk, but
 rejects the visible result: V29 only accelerated an eight-image whole-body

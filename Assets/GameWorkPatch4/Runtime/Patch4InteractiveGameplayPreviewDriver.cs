@@ -25,7 +25,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             public float maximumStay;
         }
 
-        private const float SafeRouteY = 0.515f;
         private const float SafeCharacterScale = 0.7f;
 
         private Patch4CharacterRigController rigController;
@@ -53,7 +52,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private bool rollbackBlocksRaycasts;
         private bool routineWasEnabled;
         private bool safeRoomConfigured;
-        private int walkFacingSign = 1;
         private readonly List<RoomAnchorSnapshot> roomAnchorSnapshots = new();
 
         public bool IsActive => previewActive;
@@ -151,7 +149,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             previewActive = true;
-            UpdateWalkFacing();
+            KeepFrontFacingRig();
             Canvas.ForceUpdateCanvases();
             return true;
         }
@@ -160,7 +158,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             if (previewActive)
             {
-                UpdateWalkFacing();
+                KeepFrontFacingRig();
             }
         }
 
@@ -238,7 +236,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             patch4VisualRoot = null;
             patch35RollbackRoot = null;
             rollbackGroup = null;
-            walkFacingSign = 1;
         }
 
         private bool ConfigureSafeRoomRoute()
@@ -303,8 +300,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                         : RoomAnchorKind.Center,
                     new Vector2(
                         ResolveSafeRouteX(snapshot.kind),
-                        SafeRouteY),
-                    SafeCharacterScale,
+                        ResolveSafeRouteY(snapshot.kind)),
+                    ResolveSafeRouteScale(snapshot.kind),
                     CharacterFacing.Front,
                     snapshot.minimumStay,
                     snapshot.maximumStay);
@@ -370,25 +367,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             roomAnchorSnapshots.Clear();
         }
 
-        private void UpdateWalkFacing()
+        private void KeepFrontFacingRig()
         {
-            if (legacyRigController == null ||
-                fullFramePresentation == null)
+            if (fullFramePresentation == null)
             {
                 return;
             }
 
-            CharacterFacing facing = legacyRigController.Facing;
-            if (facing == CharacterFacing.SideLeft)
-            {
-                walkFacingSign = -1;
-            }
-            else if (facing == CharacterFacing.SideRight)
-            {
-                walkFacingSign = 1;
-            }
-
-            fullFramePresentation.SetEditorWalkFacingSign(walkFacingSign);
+            // The available painted rig is frontal. Flipping it from the
+            // legacy SideLeft/SideRight signal made depth travel read as a
+            // paper cutout walking sideways. Route anchors already request
+            // Front, so keep one stable orientation until a true layered side
+            // rig exists.
+            fullFramePresentation.SetEditorWalkFacingSign(1);
         }
 
         private static float ResolveSafeRouteX(RoomAnchorKind kind)
@@ -396,17 +387,62 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             switch (kind)
             {
                 case RoomAnchorKind.Center:
-                    return 0.07f;
+                    return -0.06f;
                 case RoomAnchorKind.Sofa:
-                    return 0.075f;
+                    return -0.18f;
                 case RoomAnchorKind.Training:
-                    return 0.08f;
+                    return 0f;
                 case RoomAnchorKind.Window:
-                    return 0.085f;
+                    return 0.06f;
                 case RoomAnchorKind.Mirror:
-                    return 0.09f;
+                    return 0.18f;
                 default:
                     return 0f;
+            }
+        }
+
+        private static float ResolveSafeRouteY(RoomAnchorKind kind)
+        {
+            // The continuous front-facing rig travels through room depth
+            // instead of sliding along one horizontal screen line. Keeping
+            // the lateral span narrow also prevents a front view from reading
+            // as an implausible sideways walk.
+            switch (kind)
+            {
+                case RoomAnchorKind.Center:
+                    return 0.52f;
+                case RoomAnchorKind.Sofa:
+                    return 0.55f;
+                case RoomAnchorKind.Training:
+                    return 0.49f;
+                case RoomAnchorKind.Window:
+                    return 0.59f;
+                case RoomAnchorKind.Mirror:
+                    return 0.55f;
+                default:
+                    return 0.52f;
+            }
+        }
+
+        private static float ResolveSafeRouteScale(RoomAnchorKind kind)
+        {
+            // Depth destinations grow slightly toward the foreground. The
+            // legacy routine interpolates this value continuously, so travel
+            // reads as walking through the room rather than a horizontal slide.
+            switch (kind)
+            {
+                case RoomAnchorKind.Training:
+                    return SafeCharacterScale;
+                case RoomAnchorKind.Center:
+                    return 0.68f;
+                case RoomAnchorKind.Sofa:
+                    return 0.66f;
+                case RoomAnchorKind.Window:
+                    return 0.61f;
+                case RoomAnchorKind.Mirror:
+                    return 0.65f;
+                default:
+                    return SafeCharacterScale;
             }
         }
 

@@ -58,8 +58,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 SerializedObject footSerialized = new(footPlant);
                 footSerialized.FindProperty("rigController").objectReferenceValue = rig;
                 footSerialized.FindProperty("animator").objectReferenceValue = animator;
-                footSerialized.FindProperty("stepLengthRatio").floatValue = .36f;
-                footSerialized.FindProperty("footLiftRatio").floatValue = .10f;
+                footSerialized.FindProperty("stepLengthRatio").floatValue = .30f;
+                footSerialized.FindProperty("footLiftRatio").floatValue = .08f;
                 footSerialized.ApplyModifiedPropertiesWithoutUndo();
 
                 Patch4V21FaceSwapBridge faceBridge =
