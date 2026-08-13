@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "front-facing-contract-repair-v34";
+            "deterministic-motion-review-v35";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v34.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v35.gameplay.";
 
         private static int idleFrames;
 
@@ -57,10 +57,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V34 front-facing contract repair pass started: " +
-                    "the stale EditMode expectations for SideLeft and the " +
-                    "removed walkFacingSign variable now match the V33 front-" +
-                    "facing depth route. The production motion code is unchanged: " +
+                    "Patch 4 V35 deterministic motion review pass started: " +
+                    "blink evidence now holds the painted closed-lid pose, and " +
+                    "the sixteen walk samples preserve one uninterrupted " +
+                    "Animator plus planted-foot state instead of restarting it. " +
                     "the corrupt V32 whole-body atlas and every live frame swap are " +
                     "removed. One persistent torso, head, face and four continuous " +
                     "limbs now follow clamped-auto Animator curves every render " +
@@ -97,7 +97,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V34 continuation failed: " + exception);
+                    "Patch 4 automatic V35 continuation failed: " + exception);
             }
         }
     }

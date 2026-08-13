@@ -11,6 +11,25 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AM / V35 deterministic live-motion review
+
+The first V34 Unity run compiled, completed a `30.9 s` live gameplay preview
+with `288` continuous samples and no frame swaps, then failed only the paused
+evidence pass. Blink measured `0.014` against `0.015` because the time-driven
+blink had already begun reopening before screenshot capture. Walk showed valid
+hand trajectories (`0.334/0.342`) and nearly valid feet (`0.225/0.096`), but
+continuity was `0.000` because review called `Animator.Play` anew at each of its
+sixteen samples, resetting the stateful planted-foot solver.
+
+V35 fixes the evidence path without weakening its thresholds. The face
+controller exposes an Editor-only exact closed-lid review pose. Walk sampling
+keeps one uninterrupted Animator/IK state and verifies it in place rather than
+restarting the state. The existing range-normalized continuity formula and all
+of its thresholds stay unchanged, so a one-frame reset/jump remains blocked.
+Automatic token: `deterministic-motion-review-v35`. Production gameplay
+motion, art, menus, video, music/audio, settings, readiness lock and Patch 3.5
+rollback remain unchanged.
+
 ## Current P4.0-AL / V34 front-facing contract repair
 
 The first V33 Unity run compiled and completed PlayMode, but the combined test

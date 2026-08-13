@@ -942,7 +942,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     "FatMan_Blink_Random",
                     StringComparison.Ordinal))
             {
-                faceController.BlinkNow();
+                faceController.SetEditorReviewBlinkClosure(1f);
             }
 
             animator.speed = playbackSpeed;
@@ -1051,9 +1051,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     phaseIndex / (float)(WalkPhaseCount - 1);
                 SetWalkReviewTravel(travelProgress);
 
-                bool stateEntered = PlayVerifiedAnimatorState(
+                // Sampling must preserve one uninterrupted Animator/IK state.
+                // Re-entering Animator.Play at every phase resets the stateful
+                // planted-foot controller and turns an otherwise smooth gait
+                // into sixteen disconnected starts.
+                bool stateEntered = VerifyCurrentAnimatorState(
                     clipReport.animatorStateHash,
-                    normalizedTime,
                     out int stateHash);
                 v23FullFramePresentation.SetReviewPose(
                     clipReport.clipName,
@@ -1419,6 +1422,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             if (faceController != null)
             {
+                faceController.SetEditorReviewBlinkClosure(0f);
                 faceController.SetMouth(
                     Patch4FaceController.MouthPose.Closed);
             }

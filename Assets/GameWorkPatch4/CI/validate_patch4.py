@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"front-facing-contract-repair-v34"',
+            '"deterministic-motion-review-v35"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -723,6 +723,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "MinimumWalkContinuityScore",
             "RecordWalkLimbPose(",
             "MeasureTrajectoryRange(",
+            "SetEditorReviewBlinkClosure(1f)",
+            "SetEditorReviewBlinkClosure(0f)",
+            "float.PositiveInfinity",
+            "VerifyCurrentAnimatorState(",
             "MinimumV23FaceDifference",
             "IsForeground(",
             "neutralWidthRetention",
@@ -793,6 +797,19 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             fail(
                 errors,
                 "Room review must address Animator states by verified full-path hash",
+            )
+        walk_review_start = review_driver.find(
+            "private IEnumerator ReviewWalkCycle(")
+        walk_review_end = review_driver.find(
+            "private void AnalyzeWalkSequence(",
+            walk_review_start,
+        )
+        walk_review = review_driver[walk_review_start:walk_review_end]
+        if "PlayVerifiedAnimatorState(" in walk_review:
+            fail(
+                errors,
+                "V35 walk review must not restart Animator/foot planting at "
+                "each sampled phase",
             )
 
     animation_builder = read_text(

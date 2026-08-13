@@ -136,6 +136,32 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 ScheduleBlink();
             }
         }
+
+        /// <summary>
+        /// Holds the painted replacement lids at an exact review closure.
+        /// Runtime blinking remains time-driven; locked evidence capture uses
+        /// this deterministic pose so frame timing cannot photograph a lid
+        /// that has already started opening.
+        /// </summary>
+        public void SetEditorReviewBlinkClosure(float closure)
+        {
+            if (!editorReviewActive)
+            {
+                return;
+            }
+
+            blinking = false;
+            float clampedClosure = Mathf.Clamp01(closure);
+            ApplyLidClosure(clampedClosure);
+            if (clampedClosure > 0f)
+            {
+                nextBlinkAt = float.PositiveInfinity;
+            }
+            else
+            {
+                ScheduleBlink();
+            }
+        }
 #endif
 
         public void SetMouth(MouthPose pose)

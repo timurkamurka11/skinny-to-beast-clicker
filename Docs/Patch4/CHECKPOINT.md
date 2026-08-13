@@ -6,6 +6,19 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AM / V35 deterministic review checkpoint
+
+V34's Unity run compiled and proved the live continuous rig (`30.9 s`, `288`
+samples, all actions routed, one character, no frame swaps), but paused QA
+captured a reopening blink (`0.014/0.015`) and restarted the Walk Animator state
+at every phase, resetting planted-foot continuity to zero. V35 holds an exact
+Editor-only closed-lid capture, samples all sixteen phases through one
+uninterrupted Animator/IK state, and preserves the existing range-normalized
+continuity formula. The strict `0.015` face, `0.100` limb and `0.550` continuity
+gates remain unchanged. Automatic token:
+`deterministic-motion-review-v35`. Protected menu/video/music/audio/settings
+paths, readiness lock and Patch 3.5 rollback are unchanged.
+
 ## Latest P4.0-AL / V34 front-facing contract checkpoint
 
 The first V33 Unity run passed PlayMode but exposed a deterministic stale

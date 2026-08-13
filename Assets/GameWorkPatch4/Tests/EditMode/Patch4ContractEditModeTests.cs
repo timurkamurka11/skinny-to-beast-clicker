@@ -135,6 +135,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 9,
                 bindPresentationLayers.GetParameters().Length,
                 "Blink replacement must bind open-eye layers as well as lids.");
+            Assert.NotNull(
+                faceController.GetMethod(
+                    "SetEditorReviewBlinkClosure",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "Locked face review cannot hold the exact painted blink pose.");
 
             AssertWalkClipHasArticulatedGait();
             AssertV23FullFrameSheetsAreImportable();
