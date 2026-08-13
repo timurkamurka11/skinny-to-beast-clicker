@@ -255,7 +255,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     "Per-state scale correction exceeded the bounded " +
                     "calibration contract.");
                 Assert.AreEqual(
-                    8,
+                    16,
                     GetIntProperty(v23Presentation, "FrameCount"));
                 Assert.AreEqual(
                     10,

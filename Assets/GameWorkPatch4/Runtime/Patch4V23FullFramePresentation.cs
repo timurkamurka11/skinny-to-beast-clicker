@@ -22,7 +22,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const string PresentationName =
             "V23FullFramePresentation";
         private const int Columns = 4;
-        private const int Rows = 2;
+        private const int StandardRows = 2;
+        private const int SmoothWalkRows = 4;
         private const int FramesPerRow = 4;
         private const int IdlePingPongFrameCount = 6;
         private const byte VisibleAlphaThreshold = 32;
@@ -85,7 +86,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             frameBoundsBySheet = new();
 
         public const int RequiredStateCount = 10;
-        public const int RequiredWalkFrameCount = 8;
+        public const int RequiredWalkFrameCount = 16;
 
         public bool IsReady =>
             IsValidSheet(idleSheet) &&
@@ -277,7 +278,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 case "FatMan_TapReact_02":
                     return 0.32f;
                 case "FatMan_Walk_InRoom":
-                    return 0.56f;
+                    return 1.28f;
                 case "FatMan_Turn":
                     return 0.4f;
                 case "FatMan_SitOrLean":
@@ -306,7 +307,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                      in frameBoundsBySheet)
             {
                 int cellWidth = entry.Key.width / Columns;
-                int cellHeight = entry.Key.height / Rows;
+                int cellHeight = entry.Key.height / ResolveRows(entry.Key);
                 FrameAlphaBounds[] bounds = entry.Value;
                 for (int i = 0; i < bounds.Length; i++)
                 {
@@ -591,7 +592,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     ? walkRightSheet.width / (float)Columns
                     : 384f) /
                 (walkRightSheet != null
-                    ? walkRightSheet.height / (float)Rows
+                    ? walkRightSheet.height /
+                        (float)ResolveRows(walkRightSheet)
                     : 512f);
 
             presentationRoot.anchorMin = generated.anchorMin;
@@ -717,8 +719,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int column = clamped % Columns;
             int topRow = clamped / Columns;
             float width = 1f / Columns;
-            float height = 1f / Rows;
-            float bottomRow = Rows - 1 - topRow;
+            int rows = ResolveRows(presentationImage.texture as Texture2D);
+            float height = 1f / rows;
+            float bottomRow = rows - 1 - topRow;
             presentationImage.uvRect = new Rect(
                 column * width,
                 bottomRow * height,
@@ -811,14 +814,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             return false;
         }
 
-        private static bool IsValidSheet(Texture2D sheet)
+        private bool IsValidSheet(Texture2D sheet)
         {
             return
                 sheet != null &&
                 sheet.width > 0 &&
                 sheet.height > 0 &&
                 sheet.width % Columns == 0 &&
-                sheet.height % Rows == 0 &&
+                sheet.height % ResolveRows(sheet) == 0 &&
                 sheet.isReadable;
         }
 
@@ -845,11 +848,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 Color32[] pixels = sheet.GetPixels32();
                 int cellWidth = sheet.width / Columns;
-                int cellHeight = sheet.height / Rows;
+                int cellHeight = sheet.height / ResolveRows(sheet);
+                int frameCount = ReferenceEquals(sheet, walkRightSheet)
+                    ? RequiredWalkFrameCount
+                    : Columns * StandardRows;
                 FrameAlphaBounds[] bounds =
-                    new FrameAlphaBounds[RequiredWalkFrameCount];
+                    new FrameAlphaBounds[frameCount];
                 for (int frame = 0;
-                     frame < RequiredWalkFrameCount;
+                     frame < frameCount;
                      frame++)
                 {
                     ResolveFrameOrigin(
@@ -939,7 +945,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             activeGroundCorrectionPixels =
                 TargetGroundPixel -
                 bounds[frameIndex].yMin * activeArtworkScale;
-            int cellHeight = sheet.height / Rows;
+            int cellHeight = sheet.height / ResolveRows(sheet);
             float correction =
                 activeGroundCorrectionPixels /
                 Mathf.Max(1, cellHeight) *
@@ -1124,7 +1130,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             out int yMax)
         {
             int cellWidth = sheet.width / Columns;
-            int cellHeight = sheet.height / Rows;
+            int cellHeight = sheet.height / ResolveRows(sheet);
             xMin = Mathf.Clamp(
                 Mathf.FloorToInt(normalizedRegion.xMin * cellWidth),
                 0,
@@ -1150,12 +1156,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
             out int y)
         {
             int cellWidth = sheet.width / Columns;
-            int cellHeight = sheet.height / Rows;
+            int rows = ResolveRows(sheet);
+            int cellHeight = sheet.height / rows;
             int column = frameIndex % Columns;
             int topRow = frameIndex / Columns;
-            int bottomRow = Rows - 1 - topRow;
+            int bottomRow = rows - 1 - topRow;
             x = column * cellWidth;
             y = bottomRow * cellHeight;
+        }
+
+        private int ResolveRows(Texture2D sheet)
+        {
+            return ReferenceEquals(sheet, walkRightSheet)
+                ? SmoothWalkRows
+                : StandardRows;
         }
     }
 }

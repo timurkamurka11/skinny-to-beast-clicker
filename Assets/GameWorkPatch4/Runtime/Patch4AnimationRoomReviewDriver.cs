@@ -144,7 +144,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const int ContactRows = 2;
         private const int ThumbnailWidth = 300;
         private const int ThumbnailHeight = 420;
-        private const int WalkPhaseCount = 8;
+        private const int WalkPhaseCount = 16;
         private const int WalkContactPhaseIndex = 2;
         private const int WalkThumbnailWidth = 220;
         private const int WalkThumbnailHeight = 310;

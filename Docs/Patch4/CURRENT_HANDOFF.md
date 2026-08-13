@@ -11,6 +11,39 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AJ / V32 sixteen-phase smooth locomotion
+
+The user's fresh normal-game observation confirms that V31 routes Walk, but
+rejects the visible result: V29 only accelerated an eight-image whole-body
+sequence, so the character still read as a fast slideshow and sideward slide.
+Inspection of `FatMan_WalkRight_V23.png` confirmed that its cells were not
+adjacent gait phases and included near-duplicate high-knee poses. Runtime
+cross-dissolve and optical-flow experiments were rejected before commit because
+they produced doubled arms, blurred feet and the vacuum artifacts already
+rejected in V17-V21.
+
+V32 changes the source motion rather than increasing playback speed:
+
+- a versioned repository-owned `1536 x 1024` RGBA atlas under `V32Smooth/`
+  contains sixteen distinct complete-body profile-right phases in a 4x4 grid;
+- every cell is normalized to one body scale and common shoe line while V23
+  remains untouched as rollback art;
+- Walk playback is slowed from `0.56 s` to `1.28 s`, yielding a readable
+  12.5-frame-per-second cycle instead of a rapid eight-pose flash;
+- the presentation supports the existing 4x2 pose sheets and the new 4x4 Walk
+  sheet without displaying or blending two bodies;
+- room review and PlayMode contracts now require all sixteen phases, including
+  adjacent-frame, silhouette, profile direction, clipping and ground-line QA;
+- V31 public action routing and V29 reversible left/right mirroring remain the
+  owners of state and travel direction;
+- automatic continuation advances to
+  `smooth-sixteen-phase-locomotion-v32`.
+
+V32 does not change menus, scenes, video, music, audio, settings, readiness or
+Patch 3.5 rollback behavior. Static repository validation passes; Unity
+`6000.3.19f1` compilation, automated tests and visual pacing remain pending the
+user's next pull.
+
 ## Current P4.0-AI / V31 direct locomotion action routing
 
 The user's first V30 automatic run reached the actual-room live preview and

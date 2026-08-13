@@ -6,6 +6,19 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AJ / V32 smooth sixteen-phase checkpoint
+
+V31 proved that real gameplay action routing can own Walk, but human review
+correctly rejected its eight-cell V23 playback as a fast slideshow. Source
+inspection confirmed discontinuous and duplicated gait poses. V32 adds a
+versioned 4x4, sixteen-phase, complete-body RGBA walk atlas, normalizes every
+cell to one body scale and shoe line, and plays it over `1.28 s`. Runtime keeps
+one visible `RawImage`; it does not cross-fade bodies or revive the rejected
+mesh deformation. The review/test contracts now sample all sixteen phases.
+V31 routing, V29 safe-room mirroring, readiness lock, Patch 3.5 rollback and all
+protected menu/video/music/audio/settings paths remain unchanged. Automatic
+token: `smooth-sixteen-phase-locomotion-v32`.
+
 ## Latest P4.0-AI / V31 direct locomotion-route checkpoint
 
 The first V30 actual-room run failed with the now-decisive diagnostic:

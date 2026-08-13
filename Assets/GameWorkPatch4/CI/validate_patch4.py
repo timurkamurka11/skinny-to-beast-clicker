@@ -290,7 +290,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"direct-locomotion-action-routing-v31"',
+            '"smooth-sixteen-phase-locomotion-v32"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -463,7 +463,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "FatMan_Tap_V23.png",
             "FatMan_Pose_V23.png",
             "FatMan_Upgrade_V24.png",
-            "FatMan_WalkRight_V23.png",
+            "FatMan_WalkRight_16_V32.png",
             "v23Presentation.RebuildPresentation()",
         ):
             if snippet not in builder:
@@ -477,7 +477,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     if v23_presentation:
         for snippet in (
             "RequiredStateCount = 10",
-            "RequiredWalkFrameCount = 8",
+            "RequiredWalkFrameCount = 16",
             "typeof(RawImage)",
             "presentationImage.uvRect",
             "generatedLayersGroup.alpha = 0f",
@@ -650,7 +650,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "visualSanityPassed",
             "visibleMotionPassed",
             "animatorStateBindingPassed",
-            "WalkPhaseCount = 8",
+            "WalkPhaseCount = 16",
             "WalkCycleFileName",
             "ReviewWalkCycle(",
             "CaptureWalkPhaseFrame(",
@@ -1399,7 +1399,10 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
                     f"{setting}",
                 )
 
-    relative = sheet_root + "FatMan_WalkRight_V23.png"
+    relative = (
+        "Assets/GameWorkPatch4/Art/Character/FatMan/V32Smooth/"
+        "FatMan_WalkRight_16_V32.png"
+    )
     path = root / relative
     try:
         data = path.read_bytes()
@@ -1416,10 +1419,10 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         return
 
     width, height = struct.unpack(">II", data[16:24])
-    if width % 4 != 0 or height % 2 != 0:
+    if (width, height) != (1536, 1024) or height % 4 != 0:
         fail(
             errors,
-            "V23 walk sheet must divide into four equal columns and two rows",
+            "V32 walk sheet must divide into four equal columns and four rows",
         )
     if data[24] != 8 or data[25] != 6:
         fail(errors, "V23 walk sheet must be 8-bit RGBA PNG data")
@@ -1432,7 +1435,7 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         return
 
     cell_width = width // 4
-    cell_height = height // 2
+    cell_height = height // 4
     arm_regions = (
         (0.10, 0.48, 0.15, 0.67),
         (0.52, 0.90, 0.15, 0.67),
@@ -1460,10 +1463,10 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
             cell_width,
             cell_height,
             frame,
-            (frame + 1) % 8,
+            (frame + 1) % 16,
             (0.0, 1.0, 0.0, 1.0),
         )
-        for frame in range(8)
+        for frame in range(16)
     ]
     if min(arm_differences) < 0.14:
         fail(
@@ -1485,7 +1488,7 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         )
 
     profile_offsets = []
-    for frame in range(8):
+    for frame in range(16):
         head_x = alpha_centroid_x(
             rgba, width, cell_width, cell_height, frame, (0.0, 1.0, 0.05, 0.32)
         )
@@ -1494,8 +1497,8 @@ def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
         )
         profile_offsets.append(head_x - torso_x)
     if (
-        sum(profile_offsets) / len(profile_offsets) < 5.0
-        or sum(offset > 3.0 for offset in profile_offsets) < 6
+        sum(profile_offsets) / len(profile_offsets) < 3.5
+        or sum(offset > 3.0 for offset in profile_offsets) < 10
     ):
         fail(
             errors,
@@ -1780,7 +1783,7 @@ def main() -> int:
     print("- Test Runner exit must stay quiescent before the separate room review")
     print("- actual-room review blocks weak limbs, collapse, over-stretch and Console errors")
     print("- V23 uses one complete RGBA body for all ten clips while every legacy mesh layer stays hidden")
-    print("- V23 walk is a right-facing eight-phase gait with monotonic room travel")
+    print("- V32 walk is a right-facing sixteen-phase gait with monotonic room travel")
     print("- V23 blink and look-around use measurable painted facial changes")
     print("- V24 repairs the cropped upgrade pose and calibrates scale plus shoe line")
     print("- actual-room review includes an uninterrupted final-cadence gameplay preview")
@@ -1790,6 +1793,7 @@ def main() -> int:
     print("- V29 accelerates whole-frame cadence and closes the Idle loop through adjacent frames")
     print("- V30 observes gameplay-routed Animator entry across real Editor frames")
     print("- V31 gives the movement API one-shot ownership of Idle/Walk routing")
+    print("- V32 replaces the eight-pose slideshow with a 1.28-second sixteen-phase complete-body cycle")
     print("- legacy walk routine and one-shot footstep stay isolated from Patch 4 review")
     print("- rollback rig stays logically active and is restored after review")
     print("- neutral and independent face-pose QA remain read-only and human-gated")

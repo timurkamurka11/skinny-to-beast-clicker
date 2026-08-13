@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "direct-locomotion-action-routing-v31";
+            "smooth-sixteen-phase-locomotion-v32";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v31.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v32.gameplay.";
 
         private static int idleFrames;
 
@@ -57,7 +57,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V31 direct locomotion action pass started: " +
+                    "Patch 4 V32 smooth locomotion pass started: " +
+                    "the rejected eight-frame Walk has been replaced by a " +
+                    "sixteen-phase complete-body cycle with adjacent painted " +
+                    "poses, a 1.28-second cadence and the same reversible " +
+                    "left/right gameplay routing. No runtime cross-fade, " +
+                    "ghost body or mesh stretching is used. " +
                     "the fresh V30 room evidence proved that Speed reached " +
                     "1 while the Animator remained in Idle with no pending " +
                     "transition. Patch4CharacterStateMachine now routes the " +
@@ -82,7 +87,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "complete-body upgrade sheet. During every clip the entire " +
                     "experimental Canvas stack is hidden, so " +
                     "no sliced joint, detached face or vacuum-stretched body can " +
-                    "leak behind the complete painted frames. The Walk uses eight " +
+                    "leak behind the complete painted frames. The Walk uses sixteen " +
                     "right-authored profile phases mirrored to live travel, and " +
                     "blink/look/tap/upgrade " +
                     "use independent painted facial expressions. Every frame is " +
@@ -97,7 +102,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "stale non-test Play resume and clears stale room-review " +
                     "ownership so no Editor callback can stop the player. " +
                     "It will then enter every full Animator state, " +
-                    "sample all ten states and eight Walk frames with silent " +
+                    "sample all ten states and sixteen Walk frames with silent " +
                     "monotonic travel, " +
                     "measure both visible arm silhouettes, both visible leg " +
                     "silhouettes, facial differences and the weakest adjacent-" +
@@ -134,7 +139,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V31 continuation failed: " + exception);
+                    "Patch 4 automatic V32 continuation failed: " + exception);
             }
         }
     }
