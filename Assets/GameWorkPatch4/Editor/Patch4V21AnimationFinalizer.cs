@@ -7,9 +7,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     /// <summary>
     /// v21 animation normalization. Strong pose ideas are retained, but the
     /// visible actor is no longer asked to fake weight transfer with whole-body
-    /// scale or extreme independent limb arcs. Walk leg contact is corrected at
-    /// runtime by Patch4V21FootPlantController; this pass keeps the authored arm
-    /// counter-swing and removes the silhouette-destroying scale curves.
+    /// scale or extreme independent limb arcs. Walk leg motion is corrected at
+    /// runtime by Patch4V21FootPlantController's mirrored continuous gait; this
+    /// pass keeps the authored arm counter-swing and removes the
+    /// silhouette-destroying scale curves.
     /// </summary>
     public static class Patch4V21AnimationFinalizer
     {
@@ -74,7 +75,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Debug.Log(
                 "Patch 4 v21 animations finalized: whole-body/core-bone scale " +
                 "curves removed, reaction silhouettes bounded, arm motion kept " +
-                "readable, and leg contact delegated to planted-foot IK correction.");
+                "readable, and leg motion delegated to continuous mirrored IK.");
         }
 
         private static AnimationClip Load(string name)

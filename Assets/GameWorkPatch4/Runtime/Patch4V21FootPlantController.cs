@@ -3,15 +3,14 @@ using UnityEngine;
 namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
-    /// Foot-target correction for the v21 room walk. Animator still supplies the
-    /// authored gait rhythm, torso and arm counter-swing; in LateUpdate the legs
-    /// are solved from planted/swinging foot targets instead of trusting three
-    /// unrelated thigh/shin/foot angles.
+    /// Continuous foot-target correction for the v21 room walk. Animator still
+    /// supplies torso and arm counter-swing; LateUpdate gives both legs one
+    /// mirrored, phase-locked support/swing cycle. The targets are evaluated
+    /// around the moving pelvis, so room travel cannot stretch a planted leg to
+    /// its reach limit or leave one foot almost motionless.
     ///
-    /// During stance the target remains in the same world position while the
-    /// character root travels. During swing it follows a lifted arc to the next
-    /// contact. The two-bone solution preserves thigh/shin length and never uses
-    /// Transform scale.
+    /// The two-bone solution preserves thigh/shin length, blends into the gait
+    /// instead of snapping on state entry, and never uses Transform scale.
     /// </summary>
     [DefaultExecutionOrder(1320)]
     [DisallowMultipleComponent]
@@ -19,8 +18,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
     {
         [SerializeField] private Patch4CharacterRigController rigController;
         [SerializeField] private Animator animator;
-        [SerializeField, Range(.22f, .55f)] private float stepLengthRatio = .36f;
-        [SerializeField, Range(.05f, .20f)] private float footLiftRatio = .10f;
+        [SerializeField, Range(.22f, .55f)] private float stepLengthRatio = .42f;
+        [SerializeField, Range(.05f, .20f)] private float footLiftRatio = .11f;
 
         private Transform pelvis;
         private Transform characterRoot;
@@ -40,18 +39,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private Vector3 bindFootPelvisL;
         private Vector3 bindFootPelvisR;
-        private Vector3 plantL;
-        private Vector3 plantR;
-        private Vector3 swingStartL;
-        private Vector3 swingStartR;
-        private Vector3 swingEndL;
-        private Vector3 swingEndR;
         private Vector3 previousRootPosition;
         private Vector3 travelDirection = Vector3.right;
-        private float previousPhase;
+        private float walkBlend;
         private bool wasWalking;
-        private bool leftSwingInitialized;
-        private bool rightSwingInitialized;
         private bool ready;
 
         private void Reset()
@@ -87,8 +78,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 {
                     RestoreBindRotations();
                     wasWalking = false;
-                    leftSwingInitialized = false;
-                    rightSwingInitialized = false;
+                    walkBlend = 0f;
                 }
                 return;
             }
@@ -96,63 +86,30 @@ namespace SkinnyToBeast.Gameplay.Patch4
             float phase = Mathf.Repeat(state.normalizedTime, 1f);
             UpdateTravelDirection();
 
-            if (!wasWalking)
-            {
-                BeginCycle(phase);
-            }
-            else if (phase + .45f < previousPhase)
-            {
-                BeginCycle(phase, false);
-            }
+            walkBlend = Mathf.MoveTowards(
+                walkBlend,
+                1f,
+                Time.unscaledDeltaTime / .20f);
+            float blend = Mathf.SmoothStep(0f, 1f, walkBlend);
 
-            // Right leg swings during the first half; left leg during the
-            // second half. The opposite foot stays planted in world space.
-            if (phase < .5f)
-            {
-                if (!rightSwingInitialized)
-                {
-                    BeginRightSwing();
-                }
-                rightSwingInitialized = true;
-                leftSwingInitialized = false;
+            // One gait function drives both legs, exactly half a cycle apart.
+            // This makes their ranges identical and keeps the loop continuous
+            // at phase 0/1. A support foot rolls back relative to the pelvis as
+            // the opposite foot follows its eased, lifted transfer arc.
+            Vector3 rightTarget = EvaluateGaitTarget(
+                bindFootPelvisR,
+                LegLength(thighR, shinR, footR),
+                phase,
+                blend);
+            Vector3 leftTarget = EvaluateGaitTarget(
+                bindFootPelvisL,
+                LegLength(thighL, shinL, footL),
+                Mathf.Repeat(phase + .5f, 1f),
+                blend);
 
-                float t = phase * 2f;
-                Vector3 rightTarget = SwingArc(
-                    swingStartR,
-                    swingEndR,
-                    t,
-                    LegLength(thighR, shinR, footR) * footLiftRatio);
-                SolveLeg(thighL, shinL, footL, plantL, true);
-                SolveLeg(thighR, shinR, footR, rightTarget, false);
-                if (phase >= .47f)
-                {
-                    plantR = swingEndR;
-                }
-            }
-            else
-            {
-                if (!leftSwingInitialized)
-                {
-                    BeginLeftSwing();
-                }
-                leftSwingInitialized = true;
-                rightSwingInitialized = false;
+            SolveLeg(thighL, shinL, footL, leftTarget, true);
+            SolveLeg(thighR, shinR, footR, rightTarget, false);
 
-                float t = (phase - .5f) * 2f;
-                Vector3 leftTarget = SwingArc(
-                    swingStartL,
-                    swingEndL,
-                    t,
-                    LegLength(thighL, shinL, footL) * footLiftRatio);
-                SolveLeg(thighR, shinR, footR, plantR, false);
-                SolveLeg(thighL, shinL, footL, leftTarget, true);
-                if (phase >= .97f)
-                {
-                    plantL = swingEndL;
-                }
-            }
-
-            previousPhase = phase;
             previousRootPosition = characterRoot.position;
             wasWalking = true;
         }
@@ -198,40 +155,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             bindFootR = footR.localRotation;
             bindFootPelvisL = pelvis.InverseTransformPoint(footL.position);
             bindFootPelvisR = pelvis.InverseTransformPoint(footR.position);
-            plantL = footL.position;
-            plantR = footR.position;
             previousRootPosition = characterRoot.position;
-        }
-
-        private void BeginCycle(float phase, bool resetPlants = true)
-        {
-            if (resetPlants)
-            {
-                plantL = footL.position;
-                plantR = footR.position;
-            }
-            previousRootPosition = characterRoot.position;
-            previousPhase = phase;
-            leftSwingInitialized = false;
-            rightSwingInitialized = false;
-        }
-
-        private void BeginRightSwing()
-        {
-            swingStartR = footR.position;
-            float length = LegLength(thighR, shinR, footR);
-            Vector3 neutral = pelvis.TransformPoint(bindFootPelvisR);
-            swingEndR = neutral +
-                travelDirection * length * stepLengthRatio;
-        }
-
-        private void BeginLeftSwing()
-        {
-            swingStartL = footL.position;
-            float length = LegLength(thighL, shinL, footL);
-            Vector3 neutral = pelvis.TransformPoint(bindFootPelvisL);
-            swingEndL = neutral +
-                travelDirection * length * stepLengthRatio;
         }
 
         private void UpdateTravelDirection()
@@ -245,17 +169,36 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
         }
 
-        private static Vector3 SwingArc(
-            Vector3 start,
-            Vector3 end,
-            float t,
-            float lift)
+        private Vector3 EvaluateGaitTarget(
+            Vector3 bindFootPelvis,
+            float legLength,
+            float phase,
+            float blend)
         {
-            t = Mathf.Clamp01(t);
-            float smooth = t * t * (3f - 2f * t);
-            Vector3 result = Vector3.Lerp(start, end, smooth);
-            result.y += 4f * t * (1f - t) * lift;
-            return result;
+            phase = Mathf.Repeat(phase, 1f);
+            bool transferring = phase < .5f;
+            float halfPhase = transferring
+                ? phase * 2f
+                : (phase - .5f) * 2f;
+            float eased = Smooth01(halfPhase);
+            float halfStride = legLength * stepLengthRatio * .5f;
+            float forward = transferring
+                ? Mathf.Lerp(-halfStride, halfStride, eased)
+                : Mathf.Lerp(halfStride, -halfStride, eased);
+            float lift = transferring
+                ? Mathf.Sin(Mathf.PI * eased) * legLength * footLiftRatio
+                : 0f;
+
+            Vector3 neutral = pelvis.TransformPoint(bindFootPelvis);
+            Vector3 gait =
+                neutral + travelDirection * forward + Vector3.up * lift;
+            return Vector3.Lerp(neutral, gait, blend);
+        }
+
+        private static float Smooth01(float value)
+        {
+            value = Mathf.Clamp01(value);
+            return value * value * (3f - 2f * value);
         }
 
         private static float LegLength(

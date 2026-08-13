@@ -680,32 +680,36 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             switch (path)
             {
                 case "Head/HeadBase":
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        LeftEyePatch);
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        RightEyePatch);
-                    PaintSkinUnderlay(
-                        master,
-                        result,
-                        MouthPatch);
+                    // HeadBase is the only owner of the neutral painted face.
+                    // Retain the exact eyes, irises, nose and closed mouth from
+                    // the approved master instead of blanking them and trying
+                    // to rebuild the neutral face from sparse overlay cutouts.
                     break;
 
                 case "Face/EyeWhiteL":
-                    ExtractMasterFeature(
+                    CopyFeatheredMasterPatch(
                         master,
                         result,
-                        LeftEyeFeature);
+                        LeftEyePatch);
+                    PaintSkinUnderlay(master, result, LeftEyePatch);
+                    OverlayShiftedMasterFeature(
+                        master,
+                        result,
+                        LeftEyeFeature,
+                        4);
                     break;
 
                 case "Face/EyeWhiteR":
-                    ExtractMasterFeature(
+                    CopyFeatheredMasterPatch(
                         master,
                         result,
-                        RightEyeFeature);
+                        RightEyePatch);
+                    PaintSkinUnderlay(master, result, RightEyePatch);
+                    OverlayShiftedMasterFeature(
+                        master,
+                        result,
+                        RightEyeFeature,
+                        4);
                     break;
 
                 case "Face/IrisL":
@@ -864,6 +868,38 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     {
                         result[sourceIndex] = source;
                     }
+                }
+            }
+        }
+
+        private static void OverlayShiftedMasterFeature(
+            ImageData master,
+            Color32[] result,
+            FaceFeature feature,
+            int horizontalOffset)
+        {
+            Color32[] featurePixels = new Color32[Width * Height];
+            ExtractMasterFeature(master, featurePixels, feature);
+            for (int y = 0; y < Height; y++)
+            {
+                for (int x = 0; x < Width; x++)
+                {
+                    Color32 source = featurePixels[y * Width + x];
+                    if (source.a == 0)
+                    {
+                        continue;
+                    }
+
+                    int destinationX = x + horizontalOffset;
+                    if (destinationX < 0 || destinationX >= Width)
+                    {
+                        continue;
+                    }
+
+                    int destinationIndex = y * Width + destinationX;
+                    result[destinationIndex] = BlendOver(
+                        result[destinationIndex],
+                        source);
                 }
             }
         }

@@ -6,9 +6,9 @@ using UnityEngine.UI;
 namespace SkinnyToBeast.Gameplay.Patch4
 {
     /// <summary>
-    /// v21 face bridge. Neutral eye, iris and mouth sprites are rebound only when
-    /// the v21 visual is actually enabled for review/runtime. Locked rollback
-    /// state therefore remains byte-for-byte compatible with the old contract.
+    /// v21 face bridge. HeadBase owns the exact neutral master face. Only full
+    /// feathered replacement poses are bound here, so neutral eyes or mouth can
+    /// never be drawn twice over the head artwork.
     /// </summary>
     [DefaultExecutionOrder(1250)]
     [DisallowMultipleComponent]
@@ -69,11 +69,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Dictionary<string, Image> images = BuildImageMap(generatedRoot);
             if (!TryGet(images, "Face/EyeWhiteL", out Image eyeL) ||
                 !TryGet(images, "Face/EyeWhiteR", out Image eyeR) ||
-                !TryGet(images, "Face/IrisL", out Image irisL) ||
-                !TryGet(images, "Face/IrisR", out Image irisR) ||
                 !TryGet(images, "Face/LidL", out Image lidL) ||
                 !TryGet(images, "Face/LidR", out Image lidR) ||
-                !TryGet(images, "Face/MouthClosed", out Image closed) ||
                 !TryGet(images, "Face/MouthOpen", out Image open) ||
                 !TryGet(images, "Face/MouthSmile", out Image smile))
             {
@@ -81,20 +78,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             faceController.BindPresentationLayers(
-                eyeL.gameObject,
-                eyeR.gameObject,
-                irisL.gameObject,
-                irisR.gameObject,
+                null,
+                null,
+                null,
+                null,
                 lidL.transform,
                 lidR.transform,
-                closed.gameObject,
+                null,
                 open.gameObject,
                 smile.gameObject);
+            faceController.BindLookReplacementLayers(
+                eyeL.gameObject,
+                eyeR.gameObject);
             boundRootId = rootId;
 
             Debug.Log(
-                "Patch 4 v21 face layers rebound as explicit neutral/expression " +
-                "sprites after the hybrid visual became active.",
+                "Patch 4 v21 face bound with one exact neutral owner plus " +
+                "feathered blink, gaze and mouth replacement poses.",
                 this);
         }
 

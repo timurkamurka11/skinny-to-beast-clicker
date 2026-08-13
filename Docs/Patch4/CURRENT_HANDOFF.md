@@ -11,6 +11,56 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AN / V36 single-owner render, face and gait repair
+
+The user's fresh V35 actual-room screenshots are a hard rejection, not a
+review-window false positive. They prove three independent runtime faults:
+
+- Patch 3.5 and Patch 4 were both visible during the locked preview, producing
+  translucent doubled bodies and limbs. Hiding Patch 3.5 through a
+  `CanvasGroup` was ineffective because `CharacterSpriteRigController`
+  restores its own `CanvasRenderer` alpha in `LateUpdate`;
+- the exact neutral face in `HeadBase` and the former neutral eye/mouth cutouts
+  could own the same pixels, while the interactive preview did not enable the
+  Editor-only face/secondary-motion review path. Expressions therefore either
+  doubled, disappeared or were immediately reset;
+- the world-planted walk gave the two feet unequal reachable trajectories
+  (`0.052/0.122` in the latest evidence) and could stretch a support leg while
+  the gameplay root travelled through room depth;
+- Test Runner's empty `InitTestScene` had no camera, so Unity painted
+  `Display 1 / No cameras rendering` over the otherwise valid overlay Canvas.
+
+V36 repairs the owners rather than lowering any QA threshold:
+
+- locked actual-room review and interactive preview deactivate only the legacy
+  `VisualRoot`; the legacy parent rig, routine, movement and gameplay signals
+  stay active. Original visual/guard/controller state is restored on every
+  normal, failure and destruction exit;
+- `HeadBase` is the sole neutral-face owner. Blink, shifted gaze, open mouth
+  and smile are full feathered replacement patches on the same Head matrix.
+  Old neutral eye, iris, nose and closed-mouth overlays are never rendered by
+  the hybrid puppet;
+- the interactive preview explicitly enables and restores the safe
+  Editor-only face and secondary-motion review modes without changing the
+  production readiness asset;
+- both legs use the same continuous gait function exactly half a cycle apart.
+  Each cycle eases support and transfer, lifts only the transferring foot and
+  blends in over `0.20 s`. A deterministic math check gives identical `0.42`
+  left/right trajectory ranges and a continuous loop seam;
+- a hidden render-empty camera is created only for camera-less preview/test
+  scenes, removing Unity's diagnostic overlay without modifying any production
+  scene or camera;
+- the strict silhouette, focused-face, limb trajectory, continuity and room
+  travel gates remain unchanged. Static validation and whitespace checks pass.
+
+Automatic continuation token: `single-owner-render-and-gait-v36`. After the
+next pull, Unity `6000.3.19f1` automatically restores repository sources,
+rebakes the local layer pack, rebuilds the hybrid prefab, runs safety plus
+EditMode/PlayMode tests and captures a fresh actual-room review. No manual
+Dashboard buttons are required. Patch 4 readiness remains locked and Patch 3.5
+remains the rollback owner. Menu assets, `MainMenuLoop.mp4`, music/audio and
+settings are untouched.
+
 ## Current P4.0-AM / V35 deterministic live-motion review
 
 The first V34 Unity run compiled, completed a `30.9 s` live gameplay preview

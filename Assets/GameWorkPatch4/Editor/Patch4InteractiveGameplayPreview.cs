@@ -280,6 +280,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (!gameplayWindowRequested)
             {
                 gameplayWindowRequested = true;
+                Patch4PreviewSceneCamera.EnsureActiveCamera();
                 if (!GameplayWindowController.Show())
                 {
                     FailAndExitPlayMode(
@@ -314,6 +315,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             Patch4CharacterStateMachine stateMachine =
                 patchRig.GetComponent<Patch4CharacterStateMachine>();
+            Patch4FaceController faceController =
+                patchRig.GetComponent<Patch4FaceController>();
+            Patch4SecondaryMotionController secondaryMotion =
+                patchRig.GetComponent<Patch4SecondaryMotionController>();
             Patch4CharacterVisibilityGuard visibility =
                 patchRig.GetComponent<Patch4CharacterVisibilityGuard>();
             Patch4V23FullFramePresentation presentation =
@@ -326,6 +331,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 patchVisual == null ||
                 rollbackVisual == null ||
                 stateMachine == null ||
+                faceController == null ||
+                secondaryMotion == null ||
                 visibility == null ||
                 presentation == null ||
                 !presentation.IsReady ||
@@ -357,6 +364,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     patchRig,
                     legacyRig,
                     stateMachine,
+                    faceController,
+                    secondaryMotion,
                     visibility,
                     presentation,
                     animator,

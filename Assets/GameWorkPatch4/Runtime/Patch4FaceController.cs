@@ -21,6 +21,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         [SerializeField] private GameObject eyeWhiteRight;
         [SerializeField] private GameObject irisLeft;
         [SerializeField] private GameObject irisRight;
+        [SerializeField] private GameObject lookEyeLeft;
+        [SerializeField] private GameObject lookEyeRight;
         [SerializeField] private Transform lidLeft;
         [SerializeField] private Transform lidRight;
         [SerializeField] private GameObject mouthClosed;
@@ -40,6 +42,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private float blinkStartedAt = -100f;
         private float nextBlinkAt;
         private bool blinking;
+        private bool lookPoseActive;
 #if UNITY_EDITOR
         private bool editorReviewActive;
 #endif
@@ -62,6 +65,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void OnDisable()
         {
             blinking = false;
+            lookPoseActive = false;
             RestoreOpenEyes();
         }
 
@@ -129,6 +133,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (!active)
             {
                 blinking = false;
+                lookPoseActive = false;
                 RestoreOpenEyes();
             }
             else
@@ -171,6 +176,25 @@ namespace SkinnyToBeast.Gameplay.Patch4
             SetActive(mouthSmile, pose == MouthPose.Smile);
         }
 
+        public void SetLookPose(bool active)
+        {
+            lookPoseActive = active;
+            if (!blinking)
+            {
+                SetLookLayersActive(active);
+            }
+        }
+
+        public void BindLookReplacementLayers(
+            GameObject leftEye,
+            GameObject rightEye)
+        {
+            lookEyeLeft = leftEye;
+            lookEyeRight = rightEye;
+            lookPoseActive = false;
+            SetLookLayersActive(false);
+        }
+
         public void BindPresentationLayers(
             GameObject leftEyeWhite,
             GameObject rightEyeWhite,
@@ -200,6 +224,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             blinking = true;
             blinkStartedAt = Time.time;
+            SetLookLayersActive(false);
             SetLidsActive(true);
             ApplyLidClosure(0f);
         }
@@ -227,6 +252,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     1f,
                     closure));
             SetLidsActive(opacity > 0.001f);
+            SetLookLayersActive(
+                opacity <= 0.001f && lookPoseActive);
             if (lidLeft != null)
             {
                 lidLeft.localScale = leftClosedScale;
@@ -256,6 +283,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             SetLidsActive(false);
+            SetLookLayersActive(lookPoseActive);
         }
 
         private void CacheClosedLidScales()
@@ -287,6 +315,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             SetActive(eyeWhiteRight, active);
             SetActive(irisLeft, active);
             SetActive(irisRight, active);
+        }
+
+        private void SetLookLayersActive(bool active)
+        {
+            SetActive(lookEyeLeft, active);
+            SetActive(lookEyeRight, active);
         }
 
         private static void SetActive(GameObject target, bool active)

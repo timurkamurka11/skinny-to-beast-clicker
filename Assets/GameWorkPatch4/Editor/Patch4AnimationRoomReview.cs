@@ -380,6 +380,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (!gameplayWindowRequested)
             {
                 gameplayWindowRequested = true;
+                Patch4PreviewSceneCamera.EnsureActiveCamera();
                 if (!GameplayWindowController.Show())
                 {
                     FailAndExit(

@@ -56,6 +56,7 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4NeutralPoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4FacePoseReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReview.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4PreviewSceneCamera.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4InteractiveGameplayPreviewDriver.cs",
@@ -290,7 +291,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"deterministic-motion-review-v35"',
+            '"single-owner-render-and-gait-v36"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -558,14 +559,26 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "Vector3 travelDirection = Vector3.right",
             "Vector3 delta = characterRoot.position - previousRootPosition",
             "travelDirection = delta.normalized",
-            "BeginCycle(phase, false)",
-            "SwingArc(",
+            "EvaluateGaitTarget(",
+            "Mathf.Repeat(phase + .5f, 1f)",
+            "Time.unscaledDeltaTime / .20f",
             "SolveLeg(",
         ):
             if snippet not in foot_plant:
                 fail(
                     errors,
-                    "V33 direction-aware foot planting is missing: " + snippet,
+                    "V36 continuous mirrored gait is missing: " + snippet,
+                )
+        for forbidden in (
+            "BeginCycle(phase, false)",
+            "SwingArc(",
+            "private Vector3 plantL",
+        ):
+            if forbidden in foot_plant:
+                fail(
+                    errors,
+                    "V36 must not restore the asymmetric world-plant gait: " +
+                    forbidden,
                 )
 
     preview_driver = read_text(
@@ -698,8 +711,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "ScreenCapture.CaptureScreenshotAsTexture",
             "humanReviewRequired = true",
             "activationAllowed = false",
-            "rollbackReviewGroup.alpha = 0f",
-            "patch35RollbackRoot.SetActive(true)",
+            "patch35RollbackRoot.SetActive(false)",
+            "legacyRigController.gameObject.activeInHierarchy",
+            "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
             "CaptureReviewBackground()",
             "AnalyzeRoomSilhouette(",
             "AnalyzeVisibleMotion(",
@@ -723,7 +737,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "MinimumWalkContinuityScore",
             "RecordWalkLimbPose(",
             "MeasureTrajectoryRange(",
-            "SetEditorReviewBlinkClosure(1f)",
+            "ConfigureFaceForClipPeak(",
+            "SetLookPose(",
             "SetEditorReviewBlinkClosure(0f)",
             "float.PositiveInfinity",
             "VerifyCurrentAnimatorState(",
@@ -785,11 +800,11 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         ):
             if snippet not in review_driver:
                 fail(errors, f"Locked animation-room driver is missing: {snippet}")
-        if "patch35RollbackRoot.SetActive(false)" in review_driver:
+        if "rollbackReviewGroup" in review_driver:
             fail(
                 errors,
-                "Room review must keep the rollback rig logically active while "
-                "hiding it with CanvasGroup",
+                "Room review must not use CanvasGroup to hide a legacy renderer "
+                "that restores CanvasRenderer alpha in LateUpdate",
             )
         if "SetPatch4Enabled(true)" in review_driver:
             fail(errors, "Locked room review must never pass the production gate")
@@ -808,7 +823,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         if "PlayVerifiedAnimatorState(" in walk_review:
             fail(
                 errors,
-                "V35 walk review must not restart Animator/foot planting at "
+                "V36 walk review must not restart Animator/continuous gait at "
                 "each sampled phase",
             )
 
@@ -975,6 +990,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     if room_review:
         for snippet in (
             "GameplayWindowController.Show()",
+            "Patch4PreviewSceneCamera.EnsureActiveCamera()",
             "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
             "Patch4AnimationRoomReviewDriver",
             "StartAfterTests()",
@@ -1017,6 +1033,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "StartAfterFreshReview()",
             "PrepareForAutomatedTests()",
             "GameplayWindowController.Show()",
+            "Patch4PreviewSceneCamera.EnsureActiveCamera()",
             "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
             "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
             "running-interactive-preview",
@@ -1033,8 +1050,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         for snippet in (
             "rigController.SetPatch4Enabled(false)",
             "stateMachine.SetLockedReviewActive(true)",
+            "faceController.SetEditorReviewActive(true)",
+            "faceController.SetEditorReviewActive(false)",
+            "secondaryMotion.SetEditorReviewActive(true)",
+            "secondaryMotion.SetEditorReviewActive(false)",
             "visibilityGuard.enabled = false",
-            "rollbackGroup.alpha = 0f",
+            "patch35RollbackRoot.SetActive(false)",
+            "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
             "SetEditorGameplayPreviewActive(true)",
             "ConfigureSafeRoomRoute()",
             "RoomAnchorKind.Center",
@@ -1051,6 +1073,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     errors,
                     "Locked gameplay visual override is missing: " + snippet,
                 )
+        if "rollbackGroup" in interactive_driver:
+            fail(
+                errors,
+                "Interactive preview must not rely on CanvasGroup alpha for "
+                "the legacy character renderer",
+            )
     if (
         "SetPatch4Enabled(true)" in interactive_preview
         or "SetPatch4Enabled(true)" in interactive_driver
@@ -1266,6 +1294,7 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "PaintOpenMouth(",
             "PaintSmile(",
             "CopyFeatheredMasterPatch(",
+            "OverlayShiftedMasterFeature(",
             "Patch4RigContract.IsRuntimeContinuousBodyLayer(spec.path)",
             "(Color32[])master.pixels.Clone()",
         ):
@@ -1277,6 +1306,18 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Alternate facial layers still contain opaque backing patches")
         if "CopyMasterPatch(" in baker or "ClearPatch(" in baker:
             fail(errors, "Face swapping still uses a hard rectangular copy or cut")
+        head_case_start = baker.find('case "Head/HeadBase":')
+        head_case_end = baker.find(
+            'case "Face/EyeWhiteL":',
+            head_case_start,
+        )
+        head_case = baker[head_case_start:head_case_end]
+        if "PaintSkinUnderlay(" in head_case:
+            fail(
+                errors,
+                "HeadBase must retain the exact neutral master face instead of "
+                "blanking eyes or mouth for duplicate neutral overlays",
+            )
         bake_start = baker.find("public static void BakeDraftLayerPack()")
         build_specs_start = baker.find("private static List<Spec> BuildSpecs()")
         bake_method = (
@@ -1303,9 +1344,46 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             "SetOpenEyesActive(",
             "SetGraphicOpacity(",
             "eyelidFadeStart",
+            "BindLookReplacementLayers(",
+            "SetLookPose(",
+            "SetLookLayersActive(",
         ):
             if required not in face:
                 fail(errors, f"Independent blink controller is missing: {required}")
+
+    hybrid = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4V21HybridPuppetController.cs",
+        errors,
+    )
+    if hybrid:
+        if "NeutralFaceLayers" in hybrid:
+            fail(
+                errors,
+                "The hybrid renderer must not draw sparse neutral face layers "
+                "over the exact HeadBase face",
+            )
+        for required in (
+            '"Face/EyeWhiteL"',
+            '"Face/MouthClosed"',
+            "AlwaysHiddenLayers",
+        ):
+            if required not in hybrid:
+                fail(errors, "Hybrid neutral-face ownership is missing: " + required)
+
+    face_bridge = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4V21FaceSwapBridge.cs",
+        errors,
+    )
+    if face_bridge:
+        for required in (
+            "BindLookReplacementLayers(",
+            "faceController.BindPresentationLayers(",
+            "null,",
+        ):
+            if required not in face_bridge:
+                fail(errors, "Single-owner face bridge is missing: " + required)
 
     draft_validator = read_text(
         root,

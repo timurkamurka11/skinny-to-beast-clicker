@@ -6,6 +6,33 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AN / V36 single-owner render and gait checkpoint
+
+V35's fresh human evidence is rejected. The doubled/translucent actor came
+from Patch 3.5's `CharacterSpriteRigController` restoring renderer alpha after
+the locked preview tried to hide it with a `CanvasGroup`. Face pixels had more
+than one neutral owner and interactive preview never enabled its gated face
+review path. The planted-foot solver also produced asymmetric foot travel and
+could overreach against room-root movement. Finally, Test Runner's empty scene
+had no camera, causing Unity's own `No cameras rendering` text to cover the
+room Canvas.
+
+V36 deactivates only the legacy visual child while keeping its parent gameplay
+controllers alive, and restores the exact original state on every exit path.
+`HeadBase` now owns the exact neutral face; gaze, lids, open mouth and smile are
+mutually exclusive feathered replacements on Head. Interactive preview safely
+enables/restores face and secondary motion without opening readiness. The walk
+uses one mirrored continuous IK function with a half-cycle leg offset and a
+`0.20 s` entry blend; both legs have equal `0.42` normalized trajectory ranges
+and a continuous seam. A preview-only empty camera removes the InitTestScene
+diagnostic without touching scenes.
+
+Automatic token: `single-owner-render-and-gait-v36`. Repository static guard
+and whitespace checks pass. Unity `6000.3.19f1` compilation, strict automated
+tests and fresh actual-room evidence run automatically after pull; human visual
+acceptance is still pending. Readiness remains locked, Patch 3.5 remains the
+rollback owner, and menu/video/music/audio/settings paths are unchanged.
+
 ## Latest P4.0-AM / V35 deterministic review checkpoint
 
 V34's Unity run compiled and proved the live continuous rig (`30.9 s`, `288`

@@ -191,15 +191,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Color32[] backgroundPixels = Array.Empty<Color32>();
         private int backgroundWidth;
         private int backgroundHeight;
-        private CanvasGroup rollbackReviewGroup;
+        private CharacterRigController legacyRigController;
         private CharacterRoutineController legacyRoutine;
         private Patch4LegacySignalBridge legacySignalBridge;
+        private bool rollbackRootWasActive;
+        private bool visibilityGuardWasEnabled;
         private bool legacyRoutineWasEnabled;
         private bool legacySignalBridgeWasEnabled;
-        private bool rollbackGroupAddedForReview;
-        private float rollbackGroupPreviousAlpha = 1f;
-        private bool rollbackGroupPreviousInteractable;
-        private bool rollbackGroupPreviousBlocksRaycasts;
+        private bool cleanupCompleted;
         private ReviewReport report;
         private Color32[] clipStartPixels = Array.Empty<Color32>();
         private Rect neutralExpectedScreenRect;
@@ -258,6 +257,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
             animator = targetAnimator;
             patch4VisualRoot = visualRoot;
             patch35RollbackRoot = rollbackRoot;
+            legacyRigController = rollbackRoot != null
+                ? rollbackRoot.GetComponentInParent<CharacterRigController>(true)
+                : null;
+            rollbackRootWasActive =
+                rollbackRoot != null && rollbackRoot.activeSelf;
             outputDirectory = reportDirectory ?? string.Empty;
             reviewRunToken = runToken ?? string.Empty;
             Application.logMessageReceived += OnReviewLog;
@@ -522,7 +526,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     }
 
                     currentClip = clipName;
-                    ConfigureFaceForClip(clipName);
+                    ConfigureFaceForClipStart();
                     int stateHash = Animator.StringToHash(
                         ResolveAnimatorStatePath(clipName));
                     if (!animator.HasState(0, stateHash))
@@ -576,6 +580,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                             elapsed / duration,
                             0f,
                             0.9999f);
+                        UpdateFaceForLiveClip(
+                            clipName,
+                            normalizedTime);
                         if (!v23FullFramePresentation.SetReviewPose(
                                 clipName,
                                 normalizedTime))
@@ -613,8 +620,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     }
 
                     ClearGameplayActionReviewSignals();
-                    faceController.SetMouth(
-                        Patch4FaceController.MouthPose.Closed);
+                    ConfigureFaceForClipStart();
                 }
             }
 
@@ -831,7 +837,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             int clipIndex)
         {
             currentClip = clip.name;
-            ConfigureFaceForClip(clip.name);
+            ConfigureFaceForClipStart();
             bool isWalk = string.Equals(
                 clip.name,
                 "FatMan_Walk_InRoom",
@@ -937,13 +943,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 yield break;
             }
 
-            if (string.Equals(
-                    clip.name,
-                    "FatMan_Blink_Random",
-                    StringComparison.Ordinal))
-            {
-                faceController.SetEditorReviewBlinkClosure(1f);
-            }
+            // Start capture is always the exact neutral master face. Only
+            // after that baseline exists do we activate the clip-specific
+            // feathered replacement pose for the peak frame.
+            ConfigureFaceForClipPeak(clip.name);
 
             animator.speed = playbackSpeed;
             float elapsed = 0f;
@@ -1053,7 +1056,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
                 // Sampling must preserve one uninterrupted Animator/IK state.
                 // Re-entering Animator.Play at every phase resets the stateful
-                // planted-foot controller and turns an otherwise smooth gait
+                // continuous-gait controller and turns an otherwise smooth gait
                 // into sixteen disconnected starts.
                 bool stateEntered = VerifyCurrentAnimatorState(
                     clipReport.animatorStateHash,
@@ -1101,7 +1104,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 }
             }
 
-            // Let the final planted foot settle back to the loop seam while
+            // Let the final continuous gait settle back to the loop seam while
             // the character remains at the review destination. This makes the
             // live Game view show one continuous step cycle rather than eight
             // disconnected diagnostic poses.
@@ -1423,6 +1426,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (faceController != null)
             {
                 faceController.SetEditorReviewBlinkClosure(0f);
+                faceController.SetLookPose(false);
                 faceController.SetMouth(
                     Patch4FaceController.MouthPose.Closed);
             }
@@ -1667,27 +1671,17 @@ namespace SkinnyToBeast.Gameplay.Patch4
             reviewTravelLocalOffset = Vector2.zero;
             rigController.SetPatch4Enabled(false);
             stateMachine.SetLockedReviewActive(true);
+            visibilityGuardWasEnabled = visibilityGuard.enabled;
             visibilityGuard.enabled = false;
-            patch35RollbackRoot.SetActive(true);
-            rollbackReviewGroup =
-                patch35RollbackRoot.GetComponent<CanvasGroup>();
-            if (rollbackReviewGroup == null)
-            {
-                rollbackReviewGroup =
-                    patch35RollbackRoot.AddComponent<CanvasGroup>();
-                rollbackGroupAddedForReview = true;
-            }
-
-            rollbackGroupPreviousAlpha = rollbackReviewGroup.alpha;
-            rollbackGroupPreviousInteractable =
-                rollbackReviewGroup.interactable;
-            rollbackGroupPreviousBlocksRaycasts =
-                rollbackReviewGroup.blocksRaycasts;
-            rollbackReviewGroup.alpha = 0f;
-            rollbackReviewGroup.interactable = false;
-            rollbackReviewGroup.blocksRaycasts = false;
+            // CharacterSpriteRigController restores its CanvasRenderer alpha
+            // in LateUpdate, so a CanvasGroup can leave both generations of
+            // the character visible. Hide only the Patch 3.5 visual child.
+            // Its parent rig, room routine and action state remain alive and
+            // continue to be the authoritative gameplay source for Patch 4.
+            patch35RollbackRoot.SetActive(false);
             report.legacyRigStayedLogicallyActive =
-                patch35RollbackRoot.activeInHierarchy;
+                legacyRigController != null &&
+                legacyRigController.gameObject.activeInHierarchy;
             PauseLegacyMotionAndFootsteps();
             patch4VisualRoot.SetActive(true);
             // Arm the persistent layered character before the visual root
@@ -1865,7 +1859,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
                         !source.isPlaying);
         }
 
-        private void ConfigureFaceForClip(string clipName)
+        private void ConfigureFaceForClipStart()
+        {
+            faceController.SetEditorReviewBlinkClosure(0f);
+            faceController.SetLookPose(false);
+            faceController.SetMouth(
+                Patch4FaceController.MouthPose.Closed);
+        }
+
+        private void ConfigureFaceForClipPeak(string clipName)
         {
             Patch4FaceController.MouthPose pose =
                 Patch4FaceController.MouthPose.Closed;
@@ -1888,6 +1890,65 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 pose = Patch4FaceController.MouthPose.Smile;
             }
 
+            faceController.SetEditorReviewBlinkClosure(
+                string.Equals(
+                    clipName,
+                    "FatMan_Blink_Random",
+                    StringComparison.Ordinal)
+                    ? 1f
+                    : 0f);
+            faceController.SetLookPose(
+                string.Equals(
+                    clipName,
+                    "FatMan_LookAround",
+                    StringComparison.Ordinal));
+            faceController.SetMouth(pose);
+        }
+
+        private void UpdateFaceForLiveClip(
+            string clipName,
+            float normalizedTime)
+        {
+            float time = Mathf.Clamp01(normalizedTime);
+            bool blink = string.Equals(
+                clipName,
+                "FatMan_Blink_Random",
+                StringComparison.Ordinal);
+            float blinkClosure = blink
+                ? Mathf.Sin(Mathf.PI * time)
+                : 0f;
+            faceController.SetEditorReviewBlinkClosure(blinkClosure);
+
+            bool expressionWindow = time >= .16f && time <= .84f;
+            faceController.SetLookPose(
+                expressionWindow &&
+                string.Equals(
+                    clipName,
+                    "FatMan_LookAround",
+                    StringComparison.Ordinal));
+
+            Patch4FaceController.MouthPose pose =
+                Patch4FaceController.MouthPose.Closed;
+            if (expressionWindow &&
+                (string.Equals(
+                     clipName,
+                     "FatMan_TapReact_01",
+                     StringComparison.Ordinal) ||
+                 string.Equals(
+                     clipName,
+                     "FatMan_TapReact_02",
+                     StringComparison.Ordinal)))
+            {
+                pose = Patch4FaceController.MouthPose.Open;
+            }
+            else if (expressionWindow &&
+                     string.Equals(
+                         clipName,
+                         "FatMan_UpgradeReact",
+                         StringComparison.Ordinal))
+            {
+                pose = Patch4FaceController.MouthPose.Smile;
+            }
             faceController.SetMouth(pose);
         }
 
@@ -3058,6 +3119,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void CleanupLockedReview()
         {
+            if (cleanupCompleted)
+            {
+                return;
+            }
+            cleanupCompleted = true;
+
             RestoreWalkReviewTravel();
             if (animator != null)
             {
@@ -3099,31 +3166,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             if (patch35RollbackRoot != null)
             {
-                patch35RollbackRoot.SetActive(true);
-            }
-
-            bool rollbackGroupRestored = true;
-            if (rollbackReviewGroup != null)
-            {
-                rollbackReviewGroup.alpha =
-                    rollbackGroupPreviousAlpha;
-                rollbackReviewGroup.interactable =
-                    rollbackGroupPreviousInteractable;
-                rollbackReviewGroup.blocksRaycasts =
-                    rollbackGroupPreviousBlocksRaycasts;
-                rollbackGroupRestored =
-                    Mathf.Abs(
-                        rollbackReviewGroup.alpha -
-                        rollbackGroupPreviousAlpha) < 0.001f;
-                if (rollbackGroupAddedForReview)
-                {
-                    Destroy(rollbackReviewGroup);
-                }
+                patch35RollbackRoot.SetActive(rollbackRootWasActive);
             }
 
             if (visibilityGuard != null)
             {
-                visibilityGuard.enabled = true;
+                visibilityGuard.enabled = visibilityGuardWasEnabled;
             }
 
             if (legacySignalBridge != null)
@@ -3150,12 +3198,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             report.patch35Restored =
                 patch35RollbackRoot != null &&
-                patch35RollbackRoot.activeSelf &&
+                rollbackRootWasActive &&
+                patch35RollbackRoot.activeSelf == rollbackRootWasActive &&
                 patch4VisualRoot != null &&
                 !patch4VisualRoot.activeSelf &&
                 rigController != null &&
                 !rigController.Patch4Enabled &&
-                rollbackGroupRestored &&
                 report.legacyRoutineRestored &&
                 report.legacySignalBridgeRestored;
             currentClip = string.Empty;
@@ -3163,6 +3211,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void OnDestroy()
         {
+            if (started && report != null && !cleanupCompleted)
+            {
+                CleanupLockedReview();
+            }
             StopLogCapture();
         }
 

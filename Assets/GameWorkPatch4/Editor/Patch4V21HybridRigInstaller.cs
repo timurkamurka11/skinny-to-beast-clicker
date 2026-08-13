@@ -58,8 +58,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 SerializedObject footSerialized = new(footPlant);
                 footSerialized.FindProperty("rigController").objectReferenceValue = rig;
                 footSerialized.FindProperty("animator").objectReferenceValue = animator;
-                footSerialized.FindProperty("stepLengthRatio").floatValue = .30f;
-                footSerialized.FindProperty("footLiftRatio").floatValue = .08f;
+                footSerialized.FindProperty("stepLengthRatio").floatValue = .42f;
+                footSerialized.FindProperty("footLiftRatio").floatValue = .11f;
                 footSerialized.ApplyModifiedPropertiesWithoutUndo();
 
                 Patch4V21FaceSwapBridge faceBridge =
@@ -83,7 +83,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 v21 hybrid rig installed: v20 rigid puppet removed; " +
                     "continuous whole-arm/whole-leg artwork uses localized joint " +
-                    "deformation, the walk uses world-space planted-foot targets, " +
+                    "deformation, the walk uses a continuous mirrored leg cycle, " +
                     "and neutral/expression facial sprites are explicitly rebound.");
             }
             finally

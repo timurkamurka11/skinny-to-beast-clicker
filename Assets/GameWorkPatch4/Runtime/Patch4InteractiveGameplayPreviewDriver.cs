@@ -33,23 +33,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private CharacterFaceController legacyFaceController;
         private RectTransform legacyCharacterRoot;
         private Patch4CharacterStateMachine stateMachine;
+        private Patch4FaceController faceController;
+        private Patch4SecondaryMotionController secondaryMotion;
         private Patch4CharacterVisibilityGuard visibilityGuard;
         private Patch4V23FullFramePresentation fullFramePresentation;
         private Animator animator;
         private GameObject patch4VisualRoot;
         private GameObject patch35RollbackRoot;
-        private CanvasGroup rollbackGroup;
 
         private bool previewActive;
-        private bool rollbackGroupAdded;
         private bool visibilityGuardWasEnabled;
         private bool rollbackRootWasActive;
         private AnimatorUpdateMode animatorUpdateMode;
         private AnimatorCullingMode animatorCullingMode;
         private float animatorSpeed;
-        private float rollbackAlpha;
-        private bool rollbackInteractable;
-        private bool rollbackBlocksRaycasts;
         private bool routineWasEnabled;
         private bool safeRoomConfigured;
         private readonly List<RoomAnchorSnapshot> roomAnchorSnapshots = new();
@@ -60,6 +57,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4CharacterRigController patchRig,
             CharacterRigController approvedLegacyRig,
             Patch4CharacterStateMachine patchStateMachine,
+            Patch4FaceController patchFaceController,
+            Patch4SecondaryMotionController patchSecondaryMotion,
             Patch4CharacterVisibilityGuard patchVisibilityGuard,
             Patch4V23FullFramePresentation presentation,
             Animator patchAnimator,
@@ -74,6 +73,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (patchRig == null ||
                 approvedLegacyRig == null ||
                 patchStateMachine == null ||
+                patchFaceController == null ||
+                patchSecondaryMotion == null ||
                 patchVisibilityGuard == null ||
                 presentation == null ||
                 !presentation.IsReady ||
@@ -93,6 +94,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             legacyFaceController =
                 legacyRigController.GetComponent<CharacterFaceController>();
             stateMachine = patchStateMachine;
+            faceController = patchFaceController;
+            secondaryMotion = patchSecondaryMotion;
             visibilityGuard = patchVisibilityGuard;
             fullFramePresentation = presentation;
             animator = patchAnimator;
@@ -104,18 +107,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             animatorUpdateMode = animator.updateMode;
             animatorCullingMode = animator.cullingMode;
             animatorSpeed = animator.speed;
-
-            rollbackGroup = patch35RollbackRoot.GetComponent<CanvasGroup>();
-            if (rollbackGroup == null)
-            {
-                rollbackGroup =
-                    patch35RollbackRoot.AddComponent<CanvasGroup>();
-                rollbackGroupAdded = true;
-            }
-
-            rollbackAlpha = rollbackGroup.alpha;
-            rollbackInteractable = rollbackGroup.interactable;
-            rollbackBlocksRaycasts = rollbackGroup.blocksRaycasts;
 
             if (legacyCharacterRoot == null ||
                 routineController == null ||
@@ -130,11 +121,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             // movement, input and routine state. Only its pixels are hidden.
             rigController.SetPatch4Enabled(false);
             stateMachine.SetLockedReviewActive(true);
+            faceController.SetEditorReviewActive(true);
+            secondaryMotion.SetEditorReviewActive(true);
             visibilityGuard.enabled = false;
-            patch35RollbackRoot.SetActive(true);
-            rollbackGroup.alpha = 0f;
-            rollbackGroup.interactable = false;
-            rollbackGroup.blocksRaycasts = false;
+            // The Patch 3.5 renderer writes CanvasRenderer alpha from its own
+            // LateUpdate, so a CanvasGroup cannot reliably hide those pixels.
+            // Disable only the legacy visual child; its parent controllers,
+            // room routine and movement remain alive and continue to drive the
+            // Patch 4 preview through the normal gameplay bridge.
+            patch35RollbackRoot.SetActive(false);
             patch4VisualRoot.SetActive(true);
 
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -167,7 +162,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             bool hadPreviewState =
                 previewActive ||
                 rigController != null ||
-                rollbackGroup != null;
+                patch35RollbackRoot != null;
             previewActive = false;
             if (!hadPreviewState)
             {
@@ -186,6 +181,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 stateMachine.SetLockedReviewActive(false);
             }
 
+            if (faceController != null)
+            {
+                faceController.SetLookPose(false);
+                faceController.SetMouth(
+                    Patch4FaceController.MouthPose.Closed);
+                faceController.SetEditorReviewActive(false);
+            }
+
+            if (secondaryMotion != null)
+            {
+                secondaryMotion.SetEditorReviewActive(false);
+            }
+
             if (rigController != null)
             {
                 rigController.SetPatch4Enabled(false);
@@ -199,17 +207,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (patch35RollbackRoot != null)
             {
                 patch35RollbackRoot.SetActive(rollbackRootWasActive);
-            }
-
-            if (rollbackGroup != null)
-            {
-                rollbackGroup.alpha = rollbackAlpha;
-                rollbackGroup.interactable = rollbackInteractable;
-                rollbackGroup.blocksRaycasts = rollbackBlocksRaycasts;
-                if (rollbackGroupAdded)
-                {
-                    Destroy(rollbackGroup);
-                }
             }
 
             if (visibilityGuard != null)
@@ -230,12 +227,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             legacyFaceController = null;
             legacyCharacterRoot = null;
             stateMachine = null;
+            faceController = null;
+            secondaryMotion = null;
             visibilityGuard = null;
             fullFramePresentation = null;
             animator = null;
             patch4VisualRoot = null;
             patch35RollbackRoot = null;
-            rollbackGroup = null;
         }
 
         private bool ConfigureSafeRoomRoute()

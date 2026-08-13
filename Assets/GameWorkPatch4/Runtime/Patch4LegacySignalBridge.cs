@@ -174,6 +174,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             stateMachine.SetLooking(looking);
             stateMachine.SetShiftingWeight(shifting);
             stateMachine.SetSittingOrLeaning(sitting);
+            if (faceController != null)
+            {
+                faceController.SetLookPose(looking);
+            }
 
             CharacterFacing currentFacing = legacyRig.Facing;
             if (currentFacing != observedFacing)

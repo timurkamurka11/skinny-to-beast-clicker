@@ -19,18 +19,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const string GeneratedRootName = "GeneratedCanvasLayers";
         private const string LayerPrefix = "Layer.";
 
-        private static readonly string[] NeutralFaceLayers =
-        {
-            "Face/BrowL",
-            "Face/BrowR",
-            "Face/EyeWhiteL",
-            "Face/EyeWhiteR",
-            "Face/IrisL",
-            "Face/IrisR",
-            "Face/Nose",
-            "Face/MouthClosed"
-        };
-
         private static readonly string[] AlwaysHiddenLayers =
         {
             "Body/TorsoBase",
@@ -38,6 +26,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             "Body/ChestSoft",
             "Head/EarL",
             "Head/EarR",
+            "Face/BrowL",
+            "Face/BrowR",
+            "Face/EyeWhiteL",
+            "Face/EyeWhiteR",
+            "Face/IrisL",
+            "Face/IrisR",
+            "Face/Nose",
+            "Face/MouthClosed",
             "Face/CheekL",
             "Face/CheekR",
             "ArmL/Forearm",
@@ -209,10 +205,6 @@ namespace SkinnyToBeast.Gameplay.Patch4
             MoveBefore(armL.transform.parent, torso.transform.parent);
             MoveBefore(armR.transform.parent, torso.transform.parent);
 
-            for (int i = 0; i < NeutralFaceLayers.Length; i++)
-            {
-                SetActiveIfPresent(images, NeutralFaceLayers[i], true);
-            }
             SetActiveIfPresent(images, "FX/Shadow", true);
 
             appliedGeneratedRootId = rootId;

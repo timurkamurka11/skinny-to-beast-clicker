@@ -140,8 +140,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     "SetEditorReviewBlinkClosure",
                     BindingFlags.Instance | BindingFlags.Public),
                 "Locked face review cannot hold the exact painted blink pose.");
+            Assert.NotNull(
+                faceController.GetMethod(
+                    "BindLookReplacementLayers",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "The neutral master face has no feathered gaze replacement.");
+            Assert.NotNull(
+                faceController.GetMethod(
+                    "SetLookPose",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "Gameplay look actions cannot control the painted gaze.");
 
             AssertWalkClipHasArticulatedGait();
+            AssertContinuousMirroredGaitController();
             AssertV23FullFrameSheetsAreImportable();
             AssertV24UpgradeCorrectionIsImportable();
             AssertWholeFramePlaybackCadence();
@@ -476,6 +487,45 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.IsNull(
                 rootSway,
                 "Walk must not fake locomotion with side-to-side root sway.");
+        }
+
+        private static void AssertContinuousMirroredGaitController()
+        {
+            string projectRoot =
+                Directory.GetParent(Application.dataPath)?.FullName ??
+                Application.dataPath;
+            string source = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/GameWorkPatch4/Runtime/" +
+                "Patch4V21FootPlantController.cs"));
+
+            foreach (string snippet in new[]
+            {
+                "EvaluateGaitTarget(",
+                "Mathf.Repeat(phase + .5f, 1f)",
+                "Time.unscaledDeltaTime / .20f",
+                "Mathf.Sin(Mathf.PI * eased)",
+                "Vector3.Lerp(neutral, gait, blend)"
+            })
+            {
+                StringAssert.Contains(
+                    snippet,
+                    source,
+                    "Continuous mirrored gait is missing: " + snippet);
+            }
+
+            foreach (string forbidden in new[]
+            {
+                "private Vector3 plantL",
+                "BeginCycle(phase, false)",
+                "SwingArc("
+            })
+            {
+                StringAssert.DoesNotContain(
+                    forbidden,
+                    source,
+                    "The asymmetric world-plant gait returned: " + forbidden);
+            }
         }
 
         private static void AssertV23FullFrameSheetsAreImportable()
@@ -902,8 +952,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             {
                 "rigController.SetPatch4Enabled(false)",
                 "stateMachine.SetLockedReviewActive(true)",
+                "faceController.SetEditorReviewActive(true)",
+                "faceController.SetEditorReviewActive(false)",
+                "secondaryMotion.SetEditorReviewActive(true)",
+                "secondaryMotion.SetEditorReviewActive(false)",
                 "visibilityGuard.enabled = false",
-                "rollbackGroup.alpha = 0f",
+                "patch35RollbackRoot.SetActive(false)",
+                "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
                 "SetEditorGameplayPreviewActive(true)",
                 "ConfigureSafeRoomRoute()",
                 "RoomAnchorKind.Center",
@@ -920,6 +975,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     driverSource,
                     "Locked visual override is missing: " + snippet);
             }
+
+            StringAssert.DoesNotContain(
+                "rollbackGroup",
+                driverSource,
+                "The legacy renderer restores CanvasRenderer alpha, so the " +
+                "preview must deactivate only its visual child.");
 
             StringAssert.StartsWith(
                 "#if UNITY_EDITOR",

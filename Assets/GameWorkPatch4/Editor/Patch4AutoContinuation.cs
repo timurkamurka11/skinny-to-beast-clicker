@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "deterministic-motion-review-v35";
+            "single-owner-render-and-gait-v36";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v35.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v36.gameplay.";
 
         private static int idleFrames;
 
@@ -57,23 +57,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V35 deterministic motion review pass started: " +
-                    "blink evidence now holds the painted closed-lid pose, and " +
-                    "the sixteen walk samples preserve one uninterrupted " +
-                    "Animator plus planted-foot state instead of restarting it. " +
-                    "the corrupt V32 whole-body atlas and every live frame swap are " +
-                    "removed. One persistent torso, head, face and four continuous " +
-                    "limbs now follow clamped-auto Animator curves every render " +
-                    "frame. Walk uses a restrained 1.6-second heavy gait, 0.18-second " +
-                    "locomotion blends, loop-only seam normalization, direction-" +
-                    "aware planted-foot IK and visible depth travel across a " +
-                    "narrow central route. Gameplay signals still select " +
-                    "idle, shift, blink, look, taps, walk, turn, sit and upgrade. " +
-                    "Unity will rebuild the local hybrid art and locked prefab, " +
-                    "then validate 16 continuous walk-time samples by live hand " +
-                    "and foot trajectories; body twitch and discrete slides cannot " +
-                    "pass. Patch 3.5 remains the active rollback and readiness stays " +
-                    "locked.");
+                    "Patch 4 V36 single-owner render and continuous-gait pass " +
+                    "started. The preview now deactivates only the Patch 3.5 " +
+                    "visual child while its gameplay controllers remain live, " +
+                    "so two generations cannot be rendered together. HeadBase " +
+                    "owns the exact neutral face; blink, gaze, open mouth and " +
+                    "smile are feathered mutually exclusive replacements. Both " +
+                    "legs use the same mirrored, phase-shifted IK cycle with a " +
+                    "soft state-entry blend. An Editor-only empty camera removes " +
+                    "the InitTestScene diagnostic without touching production " +
+                    "scenes. Unity will rebuild all local layers and runtime " +
+                    "assets, run strict safety/tests, then capture a fresh actual-" +
+                    "room review. Readiness remains locked and Patch 3.5 remains " +
+                    "the rollback owner.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
                     throw new InvalidOperationException(
@@ -97,7 +93,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V35 continuation failed: " + exception);
+                    "Patch 4 automatic V36 continuation failed: " + exception);
             }
         }
     }
