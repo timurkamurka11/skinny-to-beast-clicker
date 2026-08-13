@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "continuous-layered-motion-v33";
+            "front-facing-contract-repair-v34";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v33.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v34.gameplay.";
 
         private static int idleFrames;
 
@@ -57,8 +57,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V33 continuous layered motion pass started: the " +
-                    "corrupt V32 whole-body atlas and every live frame swap are " +
+                    "Patch 4 V34 front-facing contract repair pass started: " +
+                    "the stale EditMode expectations for SideLeft and the " +
+                    "removed walkFacingSign variable now match the V33 front-" +
+                    "facing depth route. The production motion code is unchanged: " +
+                    "the corrupt V32 whole-body atlas and every live frame swap are " +
                     "removed. One persistent torso, head, face and four continuous " +
                     "limbs now follow clamped-auto Animator curves every render " +
                     "frame. Walk uses a restrained 1.6-second heavy gait, 0.18-second " +
@@ -94,7 +97,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V33 continuation failed: " + exception);
+                    "Patch 4 automatic V34 continuation failed: " + exception);
             }
         }
     }

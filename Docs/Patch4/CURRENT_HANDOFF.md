@@ -11,6 +11,20 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
 
+## Current P4.0-AL / V34 front-facing contract repair
+
+The first V33 Unity run compiled and completed PlayMode, but the combined test
+run failed in EditMode because `Patch4ContractEditModeTests` still required the
+superseded strings `CharacterFacing.SideLeft` and
+`SetEditorWalkFacingSign(walkFacingSign)`. V33 intentionally replaced both with
+the stable front-depth route: `CharacterFacing.Front`, `KeepFrontFacingRig()`
+and `SetEditorWalkFacingSign(1)`. V34 updates that regression contract without
+weakening it and advances the automatic continuation token to
+`front-facing-contract-repair-v34`, so the next pull repeats the complete
+rebuild and EditMode/PlayMode run automatically. The V33 motion implementation,
+art, menus, video, music/audio, settings, readiness lock and Patch 3.5 rollback
+remain unchanged.
+
 ## Current P4.0-AK / V33 continuous layered motion
 
 The user's first V32 import proved that the sixteen-image atlas was both

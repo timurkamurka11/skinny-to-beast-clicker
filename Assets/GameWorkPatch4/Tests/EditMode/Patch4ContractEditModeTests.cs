@@ -905,8 +905,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "snapshot.anchor.ConfigureNormalized(",
                 "snapshot.anchor.Configure(",
                 "SafeCharacterScale = 0.7f",
-                "CharacterFacing.SideLeft",
-                "SetEditorWalkFacingSign(walkFacingSign)"
+                "CharacterFacing.Front",
+                "KeepFrontFacingRig()",
+                "SetEditorWalkFacingSign(1)"
             })
             {
                 StringAssert.Contains(

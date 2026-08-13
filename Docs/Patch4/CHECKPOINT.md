@@ -6,6 +6,18 @@ Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
 
+## Latest P4.0-AL / V34 front-facing contract checkpoint
+
+The first V33 Unity run passed PlayMode but exposed a deterministic stale
+EditMode assertion: the source-string contract still required the removed
+`CharacterFacing.SideLeft` and `SetEditorWalkFacingSign(walkFacingSign)` path.
+V34 keeps the assertion strict while aligning it with the implemented V33
+front-depth route: `CharacterFacing.Front`, `KeepFrontFacingRig()` and
+`SetEditorWalkFacingSign(1)`. Automatic token:
+`front-facing-contract-repair-v34`. No production motion, art or protected
+menu/video/music/audio/settings source is changed; readiness stays locked and
+Patch 3.5 remains active.
+
 ## Latest P4.0-AK / V33 continuous layered-motion checkpoint
 
 The first V32 Unity import exposed the exact immediate errors: static helpers
