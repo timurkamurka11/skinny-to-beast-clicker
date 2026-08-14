@@ -100,6 +100,25 @@ namespace SkinnyToBeast.Gameplay
             }
 
             DisableLegacyFaceImages();
+#if UNITY_EDITOR
+            bool showOwnedPixels =
+                spriteController != null &&
+                !spriteController.EditorPreviewSuppressed;
+            if (puppetGraphic != null)
+            {
+                puppetGraphic.enabled = showOwnedPixels;
+            }
+
+            if (faceOverlayRoot != null)
+            {
+                faceOverlayRoot.gameObject.SetActive(showOwnedPixels);
+            }
+
+            if (!showOwnedPixels)
+            {
+                return;
+            }
+#endif
             SyncViewAndStage();
             puppetGraphic?.RefreshDeformation();
             UpdateFaceOverlay();
@@ -152,6 +171,11 @@ namespace SkinnyToBeast.Gameplay
             ScheduleBlink();
             ready = true;
             failureLogged = false;
+#if UNITY_EDITOR
+            puppetGraphic.enabled = !spriteController.EditorPreviewSuppressed;
+            faceOverlayRoot.gameObject.SetActive(
+                !spriteController.EditorPreviewSuppressed);
+#endif
             puppetGraphic.RefreshDeformation();
 
             Debug.Log(

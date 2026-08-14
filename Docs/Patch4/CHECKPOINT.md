@@ -1,10 +1,36 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
+
+## Latest P4.0-AO / V37 renderer-owned suppression checkpoint
+
+The user's first V36 run is rejected. In the dynamic gameplay room hosted by
+Test Runner's `InitTestScene`, Unity repeatedly logged that selected character
+stage 4 produced no visible rig. Source tracing confirms the mechanism: V36
+deactivated Patch 3.5 `VisualRoot`; `GameplayVisualStageController.Sync` then
+observed `CharacterRigController.HasVisibleSkin == false` on every normal game
+refresh and retried the final skin indefinitely. The same legacy parent was
+supposed to remain the movement/action owner, so this run cannot be used as
+valid animation evidence.
+
+V37 leaves `VisualRoot`, the selected skin, skeleton, routine and signal bridge
+active. An Editor-only state on `CharacterSpriteRigController` suppresses the
+pixels at their owner, while `CharacterLayeredRigController` disables only its
+bounded puppet and face overlay. Both actual-room drivers snapshot and restore
+that state and no longer call `patch35RollbackRoot.SetActive(false)`. The
+existing PlayMode fixture proves suppression cannot deactivate `VisualRoot`
+or make `HasVisibleSkin` false; EditMode and repository guards reject a
+regression to V36.
+
+Automatic token: `renderer-owned-preview-suppression-v37`. Repository static
+validation precedes publication. Unity `6000.3.19f1` compilation, `4/4 + 4/4`,
+absence of Stage 4 retry spam and fresh single-body motion evidence remain the
+next automatic run after pull. Readiness stays locked, Patch 3.5 remains the
+rollback owner and menu/video/music/audio/settings paths are unchanged.
 
 ## Latest P4.0-AN / V36 single-owner render and gait checkpoint
 
@@ -1470,38 +1496,22 @@ Until every condition passes, Patch 3.5 remains visible.
 
 ## Immediate next work
 
-1. Pull P4.0-AH/V30 into Unity `6000.3.19f1` with only
+1. Pull P4.0-AO/V37 into Unity `6000.3.19f1` with only
    `git pull origin patch-4.0` and leave Unity open.
 2. Do not click Dashboard, Test Runner, Play or a review button.
-3. Let the V30 continuation token rerun `Patch4AutoContinuation`, rebuild
-   the locked prefab, bind the V23 sheets plus the corrected V24 upgrade sheet,
-   claim Test Runner PlayMode ownership,
-   run safety/tests and enter the technical actual-room review after Test
-   Runner is quiescent.
-4. Require the public `SetWalkSpeed` route to enter
-   `Base Layer.FatMan_Walk_InRoom` after real Animator updates. A failure must
-   now print current/next hashes, transition state, `Speed` and API readiness.
-5. Watch the automatically focused Game view before the report opens. It must
-   route idle, shift, blink, look, both taps, Walk, Turn, Sit and Upgrade through
-   the public gameplay-action API and play two uninterrupted target-cadence
-   passes; this is the timing and routing preview and requires no click.
-6. Inspect the automatically opened first strip. It must contain eight complete
-   profile-right alternating steps moving left-to-right: visible knee bend,
-   lifted feet and arm swing, with no duplicate legacy body underneath.
-7. Inspect the ten-clip sheet for fixed character scale, one common shoe line
-   and eight complete upgrade bodies. The sheet is frozen evidence and must not
-   be used to judge playback speed.
-8. Require `gameplayActionRoutingPassed: true`, then use the fresh report's
-   face metrics, frame calibration, four limb-region
-   differences and weakest adjacent-frame difference to reject static,
-   front-facing, clipped or duplicated art.
-9. After the technical pass, Unity must automatically open the real normal
-   gameplay room again and leave Play Mode running. Use the dumbbell and
-   upgrade controls and observe the existing bounded room routine.
-10. Confirm that V29's projected central corridor keeps the larger character
-   clear of the sofa, right rack and room edge in both travel directions.
-11. Keep readiness locked until normal-game motion, object clearance and
-   identity pass human review.
+3. Let token `renderer-owned-preview-suppression-v37` restore sources, rebuild
+   the locked prefab, run safety and `EditMode: 4` plus `PlayMode: 4`, then
+   enter the separate technical actual-room review after Test Runner is idle.
+4. Treat `InitTestScene` as the normal temporary PlayMode test host, but reject
+   any new `Character stage 4 ... did not produce a visible rig` message.
+5. Require exactly one visible body while the legacy `VisualRoot`, routine and
+   signal bridge remain logically active beneath renderer suppression.
+6. Require all ten public gameplay-action routes, a travelling Walk with
+   visible opposing arm/leg articulation, stable face replacements and all
+   existing strict technical gates.
+7. Require restoration of Patch 3.5 and the suppression state before the final
+   locked interactive room opens.
+8. Keep readiness locked until fresh human motion review passes.
 
 Detailed art instructions:
 
@@ -1513,6 +1523,10 @@ Detailed verification instructions:
 
 ## Known limitations
 
+- V36's first Unity run is rejected: deactivating Patch 3.5 `VisualRoot`
+  removed the doubled underlay but also made the live stage controller reject
+  its selected final skin and retry forever. V37 corrects that ownership path;
+  its fresh Unity result is pending and no animation is visually approved yet.
 - V29's first Unity run reached the actual-room live preview but aborted at
   `SetWalkSpeed -> FatMan_Walk_InRoom` before capturing evidence. V30 corrects
   the frame-observation race and awaits a fresh Unity result; it does not count

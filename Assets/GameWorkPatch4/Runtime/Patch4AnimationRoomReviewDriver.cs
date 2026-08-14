@@ -99,6 +99,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
             public bool readinessGateRemainedLocked;
             public bool patch35Restored;
             public bool legacyRigStayedLogicallyActive;
+            public bool legacyRendererSuppressionRestored;
             public bool visualSanityPassed;
             public bool visibleMotionPassed;
             public bool animatorStateBindingPassed;
@@ -192,9 +193,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private int backgroundWidth;
         private int backgroundHeight;
         private CharacterRigController legacyRigController;
+        private CharacterSpriteRigController legacySpriteRigController;
         private CharacterRoutineController legacyRoutine;
         private Patch4LegacySignalBridge legacySignalBridge;
         private bool rollbackRootWasActive;
+        private bool legacyPixelsWereSuppressed;
         private bool visibilityGuardWasEnabled;
         private bool legacyRoutineWasEnabled;
         private bool legacySignalBridgeWasEnabled;
@@ -260,8 +263,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
             legacyRigController = rollbackRoot != null
                 ? rollbackRoot.GetComponentInParent<CharacterRigController>(true)
                 : null;
+            legacySpriteRigController = legacyRigController != null
+                ? legacyRigController.GetComponent<
+                    CharacterSpriteRigController>()
+                : null;
             rollbackRootWasActive =
                 rollbackRoot != null && rollbackRoot.activeSelf;
+            legacyPixelsWereSuppressed =
+                legacySpriteRigController != null &&
+                legacySpriteRigController.EditorPreviewSuppressed;
             outputDirectory = reportDirectory ?? string.Empty;
             reviewRunToken = runToken ?? string.Empty;
             Application.logMessageReceived += OnReviewLog;
@@ -1595,6 +1605,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 animator.runtimeAnimatorController == null ||
                 patch4VisualRoot == null ||
                 patch35RollbackRoot == null ||
+                legacySpriteRigController == null ||
                 string.IsNullOrWhiteSpace(reviewRunToken))
             {
                 return "The locked room-review binding is incomplete.";
@@ -1673,12 +1684,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
             stateMachine.SetLockedReviewActive(true);
             visibilityGuardWasEnabled = visibilityGuard.enabled;
             visibilityGuard.enabled = false;
-            // CharacterSpriteRigController restores its CanvasRenderer alpha
-            // in LateUpdate, so a CanvasGroup can leave both generations of
-            // the character visible. Hide only the Patch 3.5 visual child.
-            // Its parent rig, room routine and action state remain alive and
-            // continue to be the authoritative gameplay source for Patch 4.
-            patch35RollbackRoot.SetActive(false);
+            // Keep the full legacy hierarchy active so its stage controller,
+            // skin validation, room routine and action signals remain valid.
+            // Suppress the pixels at their renderer owner instead of disabling
+            // VisualRoot; disabling that root makes every subsequent Stage 4
+            // Sync fail and retry forever.
+            legacySpriteRigController.SetEditorPreviewSuppressed(true);
             report.legacyRigStayedLogicallyActive =
                 legacyRigController != null &&
                 legacyRigController.gameObject.activeInHierarchy;
@@ -3164,6 +3175,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 patch4VisualRoot.SetActive(false);
             }
 
+            if (legacySpriteRigController != null)
+            {
+                legacySpriteRigController.SetEditorPreviewSuppressed(
+                    legacyPixelsWereSuppressed);
+            }
+
             if (patch35RollbackRoot != null)
             {
                 patch35RollbackRoot.SetActive(rollbackRootWasActive);
@@ -3206,6 +3223,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 !rigController.Patch4Enabled &&
                 report.legacyRoutineRestored &&
                 report.legacySignalBridgeRestored;
+            report.legacyRendererSuppressionRestored =
+                legacySpriteRigController != null &&
+                legacySpriteRigController.EditorPreviewSuppressed ==
+                    legacyPixelsWereSuppressed;
+            report.patch35Restored &=
+                report.legacyRendererSuppressionRestored;
             currentClip = string.Empty;
         }
 

@@ -291,7 +291,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"single-owner-render-and-gait-v36"',
+            '"renderer-owned-preview-suppression-v37"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -711,8 +711,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "ScreenCapture.CaptureScreenshotAsTexture",
             "humanReviewRequired = true",
             "activationAllowed = false",
-            "patch35RollbackRoot.SetActive(false)",
+            "legacySpriteRigController.SetEditorPreviewSuppressed(true)",
             "legacyRigController.gameObject.activeInHierarchy",
+            "legacyRendererSuppressionRestored",
             "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
             "CaptureReviewBackground()",
             "AnalyzeRoomSilhouette(",
@@ -857,6 +858,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     "visible-motion contract: " +
                     snippet,
                 )
+        if "patch35RollbackRoot.SetActive(false)" in review_driver:
+            fail(
+                errors,
+                "Locked room review must not deactivate VisualRoot; the "
+                "gameplay stage controller treats that as a missing Stage 4 rig",
+            )
         if "new Keyframe(0.18f, 0.12f)" in animation_builder:
             fail(
                 errors,
@@ -1055,7 +1062,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "secondaryMotion.SetEditorReviewActive(true)",
             "secondaryMotion.SetEditorReviewActive(false)",
             "visibilityGuard.enabled = false",
-            "patch35RollbackRoot.SetActive(false)",
+            "legacySpriteRigController.SetEditorPreviewSuppressed(true)",
+            "legacySpriteRigController.SetEditorPreviewSuppressed(",
             "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
             "SetEditorGameplayPreviewActive(true)",
             "ConfigureSafeRoomRoute()",
@@ -1079,6 +1087,47 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 "Interactive preview must not rely on CanvasGroup alpha for "
                 "the legacy character renderer",
             )
+        if "patch35RollbackRoot.SetActive(false)" in interactive_driver:
+            fail(
+                errors,
+                "Interactive preview must keep VisualRoot active while its "
+                "renderer owner suppresses Patch 3.5 pixels",
+            )
+
+    legacy_sprite = read_text(
+        root,
+        "Assets/Scripts/Gameplay/CharacterSpriteRigController.cs",
+        errors,
+    )
+    if legacy_sprite:
+        for snippet in (
+            "EditorPreviewSuppressed",
+            "SetEditorPreviewSuppressed(bool suppressed)",
+            "ApplyEditorPreviewVisibility()",
+        ):
+            if snippet not in legacy_sprite:
+                fail(
+                    errors,
+                    "Renderer-owned preview suppression is missing: " + snippet,
+                )
+
+    legacy_layered = read_text(
+        root,
+        "Assets/Scripts/Gameplay/CharacterLayeredRigController.cs",
+        errors,
+    )
+    if legacy_layered:
+        for snippet in (
+            "!spriteController.EditorPreviewSuppressed",
+            "puppetGraphic.enabled = showOwnedPixels",
+            "faceOverlayRoot.gameObject.SetActive(showOwnedPixels)",
+        ):
+            if snippet not in legacy_layered:
+                fail(
+                    errors,
+                    "Bounded Patch 3.5 renderer ignores preview suppression: "
+                    + snippet,
+                )
     if (
         "SetPatch4Enabled(true)" in interactive_preview
         or "SetPatch4Enabled(true)" in interactive_driver
@@ -1189,6 +1238,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "TryMeasureFaceArticulation",
             "TryMeasureFrameCalibration",
             "FrameCalibrationReady",
+            'GetBoolProperty(legacyRig, "HasVisibleSkin")',
+            'GetMethod(\n                        "SetEditorPreviewSuppressed"',
+            "legacyVisual.gameObject.activeSelf",
         ):
             if snippet not in playmode_tests:
                 fail(

@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "single-owner-render-and-gait-v36";
+            "renderer-owned-preview-suppression-v37";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v36.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v37.gameplay.";
 
         private static int idleFrames;
 
@@ -57,10 +57,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V36 single-owner render and continuous-gait pass " +
-                    "started. The preview now deactivates only the Patch 3.5 " +
-                    "visual child while its gameplay controllers remain live, " +
-                    "so two generations cannot be rendered together. HeadBase " +
+                    "Patch 4 V37 renderer-owned preview suppression pass " +
+                    "started. V36 deactivated Patch 3.5 VisualRoot and made " +
+                    "GameplayVisualStageController reject the selected Stage 4 " +
+                    "skin on every refresh. The preview now leaves that complete " +
+                    "hierarchy active and asks its renderer owner to suppress only " +
+                    "the bounded body and face pixels, so stage validation, room " +
+                    "movement and gameplay signals stay alive without drawing a " +
+                    "second character. HeadBase " +
                     "owns the exact neutral face; blink, gaze, open mouth and " +
                     "smile are feathered mutually exclusive replacements. Both " +
                     "legs use the same mirrored, phase-shifted IK cycle with a " +
@@ -93,7 +97,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V36 continuation failed: " + exception);
+                    "Patch 4 automatic V37 continuation failed: " + exception);
             }
         }
     }

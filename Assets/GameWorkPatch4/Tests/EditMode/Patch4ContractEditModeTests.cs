@@ -922,6 +922,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     BindingFlags.Instance | BindingFlags.Public),
                 "The right-authored walk cannot mirror live leftward travel.");
 
+            Type legacySpriteRig = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterSpriteRigController");
+            Assert.NotNull(
+                legacySpriteRig.GetMethod(
+                    "SetEditorPreviewSuppressed",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "Patch 4 cannot hide the renderer-owned Patch 3.5 pixels " +
+                "without deactivating the gameplay visual hierarchy.");
+            Assert.NotNull(
+                legacySpriteRig.GetProperty(
+                    "EditorPreviewSuppressed",
+                    BindingFlags.Instance | BindingFlags.Public));
+
             string projectRoot =
                 Directory.GetParent(Application.dataPath)?.FullName ??
                 Application.dataPath;
@@ -957,7 +970,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "secondaryMotion.SetEditorReviewActive(true)",
                 "secondaryMotion.SetEditorReviewActive(false)",
                 "visibilityGuard.enabled = false",
-                "patch35RollbackRoot.SetActive(false)",
+                "legacySpriteRigController." +
+                    "SetEditorPreviewSuppressed(true)",
+                "legacySpriteRigController." +
+                    "SetEditorPreviewSuppressed(",
                 "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
                 "SetEditorGameplayPreviewActive(true)",
                 "ConfigureSafeRoomRoute()",
@@ -980,7 +996,41 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "rollbackGroup",
                 driverSource,
                 "The legacy renderer restores CanvasRenderer alpha, so the " +
-                "preview must deactivate only its visual child.");
+                "preview must suppress pixels at the renderer owner.");
+            StringAssert.DoesNotContain(
+                "patch35RollbackRoot.SetActive(false)",
+                driverSource,
+                "Disabling VisualRoot makes GameplayVisualStageController " +
+                "reject Stage 4 and retry Sync forever.");
+
+            string spriteRigSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/Scripts/Gameplay/" +
+                "CharacterSpriteRigController.cs"));
+            string layeredRigSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/Scripts/Gameplay/" +
+                "CharacterLayeredRigController.cs"));
+            foreach (string snippet in new[]
+            {
+                "EditorPreviewSuppressed",
+                "SetEditorPreviewSuppressed(bool suppressed)",
+                "ApplyEditorPreviewVisibility()"
+            })
+            {
+                StringAssert.Contains(
+                    snippet,
+                    spriteRigSource,
+                    "Legacy renderer suppression is missing: " + snippet);
+            }
+            StringAssert.Contains(
+                "!spriteController.EditorPreviewSuppressed",
+                layeredRigSource,
+                "The bounded Patch 3.5 puppet ignores renderer suppression.");
+            StringAssert.Contains(
+                "puppetGraphic.enabled = showOwnedPixels",
+                layeredRigSource,
+                "The bounded Patch 3.5 body remains visible during review.");
 
             StringAssert.StartsWith(
                 "#if UNITY_EDITOR",

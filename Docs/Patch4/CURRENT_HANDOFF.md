@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-08-13**
+Last updated: **2026-08-14**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -10,6 +10,49 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
+
+## Current P4.0-AO / V37 renderer-owned preview suppression
+
+The user's first V36 run is rejected. The screenshot is the real dynamic
+gameplay room running inside Unity Test Framework's temporary `InitTestScene`,
+and its repeated error is decisive:
+
+```text
+Character stage 4 was selected but did not produce a visible rig.
+The next Sync will retry it.
+```
+
+V36 deactivated the complete Patch 3.5 `VisualRoot` to prevent a doubled body.
+That also made `CharacterRigController.HasVisibleSkin` false. Every normal
+`GameplayWindowController.Refresh()` therefore asked
+`GameplayVisualStageController` to repair the selected final skin again,
+producing the repeated Stage 4 failures while the preview was supposed to use
+that same legacy rig as its movement and action owner. This is an ownership
+bug in V36, not acceptable animation evidence.
+
+V37 keeps the entire legacy visual hierarchy active and moves hiding to the
+renderer that owns the pixels:
+
+- `CharacterSpriteRigController` exposes an Editor-only, reversible preview
+  suppression state without changing the selected skin or active hierarchy;
+- `CharacterLayeredRigController` observes that state and disables only its
+  bounded Patch 3.5 puppet plus face overlay. The flat fallback and old
+  procedural geometry remain non-rendering as before;
+- both locked actual-room drivers snapshot, enable and restore renderer
+  suppression. Neither driver may deactivate `VisualRoot`;
+- the existing PlayMode installation test now proves that suppression leaves
+  `VisualRoot` active and `HasVisibleSkin == true`; EditMode/static guards
+  reject a return to the V36 `SetActive(false)` path;
+- production readiness remains locked and the exact rollback state is restored
+  on every normal, failure and destruction exit.
+
+Automatic continuation token: `renderer-owned-preview-suppression-v37`.
+After the next pull, Unity `6000.3.19f1` automatically rebuilds the local
+layers/prefab, runs safety plus `EditMode: 4` and `PlayMode: 4`, then captures a
+fresh actual-room review. A valid run must contain no new Stage 4 retry errors,
+must render exactly one body and must still pass the existing motion gates.
+Human animation acceptance remains pending that fresh run. Menu assets,
+`MainMenuLoop.mp4`, music/audio and settings are untouched.
 
 ## Current P4.0-AN / V36 single-owner render, face and gait repair
 
@@ -1471,7 +1514,7 @@ old limb pieces, vacuum stretching or detached face.
 - Do not merge `patch-4.0` into `main`.
 - Do not modify protected menu/audio/settings files.
 
-## Next automatic V30 run
+## Next automatic V37 run
 
 Run only:
 
@@ -1480,22 +1523,16 @@ git pull origin patch-4.0
 ```
 
 Leave Unity open. Do not click Dashboard, Test Runner, Play or any review
-button. The V30 token makes `Patch4AutoContinuation` rebuild the generated
+button. The V37 token makes `Patch4AutoContinuation` rebuild the generated
 controller and prefab, claim exclusive Test Runner PlayMode ownership, run
 safety plus `4/4 + 4/4`, and then start the separate locked room review. The
-review must prove `SetWalkSpeed -> Base Layer.FatMan_Walk_InRoom` through real
-Animator updates before capturing any frame. After that review passes, Unity
-will automatically enter one more normal gameplay session and leave Play Mode
-running.
-The first live pass must visibly show the event-owned sequence: idle breathing,
-weight shift, blink, look, both taps, a right-facing travelling walk, turn,
-sit/lean and upgrade. The frozen report must contain
-`gameplayActionRoutingPassed: true`, compatible Walk travel, and no upgrade
-scale-expansion failure. In the final Game view, use the normal dumbbell and
-upgrade controls and watch the existing room routine. Patch 4 must remain
-locked throughout.
+temporary `InitTestScene` is expected during PlayMode tests, but the repeated
+`Character stage 4 ... did not produce a visible rig` error is forbidden.
+The live room must keep the legacy hierarchy logically valid while rendering
+only Patch 4, route all ten actions, show real arm/leg motion and room travel,
+then restore Patch 3.5 exactly. Patch 4 remains locked throughout.
 
-## Work after the V30 interactive gameplay preview
+## Work after the V37 interactive gameplay preview
 
 - Observe the actual visible footprint while the five existing routine signals
   are reversibly projected into the V29 central corridor; keep activation

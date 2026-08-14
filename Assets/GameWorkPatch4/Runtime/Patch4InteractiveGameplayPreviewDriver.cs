@@ -29,6 +29,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private Patch4CharacterRigController rigController;
         private CharacterRigController legacyRigController;
+        private CharacterSpriteRigController legacySpriteRigController;
         private CharacterRoutineController routineController;
         private CharacterFaceController legacyFaceController;
         private RectTransform legacyCharacterRoot;
@@ -44,6 +45,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private bool previewActive;
         private bool visibilityGuardWasEnabled;
         private bool rollbackRootWasActive;
+        private bool legacyPixelsWereSuppressed;
         private AnimatorUpdateMode animatorUpdateMode;
         private AnimatorCullingMode animatorCullingMode;
         private float animatorSpeed;
@@ -89,6 +91,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             legacyRigController = approvedLegacyRig;
             legacyCharacterRoot =
                 legacyRigController.transform as RectTransform;
+            legacySpriteRigController =
+                legacyRigController.GetComponent<
+                    CharacterSpriteRigController>();
             routineController =
                 legacyRigController.GetComponent<CharacterRoutineController>();
             legacyFaceController =
@@ -104,11 +109,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             visibilityGuardWasEnabled = visibilityGuard.enabled;
             rollbackRootWasActive = patch35RollbackRoot.activeSelf;
+            legacyPixelsWereSuppressed =
+                legacySpriteRigController != null &&
+                legacySpriteRigController.EditorPreviewSuppressed;
             animatorUpdateMode = animator.updateMode;
             animatorCullingMode = animator.cullingMode;
             animatorSpeed = animator.speed;
 
             if (legacyCharacterRoot == null ||
+                legacySpriteRigController == null ||
                 routineController == null ||
                 legacyFaceController == null ||
                 !ConfigureSafeRoomRoute())
@@ -124,12 +133,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
             visibilityGuard.enabled = false;
-            // The Patch 3.5 renderer writes CanvasRenderer alpha from its own
-            // LateUpdate, so a CanvasGroup cannot reliably hide those pixels.
-            // Disable only the legacy visual child; its parent controllers,
-            // room routine and movement remain alive and continue to drive the
-            // Patch 4 preview through the normal gameplay bridge.
-            patch35RollbackRoot.SetActive(false);
+            // Keep the complete legacy visual hierarchy active so the real
+            // GameplayVisualStageController can continue validating Stage 4.
+            // The renderer owner suppresses only its pixels, including the
+            // bounded Patch 3.5 puppet and face overlays, without producing a
+            // second body or triggering an endless stage-repair retry.
+            legacySpriteRigController.SetEditorPreviewSuppressed(true);
             patch4VisualRoot.SetActive(true);
 
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -204,6 +213,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 patch4VisualRoot.SetActive(false);
             }
 
+            if (legacySpriteRigController != null)
+            {
+                legacySpriteRigController.SetEditorPreviewSuppressed(
+                    legacyPixelsWereSuppressed);
+            }
+
             if (patch35RollbackRoot != null)
             {
                 patch35RollbackRoot.SetActive(rollbackRootWasActive);
@@ -223,6 +238,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             rigController = null;
             legacyRigController = null;
+            legacySpriteRigController = null;
             routineController = null;
             legacyFaceController = null;
             legacyCharacterRoot = null;

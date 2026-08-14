@@ -51,6 +51,51 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Component legacyRig = BuildLegacyRig(legacyRoot);
                 Assert.NotNull(legacyRig);
 
+                Transform legacyVisual =
+                    GetObjectProperty(legacyRig, "VisualRoot") as Transform;
+                Assert.NotNull(legacyVisual);
+                Assert.IsTrue(
+                    GetBoolProperty(legacyRig, "HasVisibleSkin"),
+                    "The rollback rig must be logically visible before " +
+                    "Patch 4 preview suppression begins.");
+                Type legacySpriteRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterSpriteRigController");
+                Component legacySpriteRig =
+                    legacyRoot.GetComponent(legacySpriteRigType);
+                Assert.NotNull(legacySpriteRig);
+                MethodInfo suppressPreviewPixels =
+                    legacySpriteRigType.GetMethod(
+                        "SetEditorPreviewSuppressed",
+                        BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(suppressPreviewPixels);
+                bool legacyVisualWasActive = legacyVisual.gameObject.activeSelf;
+                suppressPreviewPixels.Invoke(
+                    legacySpriteRig,
+                    new object[] { true });
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        legacySpriteRig,
+                        "EditorPreviewSuppressed"));
+                Assert.AreEqual(
+                    legacyVisualWasActive,
+                    legacyVisual.gameObject.activeSelf,
+                    "Pixel suppression must not deactivate VisualRoot; doing " +
+                    "so makes the live stage controller retry forever.");
+                Assert.IsTrue(
+                    GetBoolProperty(legacyRig, "HasVisibleSkin"),
+                    "Renderer-only suppression must preserve the logical " +
+                    "Stage 4 skin while Patch 4 owns the visible pixels.");
+                suppressPreviewPixels.Invoke(
+                    legacySpriteRig,
+                    new object[] { false });
+                Assert.IsFalse(
+                    GetBoolProperty(
+                        legacySpriteRig,
+                        "EditorPreviewSuppressed"));
+                Assert.AreEqual(
+                    legacyVisualWasActive,
+                    legacyVisual.gameObject.activeSelf);
+
                 Type installerType = RequireType(
                     "SkinnyToBeast.Gameplay.Patch4.Patch4RuntimeInstaller");
                 MethodInfo install = installerType.GetMethod(

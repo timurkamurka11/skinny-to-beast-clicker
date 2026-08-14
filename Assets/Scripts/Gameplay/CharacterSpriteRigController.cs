@@ -55,6 +55,9 @@ namespace SkinnyToBeast.Gameplay
         private float blinkUntil;
         private bool buildAttemptLogged;
         private bool ready;
+#if UNITY_EDITOR
+        private bool editorPreviewSuppressed;
+#endif
 
         public bool IsReady =>
             ready &&
@@ -72,6 +75,21 @@ namespace SkinnyToBeast.Gameplay
                 ? 3
                 : 0;
         public Texture2D RuntimeTexture => runtimeTexture;
+#if UNITY_EDITOR
+        public bool EditorPreviewSuppressed => editorPreviewSuppressed;
+
+        /// <summary>
+        /// Hides the renderer-owned Patch 3.5 pixels without deactivating the
+        /// gameplay visual hierarchy. Patch 4 review tools use this so the
+        /// stage controller can keep validating and driving the selected skin
+        /// while exactly one character generation is rendered.
+        /// </summary>
+        public void SetEditorPreviewSuppressed(bool suppressed)
+        {
+            editorPreviewSuppressed = suppressed;
+            ApplyEditorPreviewVisibility();
+        }
+#endif
 
         private void Awake()
         {
@@ -99,6 +117,13 @@ namespace SkinnyToBeast.Gameplay
             HideLegacyGeometry();
             SyncFacing();
             SyncStage();
+#if UNITY_EDITOR
+            if (editorPreviewSuppressed)
+            {
+                HideFaceOverlays();
+                return;
+            }
+#endif
             UpdateFaceOverlay();
         }
 
@@ -556,9 +581,54 @@ namespace SkinnyToBeast.Gameplay
 
             if (bodyImage != null)
             {
-                bodyImage.canvasRenderer.SetAlpha(1f);
+                float bodyAlpha = 1f;
+#if UNITY_EDITOR
+                if (editorPreviewSuppressed)
+                {
+                    bodyAlpha = 0f;
+                }
+#endif
+                bodyImage.canvasRenderer.SetAlpha(bodyAlpha);
             }
         }
+
+        private void HideFaceOverlays()
+        {
+            if (leftEyelid != null)
+            {
+                leftEyelid.gameObject.SetActive(false);
+            }
+
+            if (rightEyelid != null)
+            {
+                rightEyelid.gameObject.SetActive(false);
+            }
+
+            if (mouthOverlay != null)
+            {
+                mouthOverlay.gameObject.SetActive(false);
+            }
+        }
+
+#if UNITY_EDITOR
+        private void ApplyEditorPreviewVisibility()
+        {
+            if (!ready)
+            {
+                return;
+            }
+
+            HideLegacyGeometry();
+            if (editorPreviewSuppressed)
+            {
+                HideFaceOverlays();
+            }
+            else
+            {
+                UpdateFaceOverlay();
+            }
+        }
+#endif
 
         private Color SampleFaceColor()
         {
