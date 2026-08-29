@@ -226,6 +226,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
         [Test]
         public void AnimationRoomReview_WalkTravelUsesGameplayCharacterRoot()
         {
+            Type legacyRigType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterRigController");
+            Type patchRigType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4CharacterRigController");
+            Type reviewDriverType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4AnimationRoomReviewDriver");
             GameObject actorLayer = new("CharacterActors", typeof(RectTransform));
             try
             {
@@ -236,7 +244,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 GameObject legacyObject = new(
                     "CharacterRoot",
                     typeof(RectTransform),
-                    typeof(CharacterRigController));
+                    legacyRigType);
                 RectTransform legacyRoot =
                     legacyObject.GetComponent<RectTransform>();
                 legacyRoot.SetParent(actorRect, false);
@@ -246,25 +254,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 GameObject patchObject = new(
                     "FatMan_Patch4_Instance",
                     typeof(RectTransform),
-                    typeof(Patch4CharacterRigController),
-                    typeof(Patch4AnimationRoomReviewDriver));
+                    patchRigType,
+                    reviewDriverType);
                 RectTransform patchRoot =
                     patchObject.GetComponent<RectTransform>();
                 patchRoot.SetParent(legacyRoot, false);
                 patchRoot.localPosition = new Vector3(12f, -8f, 0f);
 
-                Patch4AnimationRoomReviewDriver driver =
-                    patchObject.GetComponent<
-                        Patch4AnimationRoomReviewDriver>();
+                Component driver = patchObject.GetComponent(
+                    reviewDriverType);
                 SetPrivateField(
                     driver,
                     "rigController",
-                    patchObject.GetComponent<
-                        Patch4CharacterRigController>());
+                    patchObject.GetComponent(patchRigType));
                 SetPrivateField(
                     driver,
                     "legacyRigController",
-                    legacyObject.GetComponent<CharacterRigController>());
+                    legacyObject.GetComponent(legacyRigType));
                 SetPrivateField(
                     driver,
                     "neutralSilhouetteWidth",
@@ -379,8 +385,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 prefabPath);
             Assert.NotNull(prefab, "The generated Patch 4 prefab is missing.");
 
-            Patch4SecondaryMotionController secondaryMotion =
-                prefab.GetComponent<Patch4SecondaryMotionController>();
+            Type secondaryMotionType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4SecondaryMotionController");
+            Component secondaryMotion = prefab.GetComponent(
+                secondaryMotionType);
             Animator animator = prefab.GetComponent<Animator>();
             Assert.NotNull(secondaryMotion);
             Assert.NotNull(animator);
@@ -721,8 +730,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 prefabPath);
             Assert.NotNull(prefab, "The generated Patch 4 prefab is missing.");
+            Type footPlantType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4V21FootPlantController");
             Assert.IsNull(
-                prefab.GetComponent<Patch4V21FootPlantController>(),
+                prefab.GetComponent(footPlantType),
                 "Walk leg rotations already have complete eight-phase Animator " +
                 "curves. A LateUpdate foot solver on the same prefab gives all " +
                 "six leg channels a second writer and can collapse or snap them.");
@@ -1376,6 +1388,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(field, fieldName);
             field.SetValue(target, value);
+        }
+
+        private static object GetPrivateField(
+            object target,
+            string fieldName)
+        {
+            FieldInfo field = target.GetType().GetField(
+                fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field, fieldName);
+            return field.GetValue(target);
         }
 
         private static object InvokePrivate(

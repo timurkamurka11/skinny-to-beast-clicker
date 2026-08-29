@@ -1017,6 +1017,43 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         errors,
     )
     if contract_tests:
+        # This test assembly is isolated by Patch4.EditModeTests.asmdef and
+        # therefore cannot compile direct references to production types in
+        # Unity's predefined Assembly-CSharp. Runtime/editor symbols must be
+        # resolved through the existing RequireType reflection boundary.
+        code_without_literals = re.sub(
+            r"//[^\n\r]*|/\*.*?\*/|(?:\$@|@\$|\$|@)?\"(?:\\.|\"\"|[^\"])*\"|"
+            r"'(?:\\.|[^'\\])*'",
+            "",
+            contract_tests,
+            flags=re.DOTALL,
+        )
+        for production_symbol in (
+            "Patch4AnimationRoomReviewDriver",
+            "Patch4CharacterRigController",
+            "CharacterRigController",
+            "Patch4SecondaryMotionController",
+            "Patch4V21FootPlantController",
+        ):
+            if re.search(
+                rf"\b{re.escape(production_symbol)}\b",
+                code_without_literals,
+            ):
+                fail(
+                    errors,
+                    "EditMode tests directly reference predefined-assembly "
+                    f"type {production_symbol}; resolve it through RequireType "
+                    "so Patch4.EditModeTests.asmdef can compile.",
+                )
+        if (
+            "GetPrivateField(" in code_without_literals
+            and "private static object GetPrivateField(" not in contract_tests
+        ):
+            fail(
+                errors,
+                "EditMode tests call GetPrivateField without defining the "
+                "reflection helper.",
+            )
         for snippet in (
             "AssertWalkClipHasArticulatedGait()",
             "FatMan_Walk_InRoom.anim",
