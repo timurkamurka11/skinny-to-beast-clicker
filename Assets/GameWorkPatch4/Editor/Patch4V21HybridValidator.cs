@@ -61,9 +61,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 {
                     errors.Add("v21 hybrid puppet controller is missing.");
                 }
-                if (prefab.GetComponent<Patch4V21FootPlantController>() == null)
+                if (prefab.GetComponent<Patch4V21FootPlantController>() != null)
                 {
-                    errors.Add("v21 continuous-gait controller is missing.");
+                    errors.Add(
+                        "The procedural foot solver is still installed beside " +
+                        "the Animator-owned eight-phase leg curves.");
                 }
                 if (prefab.GetComponent<Patch4CutoutPuppetController>() != null)
                 {
@@ -106,7 +108,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Debug.Log(
                 "Patch 4 v21 hybrid validation passed: continuous limb art is " +
                 "present through elbow/wrist/knee/ankle zones, v20 is not the " +
-                "active presentation, mirrored gait IK is installed, no core " +
+                "active presentation, Walk has one Animator leg owner, no core " +
                 "body/limb Transform scale animation remains, and Walk has no " +
                 "CharacterRoot X curve that could fake locomotion by root sway.");
         }

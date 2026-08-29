@@ -1,6 +1,6 @@
 # GameWork Patch 4.0 — Current Cross-Chat Handoff
 
-Last updated: **2026-08-14**
+Last updated: **2026-08-29**
 
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
@@ -10,6 +10,40 @@ Canonical long-form history: `Docs/Patch4/CHECKPOINT.md`
 
 This file is the latest operational continuation point. Read it before doing
 more Patch 4 work.
+
+## Current P4.0-AP / V38 single-owner rig repair
+
+V37's renderer-only rollback suppression remains intact. V38 fixes the
+remaining ownership and lifecycle faults found by tracing the supplied Stage 4
+and animation-room evidence:
+
+- final-art selection no longer resets to `-1` when readiness is temporarily
+  false. Repeated `GameplayVisualStageController.Sync` calls produce one
+  actionable failure per episode and passively finalize when the Animator is
+  ready; failed skin-target application is latched as well;
+- PlayMode coverage selects all four art stages through their real body-stage
+  mapping (`0, 1, 2, 4`), verifies exactly one base skin and one visible legacy
+  rig, force-installs exactly one locked Patch 4 sibling, and proves five
+  repeated Stage 4 refreshes do not spam retries;
+- the procedural `LateUpdate` foot solver is removed from generated prefabs.
+  The authored eight-phase Walk clip is the sole owner of thigh, shin and foot
+  rotations on both sides;
+- `SpineUpper` is removed from secondary motion because all required clips
+  already own that transform;
+- locked-review Walk translation now belongs to the gameplay root, follows a
+  shallow bounded depth route with slight perspective scale, and restores
+  position/scale exactly;
+- legacy signals are paused and the Animator is reset to neutral before the
+  Patch 4 visual activates. The hybrid torso/limbs then explicitly recapture
+  their bind pose, eliminating stale gameplay-pose deformation.
+
+Automatic continuation token: `single-owner-sync-neutral-bind-v38`. Unity will
+restore/rebuild generated assets, run safety plus strict EditMode/PlayMode
+tests, and launch the unweakened actual-room review after import. Static
+validation passes locally; Unity compilation, Test Runner results, Console and
+fresh visual-review evidence are still pending because this workspace has no
+Unity executable or live Editor connection. Do not mark readiness approved
+until those artifacts pass.
 
 ## Current P4.0-AO / V37 renderer-owned preview suppression
 

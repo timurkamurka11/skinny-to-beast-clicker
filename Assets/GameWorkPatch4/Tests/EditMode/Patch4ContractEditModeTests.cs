@@ -152,7 +152,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Gameplay look actions cannot control the painted gaze.");
 
             AssertWalkClipHasArticulatedGait();
-            AssertContinuousMirroredGaitController();
+            AssertWalkLegsHaveSingleAnimatorOwner();
             AssertV23FullFrameSheetsAreImportable();
             AssertV24UpgradeCorrectionIsImportable();
             AssertWholeFramePlaybackCadence();
@@ -220,6 +220,231 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             finally
             {
                 UnityEngine.Object.DestroyImmediate(readiness);
+            }
+        }
+
+        [Test]
+        public void AnimationRoomReview_WalkTravelUsesGameplayCharacterRoot()
+        {
+            GameObject actorLayer = new("CharacterActors", typeof(RectTransform));
+            try
+            {
+                RectTransform actorRect =
+                    actorLayer.GetComponent<RectTransform>();
+                actorRect.sizeDelta = new Vector2(1080f, 1920f);
+
+                GameObject legacyObject = new(
+                    "CharacterRoot",
+                    typeof(RectTransform),
+                    typeof(CharacterRigController));
+                RectTransform legacyRoot =
+                    legacyObject.GetComponent<RectTransform>();
+                legacyRoot.SetParent(actorRect, false);
+                legacyRoot.anchoredPosition = new Vector2(0f, 940f);
+                legacyRoot.localScale = Vector3.one * .7f;
+
+                GameObject patchObject = new(
+                    "FatMan_Patch4_Instance",
+                    typeof(RectTransform),
+                    typeof(Patch4CharacterRigController),
+                    typeof(Patch4AnimationRoomReviewDriver));
+                RectTransform patchRoot =
+                    patchObject.GetComponent<RectTransform>();
+                patchRoot.SetParent(legacyRoot, false);
+                patchRoot.localPosition = new Vector3(12f, -8f, 0f);
+
+                Patch4AnimationRoomReviewDriver driver =
+                    patchObject.GetComponent<
+                        Patch4AnimationRoomReviewDriver>();
+                SetPrivateField(
+                    driver,
+                    "rigController",
+                    patchObject.GetComponent<
+                        Patch4CharacterRigController>());
+                SetPrivateField(
+                    driver,
+                    "legacyRigController",
+                    legacyObject.GetComponent<CharacterRigController>());
+                SetPrivateField(
+                    driver,
+                    "neutralSilhouetteWidth",
+                    600);
+
+                Vector3 patchStart = patchRoot.localPosition;
+                Vector3 gameplayStart = legacyRoot.localPosition;
+                Vector3 gameplayScaleStart = legacyRoot.localScale;
+                InvokePrivate(driver, "PrepareWalkReviewTravel");
+                Vector2 routeOffset = (Vector2)GetPrivateField(
+                    driver,
+                    "reviewTravelLocalOffset");
+                Assert.GreaterOrEqual(
+                    Mathf.Abs(routeOffset.x),
+                    600f * 0.35f,
+                    "Walk travel is too vertical to prove room translation.");
+                Assert.LessOrEqual(
+                    Mathf.Abs(routeOffset.y),
+                    600f * 0.20f,
+                    "Walk travel climbs into furniture instead of following " +
+                    "the room floor/depth plane.");
+                InvokePrivate(driver, "SetWalkReviewTravel", 1f);
+
+                Assert.AreEqual(
+                    patchStart,
+                    patchRoot.localPosition,
+                    "Technical review detached Patch 4 from the gameplay root.");
+                Assert.AreNotEqual(
+                    gameplayStart,
+                    legacyRoot.localPosition,
+                    "Walk review did not move the authoritative gameplay root.");
+                Assert.Less(
+                    legacyRoot.localScale.x,
+                    gameplayScaleStart.x,
+                    "Depth travel must apply a small perspective scale change.");
+
+                InvokePrivate(driver, "RestoreWalkReviewTravel");
+                Assert.AreEqual(
+                    gameplayStart,
+                    legacyRoot.localPosition,
+                    "Walk review did not restore the gameplay root exactly.");
+                Assert.AreEqual(
+                    gameplayScaleStart,
+                    legacyRoot.localScale,
+                    "Walk review did not restore gameplay scale exactly.");
+                Assert.AreEqual(patchStart, patchRoot.localPosition);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(actorLayer);
+            }
+        }
+
+        [Test]
+        public void AnimationRoomReview_RebindsHybridFromNeutralAnimatorPose()
+        {
+            Type hybridType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4V21HybridPuppetController");
+            Assert.NotNull(
+                hybridType.GetMethod(
+                    "RebindAtCurrentPose",
+                    BindingFlags.Instance | BindingFlags.Public),
+                "The hybrid mesh cannot discard a stale gameplay-pose bind.");
+
+            string projectRoot =
+                Directory.GetParent(Application.dataPath)?.FullName ??
+                Application.dataPath;
+            string driverSource = File.ReadAllText(Path.Combine(
+                projectRoot,
+                "Assets/GameWorkPatch4/Runtime/" +
+                "Patch4AnimationRoomReviewDriver.cs"));
+            int prepareStart = driverSource.IndexOf(
+                "private void PrepareLockedReview()",
+                StringComparison.Ordinal);
+            int prepareEnd = driverSource.IndexOf(
+                "private void PrepareWalkReviewTravel()",
+                StringComparison.Ordinal);
+            Assert.GreaterOrEqual(prepareStart, 0);
+            Assert.Greater(prepareEnd, prepareStart);
+            string prepare = driverSource.Substring(
+                prepareStart,
+                prepareEnd - prepareStart);
+
+            int pause = prepare.IndexOf(
+                "PauseLegacyMotionAndFootsteps();",
+                StringComparison.Ordinal);
+            int neutral = prepare.IndexOf(
+                "PrepareNeutralAnimatorPose()",
+                StringComparison.Ordinal);
+            int show = prepare.IndexOf(
+                "patch4VisualRoot.SetActive(true)",
+                StringComparison.Ordinal);
+            int rebind = prepare.IndexOf(
+                "hybridPuppet.RebindAtCurrentPose()",
+                StringComparison.Ordinal);
+            Assert.GreaterOrEqual(pause, 0);
+            Assert.Greater(neutral, pause,
+                "The live signal bridge must be paused before neutral reset.");
+            Assert.Greater(show, neutral,
+                "The hidden hybrid cannot activate before neutral reset.");
+            Assert.Greater(rebind, show,
+                "The hybrid mesh must bind only after its neutral visual is active.");
+        }
+
+        [Test]
+        public void SecondaryMotion_DoesNotOverwriteAnimatorOwnedChannels()
+        {
+            const string prefabPath =
+                "Assets/GameWorkPatch4/Resources/FatMan_Patch4.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                prefabPath);
+            Assert.NotNull(prefab, "The generated Patch 4 prefab is missing.");
+
+            Patch4SecondaryMotionController secondaryMotion =
+                prefab.GetComponent<Patch4SecondaryMotionController>();
+            Animator animator = prefab.GetComponent<Animator>();
+            Assert.NotNull(secondaryMotion);
+            Assert.NotNull(animator);
+            Assert.NotNull(animator.runtimeAnimatorController);
+
+            SerializedObject serialized = new(secondaryMotion);
+            SerializedProperty channels = serialized.FindProperty("channels");
+            Assert.NotNull(channels);
+            AnimationClip[] clips =
+                animator.runtimeAnimatorController.animationClips;
+
+            for (int channelIndex = 0;
+                 channelIndex < channels.arraySize;
+                 channelIndex++)
+            {
+                SerializedProperty channel =
+                    channels.GetArrayElementAtIndex(channelIndex);
+                Transform target = channel.FindPropertyRelative("target")
+                    .objectReferenceValue as Transform;
+                Assert.NotNull(target, "Secondary-motion target is missing.");
+
+                Vector3 positionAmplitude = channel
+                    .FindPropertyRelative("positionAmplitude")
+                    .vector3Value;
+                Vector3 rotationAmplitude = channel
+                    .FindPropertyRelative("rotationAmplitude")
+                    .vector3Value;
+                string path = AnimationUtility.CalculateTransformPath(
+                    target,
+                    prefab.transform);
+
+                foreach (AnimationClip clip in clips)
+                {
+                    foreach (EditorCurveBinding binding in
+                             AnimationUtility.GetCurveBindings(clip))
+                    {
+                        if (binding.type != typeof(Transform) ||
+                            !string.Equals(
+                                binding.path,
+                                path,
+                                StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        bool positionOverlap =
+                            positionAmplitude.sqrMagnitude > .000001f &&
+                            binding.propertyName.StartsWith(
+                                "m_LocalPosition.",
+                                StringComparison.Ordinal);
+                        bool rotationOverlap =
+                            rotationAmplitude.sqrMagnitude > .000001f &&
+                            (binding.propertyName.StartsWith(
+                                 "localEulerAnglesRaw.",
+                                 StringComparison.Ordinal) ||
+                             binding.propertyName.StartsWith(
+                                 "m_LocalRotation.",
+                                 StringComparison.Ordinal));
+                        Assert.IsFalse(
+                            positionOverlap || rotationOverlap,
+                            $"{target.name} is written by secondary motion and " +
+                            $"Animator clip {clip.name} ({binding.propertyName}).");
+                    }
+                }
             }
         }
 
@@ -489,43 +714,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Walk must not fake locomotion with side-to-side root sway.");
         }
 
-        private static void AssertContinuousMirroredGaitController()
+        private static void AssertWalkLegsHaveSingleAnimatorOwner()
         {
-            string projectRoot =
-                Directory.GetParent(Application.dataPath)?.FullName ??
-                Application.dataPath;
-            string source = File.ReadAllText(Path.Combine(
-                projectRoot,
-                "Assets/GameWorkPatch4/Runtime/" +
-                "Patch4V21FootPlantController.cs"));
-
-            foreach (string snippet in new[]
-            {
-                "EvaluateGaitTarget(",
-                "Mathf.Repeat(phase + .5f, 1f)",
-                "Time.unscaledDeltaTime / .20f",
-                "Mathf.Sin(Mathf.PI * eased)",
-                "Vector3.Lerp(neutral, gait, blend)"
-            })
-            {
-                StringAssert.Contains(
-                    snippet,
-                    source,
-                    "Continuous mirrored gait is missing: " + snippet);
-            }
-
-            foreach (string forbidden in new[]
-            {
-                "private Vector3 plantL",
-                "BeginCycle(phase, false)",
-                "SwingArc("
-            })
-            {
-                StringAssert.DoesNotContain(
-                    forbidden,
-                    source,
-                    "The asymmetric world-plant gait returned: " + forbidden);
-            }
+            const string prefabPath =
+                "Assets/GameWorkPatch4/Resources/FatMan_Patch4.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                prefabPath);
+            Assert.NotNull(prefab, "The generated Patch 4 prefab is missing.");
+            Assert.IsNull(
+                prefab.GetComponent<Patch4V21FootPlantController>(),
+                "Walk leg rotations already have complete eight-phase Animator " +
+                "curves. A LateUpdate foot solver on the same prefab gives all " +
+                "six leg channels a second writer and can collapse or snap them.");
         }
 
         private static void AssertV23FullFrameSheetsAreImportable()
@@ -1176,6 +1376,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(field, fieldName);
             field.SetValue(target, value);
+        }
+
+        private static object InvokePrivate(
+            object target,
+            string methodName,
+            params object[] arguments)
+        {
+            MethodInfo method = target.GetType().GetMethod(
+                methodName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method, methodName);
+            return method.Invoke(target, arguments);
         }
     }
 }

@@ -1,10 +1,40 @@
 # GameWork Patch 4.0 — Durable Checkpoint
 
-Last updated: 2026-08-14
+Last updated: 2026-08-29
 Branch: `patch-4.0`
 Repository: `timurkamurka11/skinny-to-beast-clicker`
 
 This file is the canonical continuation point for all future Patch 4 work.
+
+## Latest P4.0-AP / V38 single-owner sync and neutral-bind repair
+
+The V37 renderer-owned suppression fix is preserved. V38 addresses the
+remaining failures shown in the supplied Stage 4 Console and actual-room
+screenshots without changing any QA threshold:
+
+- `GameplayVisualStageController` keeps the selected art stage stable, makes
+  one recovery attempt per failure episode and reports the exact missing
+  readiness dependency once. Both a transient disabled Animator and a failed
+  skin-target application are covered through the real public `Sync` path;
+- the generated Patch 4 prefab removes `Patch4V21FootPlantController`, leaving
+  all six Walk leg rotations under the existing eight-phase Animator clip;
+- secondary motion no longer writes `SpineUpper`, which is authored by the
+  animation library;
+- locked-review room travel moves the legacy gameplay character root (and thus
+  its Patch 4 child, shadow and depth state), never the Patch 4 child alone;
+- review travel is shallow and perspective-controlled instead of using the
+  former nearly vertical furniture-collision vector, and restores both root
+  position and scale exactly;
+- before any hybrid mesh bind, the review pauses legacy motion/signals, resets
+  the Animator to `FatMan_Idle_Breathe` at time zero and explicitly rebinds the
+  continuous hybrid from that neutral pose. This prevents an arbitrary prior
+  Walk/Tap/Sit state from becoming the deformation baseline.
+
+Automatic token: `single-owner-sync-neutral-bind-v38`. The repository static
+guard and whitespace validation pass. On the next Unity `6000.3.19f1` import,
+the automatic continuation must rebuild generated assets, compile, run strict
+EditMode/PlayMode tests, and capture a fresh actual-room review. Those Unity
+runtime results remain pending until that run exists; readiness stays locked.
 
 ## Latest P4.0-AO / V37 renderer-owned suppression checkpoint
 

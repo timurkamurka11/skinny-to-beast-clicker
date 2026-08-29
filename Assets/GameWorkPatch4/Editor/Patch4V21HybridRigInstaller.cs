@@ -22,11 +22,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 RemoveIfPresent<Patch4StableBodySkinController>(root);
                 RemoveIfPresent<Patch4CutoutPuppetController>(root);
+                RemoveIfPresent<Patch4V21FootPlantController>(root);
 
                 Patch4CharacterRigController rig =
                     root.GetComponent<Patch4CharacterRigController>();
-                Animator animator = root.GetComponent<Animator>();
-
                 Patch4V21HybridPuppetController controller =
                     root.GetComponent<Patch4V21HybridPuppetController>();
                 if (controller == null)
@@ -49,19 +48,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 serialized.FindProperty("legRSprite").objectReferenceValue = legR;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
 
-                Patch4V21FootPlantController footPlant =
-                    root.GetComponent<Patch4V21FootPlantController>();
-                if (footPlant == null)
-                {
-                    footPlant = root.AddComponent<Patch4V21FootPlantController>();
-                }
-                SerializedObject footSerialized = new(footPlant);
-                footSerialized.FindProperty("rigController").objectReferenceValue = rig;
-                footSerialized.FindProperty("animator").objectReferenceValue = animator;
-                footSerialized.FindProperty("stepLengthRatio").floatValue = .42f;
-                footSerialized.FindProperty("footLiftRatio").floatValue = .11f;
-                footSerialized.ApplyModifiedPropertiesWithoutUndo();
-
                 Patch4V21FaceSwapBridge faceBridge =
                     root.GetComponent<Patch4V21FaceSwapBridge>();
                 if (faceBridge == null)
@@ -74,7 +60,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 faceSerialized.ApplyModifiedPropertiesWithoutUndo();
 
                 EditorUtility.SetDirty(controller);
-                EditorUtility.SetDirty(footPlant);
                 EditorUtility.SetDirty(faceBridge);
                 PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
                 AssetDatabase.SaveAssets();
@@ -83,7 +68,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Debug.Log(
                     "Patch 4 v21 hybrid rig installed: v20 rigid puppet removed; " +
                     "continuous whole-arm/whole-leg artwork uses localized joint " +
-                    "deformation, the walk uses a continuous mirrored leg cycle, " +
+                    "deformation, the Animator exclusively owns the eight-phase " +
+                    "walk leg channels, " +
                     "and neutral/expression facial sprites are explicitly rebound.");
             }
             finally

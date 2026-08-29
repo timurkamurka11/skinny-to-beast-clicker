@@ -34,6 +34,60 @@ namespace SkinnyToBeast.Gameplay
             rigController != null &&
             rigController.HasVisibleSkin &&
             rigController.AnimatorReady;
+        public string VisualReadinessError
+        {
+            get
+            {
+                if (!configured)
+                {
+                    return "Character skin controller is not configured.";
+                }
+
+                if (currentArtIndex < 0)
+                {
+                    return "No character skin is currently applied.";
+                }
+
+                if (!activeSlots.ContainsKey(CharacterSkinSlot.Body))
+                {
+                    return "The selected skin has no active Body slot.";
+                }
+
+                if (characterGroup != null &&
+                    characterGroup.alpha <= 0.999f)
+                {
+                    return
+                        $"Character CanvasGroup alpha is " +
+                        $"{characterGroup.alpha:0.###}.";
+                }
+
+                if (rigController == null)
+                {
+                    return "Character rig controller is missing.";
+                }
+
+                if (!rigController.HasAppliedSkin)
+                {
+                    return "The rig did not retain the selected skin.";
+                }
+
+                if (!rigController.HasVisibleSkin)
+                {
+                    return
+                        "The rig hierarchy is inactive, empty, or has no " +
+                        "measurable visible geometry.";
+                }
+
+                if (!rigController.AnimatorReady)
+                {
+                    return
+                        "The character Animator is disabled, missing its " +
+                        "controller, or missing required layers.";
+                }
+
+                return string.Empty;
+            }
+        }
         public CharacterSkinDefinition CurrentDefinition =>
             definitions != null &&
             currentArtIndex >= 0 &&

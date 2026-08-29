@@ -53,6 +53,7 @@ namespace SkinnyToBeast.Gameplay
         private int currentProteinLevel = -1;
         private int currentCoachLevel = -1;
         private int currentRoomLevel = -1;
+        private int failedCharacterArt = -1;
         private bool built;
 
         public Vector2 DumbbellPosition => DumbbellScenePosition;
@@ -111,11 +112,31 @@ namespace SkinnyToBeast.Gameplay
             bool characterTargetMatches =
                 skinController != null &&
                 skinController.TargetArtIndex == characterArt;
-            if (!characterTargetMatches ||
-                (!skinController.IsTransitioning &&
-                 !skinController.IsVisualReady))
+            bool characterSelectionChanged =
+                currentCharacterArt != characterArt;
+            if (characterSelectionChanged)
             {
+                failedCharacterArt = -1;
                 ApplyCharacter(characterArt, animate && currentCharacterArt >= 0);
+            }
+            else if (!characterTargetMatches)
+            {
+                if (failedCharacterArt != characterArt)
+                {
+                    ApplyCharacter(characterArt, false);
+                }
+            }
+            else if (!skinController.IsTransitioning)
+            {
+                if (skinController.IsVisualReady)
+                {
+                    currentCharacterArt = characterArt;
+                    failedCharacterArt = -1;
+                }
+                else if (failedCharacterArt != characterArt)
+                {
+                    FinalizeCharacterIfReady(characterArt);
+                }
             }
 
             if (dumbbellArt != currentDumbbellArt)
@@ -526,31 +547,68 @@ namespace SkinnyToBeast.Gameplay
                 Mathf.Clamp(artIndex, 0, CharacterStageCount - 1);
             if (skinController == null)
             {
+                currentCharacterArt = safeIndex;
+                ReportCharacterReadinessFailure(
+                    safeIndex,
+                    "Character skin controller is missing.");
                 return;
             }
 
             skinController.ApplySkin(safeIndex, animate);
             visibilityGate?.BeginValidation();
+            currentCharacterArt = safeIndex;
             if (skinController.IsTransitioning &&
                 skinController.TargetArtIndex == safeIndex)
             {
-                currentCharacterArt = safeIndex;
                 return;
             }
 
-            if (skinController.CurrentArtIndex != safeIndex ||
+            FinalizeCharacterIfReady(safeIndex);
+        }
+
+        private bool FinalizeCharacterIfReady(int artIndex)
+        {
+            if (skinController == null)
+            {
+                ReportCharacterReadinessFailure(
+                    artIndex,
+                    "Character skin controller is missing.");
+                return false;
+            }
+
+            if (skinController.CurrentArtIndex != artIndex ||
                 !skinController.EnsureVisibleSkin())
             {
-                currentCharacterArt = -1;
-                Debug.LogError(
-                    $"Character stage {safeIndex + 1} was selected but did " +
-                    "not produce a visible rig. The next Sync will retry it.",
-                    this);
-                return;
+                ReportCharacterReadinessFailure(
+                    artIndex,
+                    skinController.VisualReadinessError);
+                return false;
             }
 
             rigValidator?.ValidateNow(false);
-            currentCharacterArt = safeIndex;
+            currentCharacterArt = artIndex;
+            failedCharacterArt = -1;
+            return true;
+        }
+
+        private void ReportCharacterReadinessFailure(
+            int artIndex,
+            string reason)
+        {
+            if (failedCharacterArt == artIndex)
+            {
+                return;
+            }
+
+            failedCharacterArt = artIndex;
+            string detail = string.IsNullOrWhiteSpace(reason)
+                ? "The visual readiness check failed for an unknown reason."
+                : reason;
+            Debug.LogError(
+                $"Character stage {artIndex + 1} was selected but did not " +
+                $"produce a ready visible rig. Stage selection remains " +
+                $"stable while dependencies recover. {detail}",
+                this);
         }
 
         private void ApplyDumbbell(int artIndex, bool animate)

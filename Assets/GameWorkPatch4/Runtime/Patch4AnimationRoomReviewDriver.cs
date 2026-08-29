@@ -181,6 +181,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Patch4FaceController faceController;
         private Patch4CharacterStateMachine stateMachine;
         private Patch4SecondaryMotionController secondaryMotion;
+        private Patch4V21HybridPuppetController hybridPuppet;
         private Patch4V23FullFramePresentation v23FullFramePresentation;
         private Animator animator;
         private GameObject patch4VisualRoot;
@@ -210,6 +211,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private int neutralSilhouetteArea;
         private bool neutralReferenceCaptured;
         private Vector3 reviewBaseLocalPosition;
+        private Vector3 reviewBaseLocalScale = Vector3.one;
+        private Vector3 reviewDestinationLocalScale = Vector3.one;
         private bool reviewBasePositionCaptured;
         private Vector2 reviewTravelLocalOffset;
         private readonly Vector2[] walkPhaseRootScreenPosition =
@@ -224,8 +227,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
             new Vector2[WalkPhaseCount];
         private string currentClip = string.Empty;
         private string gameplayActionRoutingFailure = string.Empty;
+        private RectTransform reviewTravelRoot;
         private bool started;
         private bool logCaptureRegistered;
+        private bool neutralBindReady;
 
         public event Action<bool, string> ReviewFinished;
 
@@ -256,6 +261,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 ? rig.GetComponent<Patch4CharacterStateMachine>()
                 : null;
             secondaryMotion = motion;
+            hybridPuppet = rig != null
+                ? rig.GetComponent<Patch4V21HybridPuppetController>()
+                : null;
             v23FullFramePresentation = fullFramePresentation;
             animator = targetAnimator;
             patch4VisualRoot = visualRoot;
@@ -378,6 +386,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             PrepareLockedReview();
+            if (!neutralBindReady)
+            {
+                Finish(
+                    false,
+                    "The continuous hybrid rig could not bind from the " +
+                    "verified neutral Animator pose.");
+                yield break;
+            }
             InitializeContactSheet();
             InitializeWalkCycleSheet();
 
@@ -1595,6 +1611,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 faceController == null ||
                 stateMachine == null ||
                 secondaryMotion == null ||
+                hybridPuppet == null ||
                 v23FullFramePresentation == null ||
                 !v23FullFramePresentation.IsReady ||
                 !v23FullFramePresentation.FrameCalibrationReady ||
@@ -1677,13 +1694,26 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void PrepareLockedReview()
         {
-            reviewBaseLocalPosition = rigController.transform.localPosition;
-            reviewBasePositionCaptured = true;
+            reviewTravelRoot = legacyRigController != null
+                ? legacyRigController.transform as RectTransform
+                : null;
+            reviewBasePositionCaptured = reviewTravelRoot != null;
+            reviewBaseLocalPosition = reviewBasePositionCaptured
+                ? reviewTravelRoot.localPosition
+                : Vector3.zero;
+            reviewBaseLocalScale = reviewBasePositionCaptured
+                ? reviewTravelRoot.localScale
+                : Vector3.one;
+            reviewDestinationLocalScale = new Vector3(
+                reviewBaseLocalScale.x * 0.92f,
+                reviewBaseLocalScale.y * 0.92f,
+                reviewBaseLocalScale.z);
             reviewTravelLocalOffset = Vector2.zero;
             rigController.SetPatch4Enabled(false);
             stateMachine.SetLockedReviewActive(true);
             visibilityGuardWasEnabled = visibilityGuard.enabled;
             visibilityGuard.enabled = false;
+            PauseLegacyMotionAndFootsteps();
             // Keep the full legacy hierarchy active so its stage controller,
             // skin validation, room routine and action signals remain valid.
             // Suppress the pixels at their renderer owner instead of disabling
@@ -1693,13 +1723,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
             report.legacyRigStayedLogicallyActive =
                 legacyRigController != null &&
                 legacyRigController.gameObject.activeInHierarchy;
-            PauseLegacyMotionAndFootsteps();
+            secondaryMotion.SetEditorReviewActive(false);
+            neutralBindReady = PrepareNeutralAnimatorPose();
             patch4VisualRoot.SetActive(true);
             // Arm the persistent layered character before the visual root
             // returns so no full-frame fallback can flash for one render.
-            v23FullFramePresentation.SetReviewPose(
-                "FatMan_Idle_Breathe",
-                0f);
+            neutralBindReady &=
+                v23FullFramePresentation.SetReviewPose(
+                    "FatMan_Idle_Breathe",
+                    0f);
+            neutralBindReady &= hybridPuppet.RebindAtCurrentPose();
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -1707,10 +1740,55 @@ namespace SkinnyToBeast.Gameplay.Patch4
             Canvas.ForceUpdateCanvases();
         }
 
+        private bool PrepareNeutralAnimatorPose()
+        {
+            if (animator == null ||
+                animator.runtimeAnimatorController == null ||
+                animator.layerCount <= 0)
+            {
+                return false;
+            }
+
+            int idleStateHash = Animator.StringToHash(
+                animator.GetLayerName(0) + ".FatMan_Idle_Breathe");
+            if (!animator.HasState(0, idleStateHash))
+            {
+                return false;
+            }
+
+            animator.updateMode = AnimatorUpdateMode.UnscaledTime;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.Rebind();
+            ConfigureAnimatorParametersForClip("FatMan_Idle_Breathe");
+            animator.speed = 0f;
+            animator.Play(idleStateHash, 0, 0f);
+            animator.Update(0f);
+            return VerifyCurrentAnimatorState(
+                idleStateHash,
+                out _);
+        }
+
         private void PrepareWalkReviewTravel()
         {
+            if (reviewTravelRoot == null && legacyRigController != null)
+            {
+                reviewTravelRoot =
+                    legacyRigController.transform as RectTransform;
+            }
+            if (!reviewBasePositionCaptured && reviewTravelRoot != null)
+            {
+                reviewBaseLocalPosition = reviewTravelRoot.localPosition;
+                reviewBaseLocalScale = reviewTravelRoot.localScale;
+                reviewBasePositionCaptured = true;
+            }
+
+            reviewDestinationLocalScale = new Vector3(
+                reviewBaseLocalScale.x * 0.92f,
+                reviewBaseLocalScale.y * 0.92f,
+                reviewBaseLocalScale.z);
+
             Transform target =
-                rigController != null ? rigController.transform : null;
+                reviewTravelRoot;
             Transform parent = target != null ? target.parent : null;
             if (target == null || parent == null)
             {
@@ -1763,7 +1841,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 referenceWidth * 0.48f,
                 128f,
                 320f);
-            Vector2 screenDirection = new Vector2(0.30f, 0.954f).normalized;
+            // Move primarily across the open training floor with only a small
+            // depth component. The former almost-vertical vector lifted the
+            // character into the dresser/rack area and read as floating even
+            // when its shadow followed the correct gameplay root.
+            Vector2 screenDirection =
+                new Vector2(0.92f, 0.392f).normalized;
             reviewTravelLocalOffset = new Vector2(
                 targetTravelPixels * screenDirection.x /
                     pixelsPerLocalUnitX,
@@ -1773,25 +1856,32 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void SetWalkReviewTravel(float progress)
         {
-            if (rigController == null || !reviewBasePositionCaptured)
+            if (reviewTravelRoot == null || !reviewBasePositionCaptured)
             {
                 return;
             }
 
+            float clampedProgress = Mathf.Clamp01(progress);
             Vector3 position = reviewBaseLocalPosition;
             Vector2 offset = reviewTravelLocalOffset *
-                Mathf.Clamp01(progress);
+                clampedProgress;
             position.x += offset.x;
             position.y += offset.y;
-            rigController.transform.localPosition = position;
+            reviewTravelRoot.localPosition = position;
+            reviewTravelRoot.localScale = Vector3.Lerp(
+                reviewBaseLocalScale,
+                reviewDestinationLocalScale,
+                Mathf.SmoothStep(0f, 1f, clampedProgress));
         }
 
         private void RestoreWalkReviewTravel()
         {
-            if (rigController != null && reviewBasePositionCaptured)
+            if (reviewTravelRoot != null && reviewBasePositionCaptured)
             {
-                rigController.transform.localPosition =
+                reviewTravelRoot.localPosition =
                     reviewBaseLocalPosition;
+                reviewTravelRoot.localScale =
+                    reviewBaseLocalScale;
             }
         }
 

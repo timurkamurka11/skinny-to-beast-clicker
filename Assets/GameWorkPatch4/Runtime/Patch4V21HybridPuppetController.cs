@@ -67,6 +67,20 @@ namespace SkinnyToBeast.Gameplay.Patch4
             generatedRoot != null &&
             appliedGeneratedRootId == generatedRoot.GetInstanceID();
 
+        /// <summary>
+        /// Rebuilds all visible hybrid bindings from the pose currently held
+        /// by the Animator. The locked room review calls this only after it has
+        /// reset every authored channel to the neutral Idle pose, preventing a
+        /// preceding gameplay action from becoming the mesh bind pose.
+        /// </summary>
+        public bool RebindAtCurrentPose()
+        {
+            ResolveReferences();
+            appliedGeneratedRootId = 0;
+            TryApplyWhenVisible();
+            return IsApplied;
+        }
+
         public void SetFacingSign(int sign)
         {
             facingSign = sign < 0 ? -1f : 1f;

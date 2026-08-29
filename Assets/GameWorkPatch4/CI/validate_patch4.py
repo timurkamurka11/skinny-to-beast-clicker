@@ -291,7 +291,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"renderer-owned-preview-suppression-v37"',
+            '"single-owner-sync-neutral-bind-v38"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -347,6 +347,35 @@ def validate_readiness_gate(root: Path, errors: list[str]) -> None:
 
 
 def validate_runtime_installation(root: Path, errors: list[str]) -> None:
+    stage_controller = read_text(
+        root,
+        "Assets/Scripts/Gameplay/GameplayVisualStageController.cs",
+        errors,
+    )
+    if stage_controller:
+        for snippet in (
+            "failedCharacterArt",
+            "characterSelectionChanged",
+            "ReportCharacterReadinessFailure(",
+            "skinController.VisualReadinessError",
+        ):
+            if snippet not in stage_controller:
+                fail(
+                    errors,
+                    "Stage 4 readiness failures are not latched: " + snippet,
+                )
+        if stage_controller.count("currentCharacterArt = -1;") != 1:
+            fail(
+                errors,
+                "A readiness fault must not deselect the current character "
+                "stage and trigger destructive Sync retries.",
+            )
+        if "The next Sync will retry it." in stage_controller:
+            fail(
+                errors,
+                "Gameplay Sync still promises an unbounded visible-rig retry.",
+            )
+
     installer = read_text(
         root,
         "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
@@ -469,6 +498,16 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         ):
             if snippet not in builder:
                 fail(errors, f"V23 ten-state frame builder is missing: {snippet}")
+        if re.search(
+            r'SetChannel\([^;]+"SpineUpper"',
+            builder,
+            re.DOTALL,
+        ):
+            fail(
+                errors,
+                "SpineUpper is written by both Animator clips and the "
+                "LateUpdate secondary-motion controller.",
+            )
 
     v23_presentation = read_text(
         root,
@@ -549,37 +588,23 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     + forbidden,
                 )
 
-    foot_plant = read_text(
+    hybrid_installer = read_text(
         root,
-        "Assets/GameWorkPatch4/Runtime/Patch4V21FootPlantController.cs",
+        "Assets/GameWorkPatch4/Editor/Patch4V21HybridRigInstaller.cs",
         errors,
     )
-    if foot_plant:
-        for snippet in (
-            "Vector3 travelDirection = Vector3.right",
-            "Vector3 delta = characterRoot.position - previousRootPosition",
-            "travelDirection = delta.normalized",
-            "EvaluateGaitTarget(",
-            "Mathf.Repeat(phase + .5f, 1f)",
-            "Time.unscaledDeltaTime / .20f",
-            "SolveLeg(",
-        ):
-            if snippet not in foot_plant:
-                fail(
-                    errors,
-                    "V36 continuous mirrored gait is missing: " + snippet,
-                )
-        for forbidden in (
-            "BeginCycle(phase, false)",
-            "SwingArc(",
-            "private Vector3 plantL",
-        ):
-            if forbidden in foot_plant:
-                fail(
-                    errors,
-                    "V36 must not restore the asymmetric world-plant gait: " +
-                    forbidden,
-                )
+    if hybrid_installer:
+        if "RemoveIfPresent<Patch4V21FootPlantController>(root)" not in hybrid_installer:
+            fail(
+                errors,
+                "The generated prefab must remove the procedural foot solver; "
+                "the Walk clip already owns all six leg rotation channels.",
+            )
+        if "AddComponent<Patch4V21FootPlantController>" in hybrid_installer:
+            fail(
+                errors,
+                "The generated prefab still installs a second Walk leg writer.",
+            )
 
     preview_driver = read_text(
         root,
@@ -798,6 +823,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "MaximumGameplayActionRouteObservationFrames",
             "DescribeGameplayActionRoutingFailure(",
             "stateMachine.SetLockedReviewActive(true)",
+            "PrepareNeutralAnimatorPose()",
+            "hybridPuppet.RebindAtCurrentPose()",
         ):
             if snippet not in review_driver:
                 fail(errors, f"Locked animation-room driver is missing: {snippet}")
@@ -813,6 +840,38 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             fail(
                 errors,
                 "Room review must address Animator states by verified full-path hash",
+            )
+        if "legacyRigController.transform as RectTransform" not in review_driver:
+            fail(
+                errors,
+                "Walk review must resolve the authoritative gameplay character "
+                "root before applying room travel.",
+            )
+        if "rigController.transform.localPosition =" in review_driver:
+            fail(
+                errors,
+                "Walk review still translates the Patch 4 child and detaches it "
+                "from gameplay position, shadow and room depth.",
+            )
+        for snippet in (
+            "reviewDestinationLocalScale",
+            "reviewTravelRoot.localScale =",
+        ):
+            if snippet not in review_driver:
+                fail(
+                    errors,
+                    "Walk review does not keep travel grounded and "
+                    "perspective-controlled: " + snippet,
+                )
+        if not re.search(
+            r"screenDirection\s*=\s*"
+            r"new Vector2\(0\.92f,\s*0\.392f\)\.normalized",
+            review_driver,
+        ):
+            fail(
+                errors,
+                "Walk review still uses the near-vertical furniture-collision "
+                "route instead of the shallow room-floor route.",
             )
         walk_review_start = review_driver.find(
             "private IEnumerator ReviewWalkCycle(")

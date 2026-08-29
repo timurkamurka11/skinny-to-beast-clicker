@@ -322,12 +322,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             SerializedObject serialized = new(target);
             serialized.FindProperty("rigController").objectReferenceValue = rig;
             SerializedProperty channels = serialized.FindProperty("channels");
-            channels.arraySize = 5;
+            channels.arraySize = 4;
             SetChannel(channels.GetArrayElementAtIndex(0), "BellyTip", bones["BellyTip"], new Vector3(0f, 0.035f, 0f), new Vector3(0f, 0f, 1.4f), 0.85f, 0f, 0.28f);
             SetChannel(channels.GetArrayElementAtIndex(1), "ChestSoftL", bones["ChestSoftL"], new Vector3(0f, 0.018f, 0f), new Vector3(0f, 0f, -0.8f), 1.05f, -0.12f, 0.42f);
             SetChannel(channels.GetArrayElementAtIndex(2), "ChestSoftR", bones["ChestSoftR"], new Vector3(0f, 0.018f, 0f), new Vector3(0f, 0f, 0.8f), 1.05f, 0.12f, 0.42f);
             SetChannel(channels.GetArrayElementAtIndex(3), "Jaw", bones["Jaw"], new Vector3(0f, 0.012f, 0f), new Vector3(0f, 0f, 0.5f), 1.18f, 0.2f, 0.52f);
-            SetChannel(channels.GetArrayElementAtIndex(4), "SpineUpper", bones["SpineUpper"], new Vector3(0f, 0.012f, 0f), new Vector3(0f, 0f, 0.35f), 0.72f, -0.25f, 0.3f);
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

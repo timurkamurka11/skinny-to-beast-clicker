@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
@@ -16,6 +17,265 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
         private const string Patch4PrefabResourcePath = "FatMan_Patch4";
         private const string Patch4InstanceName = "FatMan_Patch4_Instance";
         private const float MinimumV23FaceDifference = 0.02f;
+
+        [UnityTest]
+        public IEnumerator Stage4Sync_LatchesReadinessFailureAndRecoversWithoutRetrySpam()
+        {
+            GameObject room = new(
+                "LivingGameplayScene",
+                typeof(RectTransform),
+                typeof(Canvas));
+            List<string> stageFailureLogs = new();
+            Application.LogCallback captureFailure =
+                (condition, _, type) =>
+                {
+                    if (type == LogType.Error &&
+                        condition.Contains(
+                            "Character stage 4",
+                            StringComparison.Ordinal))
+                    {
+                        stageFailureLogs.Add(condition);
+                    }
+                };
+            Application.logMessageReceived += captureFailure;
+            try
+            {
+                Canvas roomCanvas = room.GetComponent<Canvas>();
+                roomCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+                Type stageControllerType = RequireType(
+                    "SkinnyToBeast.Gameplay.GameplayVisualStageController");
+                Component stageController =
+                    room.AddComponent(stageControllerType);
+                MethodInfo build = stageControllerType.GetMethod(
+                    "Build",
+                    BindingFlags.Instance | BindingFlags.Public);
+                MethodInfo sync = stageControllerType.GetMethod(
+                    "Sync",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(build);
+                Assert.NotNull(sync);
+
+                build.Invoke(stageController, null);
+                sync.Invoke(
+                    stageController,
+                    new object[] { 0, null, false });
+                yield return null;
+
+                Transform characterRoot = room.transform.Find(
+                    "CharacterActors/CharacterRoot");
+                Assert.NotNull(characterRoot);
+                Type skinType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterSkinController");
+                Type legacyRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterRigController");
+                Component skin = characterRoot.GetComponent(skinType);
+                Component legacyRig = characterRoot.GetComponent(
+                    legacyRigType);
+                Animator animator = characterRoot.GetComponent<Animator>();
+                Assert.NotNull(skin);
+                Assert.NotNull(legacyRig);
+                Assert.NotNull(animator);
+                int[] bodyStageInputs = { 0, 1, 2, 4 };
+                for (int artStage = 0;
+                     artStage < bodyStageInputs.Length;
+                     artStage++)
+                {
+                    sync.Invoke(
+                        stageController,
+                        new object[]
+                        {
+                            bodyStageInputs[artStage],
+                            null,
+                            false
+                        });
+                    yield return null;
+                    Assert.AreEqual(
+                        artStage,
+                        GetIntProperty(skin, "CurrentArtIndex"),
+                        $"Character art stage {artStage + 1} was not selected.");
+                    Assert.AreEqual(
+                        1,
+                        GetIntProperty(skin, "ActiveBaseSkinCount"),
+                        $"Character art stage {artStage + 1} has duplicate or missing " +
+                        "base skins.");
+                    Assert.IsTrue(
+                        GetBoolProperty(skin, "IsVisualReady"),
+                        $"Character art stage {artStage + 1} is not visually ready.");
+                    Assert.IsTrue(
+                        GetBoolProperty(legacyRig, "HasVisibleSkin"),
+                        $"Character art stage {artStage + 1} has no visible rig.");
+                }
+
+                Assert.Zero(
+                    stageFailureLogs.Count,
+                    "A normal Stage 1-4 selection emitted a readiness error.");
+                Assert.AreEqual(
+                    1,
+                    characterRoot.GetComponents(legacyRigType).Length,
+                    "Stage 4 must own exactly one legacy gameplay rig.");
+
+                Type installerType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4RuntimeInstaller");
+                MethodInfo install = installerType.GetMethod(
+                    "InstallAvailableGameplayRigs",
+                    BindingFlags.Static | BindingFlags.Public);
+                Assert.NotNull(install);
+                install.Invoke(null, null);
+                yield return null;
+
+                Transform patchInstance = characterRoot.Find(
+                    Patch4InstanceName);
+                Assert.NotNull(
+                    patchInstance,
+                    "The locked Patch 4 rollback candidate was not installed.");
+                Type patchRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterRigController");
+                Component patchRig = patchInstance.GetComponent(patchRigType);
+                Assert.NotNull(patchRig);
+                Assert.AreEqual(
+                    1,
+                    characterRoot.GetComponentsInChildren(
+                        patchRigType,
+                        true).Length,
+                    "Stage 4 installed duplicate Patch 4 rig candidates.");
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "The locked Patch 4 preview cannot become a second " +
+                    "visible gameplay rig.");
+                Transform patchVisual = patchInstance.Find("Patch4VisualRoot");
+                Assert.NotNull(patchVisual);
+                Assert.IsFalse(
+                    patchVisual.gameObject.activeSelf,
+                    "The rollback candidate draws a second gameplay character.");
+
+                Type spriteRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterSpriteRigController");
+                Component spriteRig = characterRoot.GetComponent(spriteRigType);
+                Assert.NotNull(spriteRig);
+                MethodInfo suppressPreviewPixels = spriteRigType.GetMethod(
+                    "SetEditorPreviewSuppressed",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(suppressPreviewPixels);
+                suppressPreviewPixels.Invoke(spriteRig, new object[] { true });
+                Transform legacyVisual =
+                    GetObjectProperty(legacyRig, "VisualRoot") as Transform;
+                Assert.NotNull(legacyVisual);
+                Assert.IsTrue(
+                    legacyVisual.gameObject.activeInHierarchy,
+                    "Renderer suppression deactivated the logical Stage 4 rig.");
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    sync.Invoke(
+                        stageController,
+                        new object[] { 4, null, false });
+                }
+                Assert.Zero(
+                    stageFailureLogs.Count,
+                    "Renderer-only preview suppression made Stage 4 retry.");
+                Assert.IsTrue(
+                    GetBoolProperty(skin, "IsVisualReady"),
+                    "Renderer-only suppression broke logical visual readiness.");
+
+                animator.enabled = false;
+                Assert.IsFalse(GetBoolProperty(skin, "IsVisualReady"));
+                LogAssert.Expect(
+                    LogType.Error,
+                    "Character stage 4 was selected but did not produce a " +
+                    "ready visible rig. Stage selection remains stable while " +
+                    "dependencies recover. The character Animator is disabled, " +
+                    "missing its controller, or missing required layers.");
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    sync.Invoke(
+                        stageController,
+                        new object[] { 4, null, false });
+                }
+
+                Assert.AreEqual(
+                    1,
+                    stageFailureLogs.Count,
+                    "A persistent Stage 4 readiness fault must be reported " +
+                    "once, not once per gameplay refresh.");
+                StringAssert.DoesNotContain(
+                    "next Sync will retry",
+                    stageFailureLogs[0]);
+                Assert.AreEqual(
+                    3,
+                    (int)GetPrivateField(
+                        stageController,
+                        "currentCharacterArt"),
+                    "A transient readiness fault must not deselect Stage 4.");
+                Assert.AreEqual(3, GetIntProperty(skin, "CurrentArtIndex"));
+                Assert.AreEqual(1, GetIntProperty(skin, "ActiveBaseSkinCount"));
+
+                animator.enabled = true;
+                yield return null;
+                sync.Invoke(
+                    stageController,
+                    new object[] { 4, null, false });
+
+                Assert.IsTrue(
+                    GetBoolProperty(skin, "IsVisualReady"),
+                    "Stage 4 did not recover when its Animator became ready.");
+                Assert.AreEqual(
+                    1,
+                    stageFailureLogs.Count,
+                    "Recovery must not emit another Stage 4 failure.");
+                Assert.AreEqual(
+                    3,
+                    (int)GetPrivateField(
+                        stageController,
+                        "currentCharacterArt"));
+
+                suppressPreviewPixels.Invoke(
+                    spriteRig,
+                    new object[] { false });
+
+                stageFailureLogs.Clear();
+                MethodInfo configureSkin = skinType.GetMethod(
+                    "Configure",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(configureSkin);
+                configureSkin.Invoke(
+                    skin,
+                    new object[]
+                    {
+                        null,
+                        characterRoot.GetComponent<CanvasGroup>(),
+                        4
+                    });
+                LogAssert.Expect(
+                    LogType.Error,
+                    "Character stage 4 was selected but did not produce a " +
+                    "ready visible rig. Stage selection remains stable while " +
+                    "dependencies recover. Character skin controller is not " +
+                    "configured.");
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    sync.Invoke(
+                        stageController,
+                        new object[] { 4, null, false });
+                }
+
+                Assert.AreEqual(
+                    1,
+                    stageFailureLogs.Count,
+                    "A failed skin application must also latch instead of " +
+                    "retrying every gameplay refresh.");
+                Assert.AreEqual(
+                    3,
+                    (int)GetPrivateField(
+                        stageController,
+                        "currentCharacterArt"));
+            }
+            finally
+            {
+                Application.logMessageReceived -= captureFailure;
+                UnityEngine.Object.DestroyImmediate(room);
+            }
+        }
 
         [UnityTest]
         public IEnumerator LivingGameplayRoomGetsLockedRollbackInstance()

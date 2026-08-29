@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "renderer-owned-preview-suppression-v37";
+            "single-owner-sync-neutral-bind-v38";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v37.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v38.gameplay.";
 
         private static int idleFrames;
 
@@ -57,22 +57,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V37 renderer-owned preview suppression pass " +
-                    "started. V36 deactivated Patch 3.5 VisualRoot and made " +
-                    "GameplayVisualStageController reject the selected Stage 4 " +
-                    "skin on every refresh. The preview now leaves that complete " +
-                    "hierarchy active and asks its renderer owner to suppress only " +
-                    "the bounded body and face pixels, so stage validation, room " +
-                    "movement and gameplay signals stay alive without drawing a " +
-                    "second character. HeadBase " +
-                    "owns the exact neutral face; blink, gaze, open mouth and " +
-                    "smile are feathered mutually exclusive replacements. Both " +
-                    "legs use the same mirrored, phase-shifted IK cycle with a " +
-                    "soft state-entry blend. An Editor-only empty camera removes " +
-                    "the InitTestScene diagnostic without touching production " +
-                    "scenes. Unity will rebuild all local layers and runtime " +
-                    "assets, run strict safety/tests, then capture a fresh actual-" +
-                    "room review. Readiness remains locked and Patch 3.5 remains " +
+                    "Patch 4 V38 single-owner rig repair started. Stage 4 " +
+                    "selection now latches one actionable readiness failure " +
+                    "instead of reapplying the same skin every refresh. The " +
+                    "Animator exclusively owns all six Walk leg rotations; " +
+                    "secondary motion no longer competes for SpineUpper. The " +
+                    "actual-room review pauses legacy signals, resets the " +
+                    "Animator to neutral, rebinds the hybrid mesh from that " +
+                    "pose, and moves the authoritative gameplay root along a " +
+                    "shallow perspective-controlled route with exact restore. " +
+                    "Unity will rebuild all local layers and runtime assets, " +
+                    "run strict safety plus EditMode/PlayMode tests, then " +
+                    "capture a fresh actual-room review. No validator is " +
+                    "weakened; readiness remains locked and Patch 3.5 remains " +
                     "the rollback owner.");
                 if (!Patch4AdobeMaskDownloader.RestoreRepositorySources())
                 {
@@ -97,7 +94,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V37 continuation failed: " + exception);
+                    "Patch 4 automatic V38 continuation failed: " + exception);
             }
         }
     }
