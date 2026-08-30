@@ -1134,6 +1134,29 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     errors,
                     "EditMode gait regression coverage is missing: " + snippet,
                 )
+        for snippet in (
+            "AssertLegacyRendererSuppressionContract(legacySpriteRig)",
+            '"SetReplacementPixelsSuppressed"',
+            '"PixelsSuppressedByReplacement"',
+            "replacementSetter.Invoke(",
+            "editorSetter.Invoke(",
+        ):
+            if snippet not in contract_tests:
+                fail(
+                    errors,
+                    "EditMode renderer-ownership regression coverage is "
+                    "missing: " + snippet,
+                )
+        for stale_snippet in (
+            '"ApplyEditorPreviewVisibility()"',
+            '"!spriteController.EditorPreviewSuppressed"',
+        ):
+            if stale_snippet in contract_tests:
+                fail(
+                    errors,
+                    "EditMode tests still require the retired editor-only "
+                    "renderer suppression implementation: " + stale_snippet,
+                )
         if re.search(
             r"SkinnyToBeast\.Gameplay\.Patch4\.Editor\s*\.\s*"
             r"Patch4PrefabBuilder",
@@ -1415,6 +1438,17 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     errors,
                     "PlayMode full-path gait regression coverage is missing: "
                     + snippet,
+                )
+        for snippet in (
+            "SetLockedReviewActive",
+            "visibility.enabled = false",
+            "A correctly owned locked review required a visibility",
+        ):
+            if snippet not in playmode_tests:
+                fail(
+                    errors,
+                    "PlayMode renderer-ownership regression coverage is "
+                    "missing: " + snippet,
                 )
 
         neutral_master_fields = (

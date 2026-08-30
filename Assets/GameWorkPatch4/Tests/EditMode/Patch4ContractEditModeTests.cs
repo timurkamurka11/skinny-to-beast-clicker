@@ -1139,16 +1139,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
 
             Type legacySpriteRig = RequireType(
                 "SkinnyToBeast.Gameplay.CharacterSpriteRigController");
-            Assert.NotNull(
-                legacySpriteRig.GetMethod(
-                    "SetEditorPreviewSuppressed",
-                    BindingFlags.Instance | BindingFlags.Public),
-                "Patch 4 cannot hide the renderer-owned Patch 3.5 pixels " +
-                "without deactivating the gameplay visual hierarchy.");
-            Assert.NotNull(
-                legacySpriteRig.GetProperty(
-                    "EditorPreviewSuppressed",
-                    BindingFlags.Instance | BindingFlags.Public));
+            AssertLegacyRendererSuppressionContract(legacySpriteRig);
 
             string projectRoot =
                 Directory.GetParent(Application.dataPath)?.FullName ??
@@ -1218,35 +1209,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "Disabling VisualRoot makes GameplayVisualStageController " +
                 "reject Stage 4 and retry Sync forever.");
 
-            string spriteRigSource = File.ReadAllText(Path.Combine(
-                projectRoot,
-                "Assets/Scripts/Gameplay/" +
-                "CharacterSpriteRigController.cs"));
-            string layeredRigSource = File.ReadAllText(Path.Combine(
-                projectRoot,
-                "Assets/Scripts/Gameplay/" +
-                "CharacterLayeredRigController.cs"));
-            foreach (string snippet in new[]
-            {
-                "EditorPreviewSuppressed",
-                "SetEditorPreviewSuppressed(bool suppressed)",
-                "ApplyEditorPreviewVisibility()"
-            })
-            {
-                StringAssert.Contains(
-                    snippet,
-                    spriteRigSource,
-                    "Legacy renderer suppression is missing: " + snippet);
-            }
-            StringAssert.Contains(
-                "!spriteController.EditorPreviewSuppressed",
-                layeredRigSource,
-                "The bounded Patch 3.5 puppet ignores renderer suppression.");
-            StringAssert.Contains(
-                "puppetGraphic.enabled = showOwnedPixels",
-                layeredRigSource,
-                "The bounded Patch 3.5 body remains visible during review.");
-
             StringAssert.StartsWith(
                 "#if UNITY_EDITOR",
                 driverSource.TrimStart(),
@@ -1262,6 +1224,66 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "SetPatch4Enabled(true)",
                 previewSource + driverSource,
                 "Interactive preview must never activate Patch 4 readiness.");
+        }
+
+        private static void AssertLegacyRendererSuppressionContract(
+            Type legacySpriteRig)
+        {
+            const BindingFlags PublicInstance =
+                BindingFlags.Instance | BindingFlags.Public;
+            MethodInfo replacementSetter = legacySpriteRig.GetMethod(
+                "SetReplacementPixelsSuppressed",
+                PublicInstance);
+            PropertyInfo replacementState = legacySpriteRig.GetProperty(
+                "PixelsSuppressedByReplacement",
+                PublicInstance);
+            MethodInfo editorSetter = legacySpriteRig.GetMethod(
+                "SetEditorPreviewSuppressed",
+                PublicInstance);
+            PropertyInfo editorState = legacySpriteRig.GetProperty(
+                "EditorPreviewSuppressed",
+                PublicInstance);
+
+            Assert.NotNull(
+                replacementSetter,
+                "Patch 4 has no runtime-safe renderer ownership API.");
+            Assert.NotNull(replacementState);
+            Assert.NotNull(
+                editorSetter,
+                "Editor review lost its compatibility suppression entry.");
+            Assert.NotNull(editorState);
+
+            GameObject probe = new("Patch4RendererSuppressionProbe");
+            try
+            {
+                Component rendererOwner = probe.AddComponent(legacySpriteRig);
+                Assert.NotNull(rendererOwner);
+
+                replacementSetter.Invoke(
+                    rendererOwner,
+                    new object[] { true });
+                Assert.IsTrue(
+                    (bool)replacementState.GetValue(rendererOwner),
+                    "The runtime replacement setter did not retain renderer " +
+                    "ownership.");
+                Assert.IsTrue(
+                    (bool)editorState.GetValue(rendererOwner),
+                    "Editor review does not observe the authoritative " +
+                    "runtime suppression state.");
+
+                editorSetter.Invoke(
+                    rendererOwner,
+                    new object[] { false });
+                Assert.IsFalse(
+                    (bool)replacementState.GetValue(rendererOwner),
+                    "The editor compatibility setter did not restore the " +
+                    "authoritative runtime suppression state.");
+                Assert.IsFalse((bool)editorState.GetValue(rendererOwner));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(probe);
+            }
         }
 
         private static void AssertStateTransition(

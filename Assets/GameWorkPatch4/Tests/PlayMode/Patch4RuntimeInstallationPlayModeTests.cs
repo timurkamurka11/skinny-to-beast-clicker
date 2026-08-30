@@ -26,6 +26,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 typeof(RectTransform),
                 typeof(Canvas));
             List<string> stageFailureLogs = new();
+            List<string> visibilityRepairLogs = new();
             Application.LogCallback captureFailure =
                 (condition, _, type) =>
                 {
@@ -35,6 +36,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                             StringComparison.Ordinal))
                     {
                         stageFailureLogs.Add(condition);
+                    }
+
+                    if (type == LogType.Warning &&
+                        condition.Contains(
+                            "Patch 4 visibility guard repaired a conflicting " +
+                            "body state",
+                            StringComparison.Ordinal))
+                    {
+                        visibilityRepairLogs.Add(condition);
                     }
                 };
             Application.logMessageReceived += captureFailure;
@@ -154,14 +164,48 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     "SkinnyToBeast.Gameplay.CharacterSpriteRigController");
                 Component spriteRig = characterRoot.GetComponent(spriteRigType);
                 Assert.NotNull(spriteRig);
-                MethodInfo suppressPreviewPixels = spriteRigType.GetMethod(
-                    "SetEditorPreviewSuppressed",
+                Type stateMachineType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterStateMachine");
+                Component stateMachine = patchInstance.GetComponent(
+                    stateMachineType);
+                Assert.NotNull(stateMachine);
+                MethodInfo setReviewActive = stateMachineType.GetMethod(
+                    "SetLockedReviewActive",
                     BindingFlags.Instance | BindingFlags.Public);
-                Assert.NotNull(suppressPreviewPixels);
-                suppressPreviewPixels.Invoke(spriteRig, new object[] { true });
+                Assert.NotNull(setReviewActive);
+                Type visibilityType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterVisibilityGuard");
+                Behaviour visibility = patchInstance.GetComponent(
+                    visibilityType) as Behaviour;
+                Assert.NotNull(visibility);
+                MethodInfo suppressReplacementPixels =
+                    spriteRigType.GetMethod(
+                        "SetReplacementPixelsSuppressed",
+                        BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(suppressReplacementPixels);
+
+                setReviewActive.Invoke(
+                    stateMachine,
+                    new object[] { true });
+                visibility.enabled = false;
+                suppressReplacementPixels.Invoke(
+                    spriteRig,
+                    new object[] { true });
+                patchVisual.gameObject.SetActive(true);
                 Transform legacyVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;
                 Assert.NotNull(legacyVisual);
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"),
+                    "The locked review did not claim legacy renderer " +
+                    "ownership.");
+                Assert.IsTrue(
+                    patchVisual.gameObject.activeSelf,
+                    "The locked review has no authoritative Patch 4 pixels.");
                 Assert.IsTrue(
                     legacyVisual.gameObject.activeInHierarchy,
                     "Renderer suppression deactivated the logical Stage 4 rig.");
@@ -229,9 +273,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                         stageController,
                         "currentCharacterArt"));
 
-                suppressPreviewPixels.Invoke(
+                setReviewActive.Invoke(
+                    stateMachine,
+                    new object[] { false });
+                patchVisual.gameObject.SetActive(false);
+                suppressReplacementPixels.Invoke(
                     spriteRig,
                     new object[] { false });
+                visibility.enabled = true;
+                yield return null;
+                Assert.IsFalse(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"),
+                    "The locked review did not restore legacy renderer " +
+                    "ownership.");
+                Assert.IsFalse(patchVisual.gameObject.activeSelf);
+                Assert.Zero(
+                    visibilityRepairLogs.Count,
+                    "A correctly owned locked review required a visibility " +
+                    "repair.");
 
                 stageFailureLogs.Clear();
                 MethodInfo configureSkin = skinType.GetMethod(
