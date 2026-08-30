@@ -725,8 +725,30 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     false);
                 legacyRoot.name = "CharacterRoot";
 
-                Component legacyRig = BuildLegacyRig(legacyRoot);
+                Component legacyRig = BuildReadyLegacyGameplayOwner(
+                    legacyRoot,
+                    out Component legacySkin,
+                    out Animator legacyAnimator);
                 Assert.NotNull(legacyRig);
+                Assert.NotNull(legacySkin);
+                Assert.IsTrue(
+                    GetBoolProperty(legacySkin, "IsConfigured"),
+                    "The rollback skin must be configured before Patch 4 " +
+                    "preview suppression begins.");
+                Assert.AreEqual(
+                    3,
+                    GetIntProperty(legacySkin, "CurrentArtIndex"),
+                    "The rollback owner must have the Stage 4 skin applied " +
+                    "before Patch 4 preview suppression begins.");
+                AssertLegacyAnimatorContract(legacyAnimator);
+                Assert.IsTrue(
+                    GetBoolProperty(legacyRig, "AnimatorReady"),
+                    "The rollback Animator must be ready before Patch 4 " +
+                    "preview suppression begins.");
+                Assert.IsTrue(
+                    GetBoolProperty(legacySkin, "IsVisualReady"),
+                    "The configured rollback skin must pass its complete " +
+                    "readiness gate before Patch 4 preview suppression begins.");
 
                 Transform legacyVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;
@@ -1431,22 +1453,67 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 "The runtime Animator is missing gameplay parameters.");
         }
 
-        private static Component BuildLegacyRig(GameObject root)
+        private static void AssertLegacyAnimatorContract(Animator animator)
+        {
+            Assert.NotNull(
+                animator,
+                "The rollback gameplay owner has no Animator.");
+            Assert.IsTrue(
+                animator.enabled,
+                "The rollback gameplay Animator is disabled.");
+            Assert.NotNull(
+                animator.runtimeAnimatorController,
+                "The rollback gameplay Animator has no runtime controller.");
+
+            string[] requiredLayers =
+            {
+                "Base",
+                "UpperBody",
+                "Face",
+                "FullBodyAction"
+            };
+            string[] actualLayers = Enumerable.Range(0, animator.layerCount)
+                .Select(index => animator.GetLayerName(index))
+                .ToArray();
+            CollectionAssert.IsSubsetOf(
+                requiredLayers,
+                actualLayers,
+                "The rollback gameplay Animator is missing required layers.");
+        }
+
+        private static Component BuildReadyLegacyGameplayOwner(
+            GameObject root,
+            out Component skin,
+            out Animator animator)
         {
             Type rigType = RequireType(
                 "SkinnyToBeast.Gameplay.CharacterRigController");
             Type faceType = RequireType(
                 "SkinnyToBeast.Gameplay.CharacterFaceController");
+            Type skinType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterSkinController");
 
             Component rig = root.GetComponent(rigType);
             Component face = root.GetComponent(faceType);
+            skin = root.GetComponent(skinType);
+            CanvasGroup group = root.GetComponent<CanvasGroup>();
             Assert.NotNull(rig);
             Assert.NotNull(face);
+            Assert.NotNull(skin);
+            Assert.NotNull(group);
 
             MethodInfo build = rigType.GetMethod(
                 "Build",
                 BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo configureSkin = skinType.GetMethod(
+                "Configure",
+                BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo applySkin = skinType.GetMethod(
+                "ApplySkin",
+                BindingFlags.Instance | BindingFlags.Public);
             Assert.NotNull(build);
+            Assert.NotNull(configureSkin);
+            Assert.NotNull(applySkin);
             build.Invoke(
                 rig,
                 new object[]
@@ -1454,6 +1521,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     root.GetComponent<RectTransform>(),
                     face
                 });
+            configureSkin.Invoke(
+                skin,
+                new object[] { rig, group, 4 });
+            applySkin.Invoke(
+                skin,
+                new object[] { 3, false });
+            animator = root.GetComponent<Animator>();
             return rig;
         }
 

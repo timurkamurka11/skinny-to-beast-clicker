@@ -1401,6 +1401,10 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     if playmode_tests:
         for snippet in (
             "Stage4Installer_ActivatesOnlyAfterRuntimeReadiness",
+            "BuildReadyLegacyGameplayOwner(",
+            "AssertLegacyAnimatorContract(legacyAnimator)",
+            'GetBoolProperty(legacyRig, "AnimatorReady")',
+            'GetBoolProperty(legacySkin, "IsVisualReady")',
             "AssertRuntimeAnimatorContract(animator)",
             "RuntimeInstaller clobbered the editor-only locked",
             "RuntimeInstaller did not bind the authoritative root",
@@ -1439,6 +1443,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     "PlayMode full-path gait regression coverage is missing: "
                     + snippet,
                 )
+
+        if "BuildLegacyRig(" in playmode_tests:
+            fail(
+                errors,
+                "PlayMode still builds a partial legacy rig without the "
+                "production skin/Animator readiness sequence",
+            )
         for snippet in (
             "SetLockedReviewActive",
             "visibility.enabled = false",
