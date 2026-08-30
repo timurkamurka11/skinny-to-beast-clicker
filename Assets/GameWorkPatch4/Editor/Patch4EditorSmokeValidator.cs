@@ -311,6 +311,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 return;
             }
 
+            if (!animator.enabled)
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_DISABLED",
+                    "The generated root Animator is disabled.");
+            }
+
             HashSet<string> clipNames = new(
                 animator.runtimeAnimatorController.animationClips
                     .Where(clip => clip != null)
@@ -331,16 +339,65 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             AnimatorController controller =
                 animator.runtimeAnimatorController as AnimatorController;
-            if (controller == null || controller.layers.Length == 0)
+            if (controller == null || controller.layers.Length != 1)
             {
                 AddError(
                     report,
                     "ANIMATOR_STATE_MACHINE_MISSING",
-                    "The generated controller has no inspectable base layer.");
+                    "The generated controller must have exactly one " +
+                    "inspectable authoritative layer.");
                 return;
             }
 
             AnimatorControllerLayer layer = controller.layers[0];
+            if (!string.Equals(
+                    layer.name,
+                    Patch4CharacterStateMachine.AnimatorLayerName,
+                    StringComparison.Ordinal))
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_LAYER_MISMATCH",
+                    "The authoritative layer must be named Base Layer.");
+            }
+
+            Dictionary<string, AnimatorControllerParameterType>
+                requiredParameters = new()
+                {
+                    ["Speed"] = AnimatorControllerParameterType.Float,
+                    ["Look"] = AnimatorControllerParameterType.Bool,
+                    ["Shift"] = AnimatorControllerParameterType.Bool,
+                    ["Turn"] = AnimatorControllerParameterType.Bool,
+                    ["Sit"] = AnimatorControllerParameterType.Bool,
+                    ["TapVariant"] = AnimatorControllerParameterType.Int,
+                    ["Tap"] = AnimatorControllerParameterType.Trigger,
+                    ["Blink"] = AnimatorControllerParameterType.Trigger,
+                    ["Upgrade"] = AnimatorControllerParameterType.Trigger
+                };
+            for (int parameterIndex = 0;
+                 parameterIndex < controller.parameters.Length;
+                 parameterIndex++)
+            {
+                AnimatorControllerParameter parameter =
+                    controller.parameters[parameterIndex];
+                if (requiredParameters.TryGetValue(
+                        parameter.name,
+                        out AnimatorControllerParameterType expectedType) &&
+                    parameter.type == expectedType)
+                {
+                    requiredParameters.Remove(parameter.name);
+                }
+            }
+
+            if (requiredParameters.Count > 0)
+            {
+                AddError(
+                    report,
+                    "ANIMATOR_PARAMETERS_INCOMPLETE",
+                    "Missing or mistyped Animator parameters: " +
+                    string.Join(", ", requiredParameters.Keys));
+            }
+
             AnimatorStateMachine machine = layer.stateMachine;
             if (machine == null)
             {

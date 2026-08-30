@@ -291,7 +291,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"single-owner-sync-neutral-bind-v38"',
+            '"runtime-readiness-binding-v39"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -386,18 +386,63 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             'PrefabResourcePath = "FatMan_Patch4"',
             'GameplayRoomName = "LivingGameplayScene"',
             "legacyRig.VisualRoot",
+            "TryConfigureAndActivate(",
+            "TryActivateIfReady(",
+            "stateMachine.BindRuntimeDependencies(patchRig, animator)",
             "patchRig.BindRollbackRoot(rollbackRoot)",
             "visibility.BindRollbackRoot(rollbackRoot)",
             "bridge.BindLegacy(legacyRig, legacySkin)",
             "canvasPresentation.ConfigureForGameplayRoom(",
+            "legacySkin.IsConfigured",
+            "legacySkin.TargetArtIndex != FinalStageArtIndex",
+            "legacySkin.IsTransitioning",
+            "patchRig.IsRuntimeReady",
             "patchRig.SetPatch4Enabled(false)",
+            "patchRig.SetPatch4Enabled(true)",
         )
         for snippet in required_snippets:
             if snippet not in installer:
-                fail(errors, f"Runtime rollback installer is missing: {snippet}")
+                fail(errors, f"Runtime readiness installer is missing: {snippet}")
 
-        if "patchRig.SetPatch4Enabled(true)" in installer:
-            fail(errors, "Runtime installer must never enable Patch 4 automatically")
+        if re.search(
+            r"if\s*\([^)]{0,500}legacyRig\.transform\.Find\(InstanceName\)"
+            r"\s*!=\s*null",
+            installer,
+            re.DOTALL,
+        ):
+            fail(
+                errors,
+                "Runtime installer skips an existing candidate instead of "
+                "deterministically finalizing delayed dependencies.",
+            )
+        activation_guard = installer.find("if (!patchRig.IsRuntimeReady")
+        activation_call = installer.find("patchRig.SetPatch4Enabled(true)")
+        if (
+            activation_guard < 0
+            or activation_call < 0
+            or activation_guard > activation_call
+        ):
+            fail(
+                errors,
+                "Runtime Patch 4 activation is not guarded by the complete "
+                "rig/Animator/art/presentation readiness contract.",
+            )
+        review_guard = installer.find(
+            "if (stateMachine.IsLockedReviewActive)"
+        )
+        runtime_binding = installer.find(
+            "stateMachine.BindRuntimeDependencies(patchRig, animator)"
+        )
+        if (
+            review_guard < 0
+            or runtime_binding < 0
+            or review_guard > runtime_binding
+        ):
+            fail(
+                errors,
+                "Runtime readiness finalization can clobber the explicit "
+                "editor-only locked review override.",
+            )
 
     signal_bridge = read_text(
         root,
@@ -424,6 +469,14 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     if state_machine:
         for snippet in (
+            "ValidateAnimatorContract(",
+            "BindRuntimeDependencies(",
+            "animator.enabled",
+            "animator.runtimeAnimatorController",
+            "GetComponentsInChildren<Animator>(true)",
+            "animator.layerCount",
+            "animator.HasState(",
+            "Patch4RigContract.RequiredClipNames",
             "animator.SetFloat(SpeedHash, speed)",
             "CrossFadePersistentState(WalkStateHash)",
             "animator.CrossFadeInFixedTime(",
@@ -487,6 +540,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         if 'PrefabRoot = "Assets/GameWorkPatch4/Resources"' not in builder:
             fail(errors, "Patch 4 prefab must be generated into isolated Resources")
         for snippet in (
+            "animator.enabled = true",
+            "ValidateAnimatorControllerOrThrow(",
+            "Animator Controller could not be loaded",
             "Patch4V23FullFramePresentation",
             "FatMan_Idle_V23.png",
             "FatMan_Face_V23.png",
@@ -768,6 +824,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "SetEditorReviewBlinkClosure(0f)",
             "float.PositiveInfinity",
             "VerifyCurrentAnimatorState(",
+            "Patch4CharacterStateMachine.ValidateAnimatorContract(",
             "MinimumV23FaceDifference",
             "IsForeground(",
             "neutralWidthRetention",
@@ -999,6 +1056,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     if smoke_validator:
         for snippet in (
+            "ANIMATOR_DISABLED",
+            "ANIMATOR_LAYER_MISMATCH",
+            "ANIMATOR_PARAMETERS_INCOMPLETE",
             "ANIMATOR_STATE_PATH_MISMATCH",
             "ANIMATOR_STATES_INCOMPLETE",
             "machine.name",
@@ -1197,14 +1257,16 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     if legacy_sprite:
         for snippet in (
+            "PixelsSuppressedByReplacement",
+            "SetReplacementPixelsSuppressed(bool suppressed)",
+            "ApplyReplacementVisibility()",
             "EditorPreviewSuppressed",
             "SetEditorPreviewSuppressed(bool suppressed)",
-            "ApplyEditorPreviewVisibility()",
         ):
             if snippet not in legacy_sprite:
                 fail(
                     errors,
-                    "Renderer-owned preview suppression is missing: " + snippet,
+                    "Renderer-owned replacement suppression is missing: " + snippet,
                 )
 
     legacy_layered = read_text(
@@ -1214,7 +1276,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     )
     if legacy_layered:
         for snippet in (
-            "!spriteController.EditorPreviewSuppressed",
+            "!spriteController.PixelsSuppressedByReplacement",
             "puppetGraphic.enabled = showOwnedPixels",
             "faceOverlayRoot.gameObject.SetActive(showOwnedPixels)",
         ):
@@ -1315,6 +1377,16 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
         )
     if playmode_tests:
         for snippet in (
+            "Stage4Installer_ActivatesOnlyAfterRuntimeReadiness",
+            "AssertRuntimeAnimatorContract(animator)",
+            "RuntimeInstaller clobbered the editor-only locked",
+            "RuntimeInstaller did not bind the authoritative root",
+            'GetBoolProperty(skin, "IsConfigured")',
+            '"PixelsSuppressedByReplacement"',
+            'GetBoolProperty(patchRig, "Patch4Enabled")',
+            "A valid active Patch 4 replacement emitted Stage 4",
+            "animator.enabled = false",
+            "An unconfigured gameplay skin dependency must restore",
             "AssertWalkAnimatorStateProducesArticulation(",
             "animator.HasState(0, stateHash)",
             "GetCurrentAnimatorStateInfo(0).fullPathHash",

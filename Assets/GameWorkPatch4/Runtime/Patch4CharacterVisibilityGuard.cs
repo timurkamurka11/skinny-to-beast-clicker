@@ -17,6 +17,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private bool repairLogged;
 
+        public bool HasRollbackBinding =>
+            patch35RollbackRoot != null &&
+            rigController != null &&
+            rigController.HasRollbackBinding;
+
         private void Reset()
         {
             rigController = GetComponent<Patch4CharacterRigController>();
@@ -24,6 +29,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         public void BindRollbackRoot(GameObject rollbackRoot)
         {
+            if (rigController == null)
+            {
+                rigController =
+                    GetComponent<Patch4CharacterRigController>();
+            }
+
             patch35RollbackRoot = rollbackRoot;
             ApplyExpectedState();
         }
@@ -48,22 +59,22 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private bool ApplyExpectedState()
         {
-            bool shouldShowPatch4 =
-                rigController != null &&
-                rigController.Patch4Enabled;
-            bool repaired = false;
-
-            if (patch4VisualRoot != null &&
-                patch4VisualRoot.activeSelf != shouldShowPatch4)
+            if (rigController != null)
             {
-                patch4VisualRoot.SetActive(shouldShowPatch4);
+                return rigController.SynchronizeVisualState();
+            }
+
+            bool repaired = false;
+            if (patch4VisualRoot != null && patch4VisualRoot.activeSelf)
+            {
+                patch4VisualRoot.SetActive(false);
                 repaired = true;
             }
 
             if (patch35RollbackRoot != null &&
-                patch35RollbackRoot.activeSelf == shouldShowPatch4)
+                !patch35RollbackRoot.activeSelf)
             {
-                patch35RollbackRoot.SetActive(!shouldShowPatch4);
+                patch35RollbackRoot.SetActive(true);
                 repaired = true;
             }
 

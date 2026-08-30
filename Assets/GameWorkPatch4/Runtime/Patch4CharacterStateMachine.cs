@@ -9,8 +9,38 @@ namespace SkinnyToBeast.Gameplay.Patch4
     [DisallowMultipleComponent]
     public sealed class Patch4CharacterStateMachine : MonoBehaviour
     {
+        public const string AnimatorLayerName = "Base Layer";
+
+        private readonly struct AnimatorParameterContract
+        {
+            public readonly string name;
+            public readonly AnimatorControllerParameterType type;
+
+            public AnimatorParameterContract(
+                string name,
+                AnimatorControllerParameterType type)
+            {
+                this.name = name;
+                this.type = type;
+            }
+        }
+
         private const float WalkThreshold = 0.1f;
         private const float LocomotionTransitionSeconds = 0.18f;
+
+        private static readonly AnimatorParameterContract[]
+            RequiredParameters =
+            {
+                new("Speed", AnimatorControllerParameterType.Float),
+                new("Look", AnimatorControllerParameterType.Bool),
+                new("Shift", AnimatorControllerParameterType.Bool),
+                new("Turn", AnimatorControllerParameterType.Bool),
+                new("Sit", AnimatorControllerParameterType.Bool),
+                new("TapVariant", AnimatorControllerParameterType.Int),
+                new("Tap", AnimatorControllerParameterType.Trigger),
+                new("Blink", AnimatorControllerParameterType.Trigger),
+                new("Upgrade", AnimatorControllerParameterType.Trigger)
+            };
 
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int LookHash = Animator.StringToHash("Look");
@@ -33,13 +63,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private bool lockedReviewActive;
 #endif
 
-        public bool IsReady =>
+        public bool IsConfigured =>
             rigController != null &&
+            ValidateAnimatorContract(animator, out _);
+        public string AnimatorReadinessError
+        {
+            get
+            {
+                ValidateAnimatorContract(animator, out string error);
+                return error;
+            }
+        }
+        public bool IsReady =>
+            IsConfigured &&
             (rigController.Patch4Enabled || IsLockedReviewActive) &&
-            animator != null &&
-            animator.runtimeAnimatorController != null;
+            animator != null;
 
-        private bool IsLockedReviewActive
+        public bool IsLockedReviewActive
         {
             get
             {
@@ -54,7 +94,125 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void Reset()
         {
             rigController = GetComponent<Patch4CharacterRigController>();
-            animator = GetComponentInChildren<Animator>(true);
+            animator = GetComponent<Animator>();
+        }
+
+        public bool BindRuntimeDependencies(
+            Patch4CharacterRigController patchRig,
+            Animator rootAnimator)
+        {
+            if (patchRig == null ||
+                rootAnimator == null ||
+                rootAnimator.gameObject != gameObject)
+            {
+                return false;
+            }
+
+            rigController = patchRig;
+            animator = rootAnimator;
+            return IsConfigured;
+        }
+
+        public static bool ValidateAnimatorContract(
+            Animator animator,
+            out string error)
+        {
+            if (animator == null)
+            {
+                error = "Patch 4 root Animator is missing.";
+                return false;
+            }
+
+            Animator[] animatorOwners =
+                animator.GetComponentsInChildren<Animator>(true);
+            if (animator.GetComponent<Patch4CharacterRigController>() == null ||
+                animatorOwners.Length != 1 ||
+                animatorOwners[0] != animator)
+            {
+                error =
+                    "Patch 4 must have exactly one authoritative root " +
+                    "Animator.";
+                return false;
+            }
+
+            if (!animator.enabled)
+            {
+                error = "Patch 4 root Animator is disabled.";
+                return false;
+            }
+
+            if (animator.runtimeAnimatorController == null)
+            {
+                error =
+                    "Patch 4 root Animator has no RuntimeAnimatorController.";
+                return false;
+            }
+
+            if (animator.layerCount != 1 ||
+                !string.Equals(
+                    animator.GetLayerName(0),
+                    AnimatorLayerName,
+                    System.StringComparison.Ordinal))
+            {
+                error =
+                    "Patch 4 Animator must expose exactly one Base Layer.";
+                return false;
+            }
+
+            AnimatorControllerParameter[] parameters = animator.parameters;
+            for (int requiredIndex = 0;
+                 requiredIndex < RequiredParameters.Length;
+                 requiredIndex++)
+            {
+                AnimatorParameterContract required =
+                    RequiredParameters[requiredIndex];
+                bool found = false;
+                for (int parameterIndex = 0;
+                     parameterIndex < parameters.Length;
+                     parameterIndex++)
+                {
+                    AnimatorControllerParameter parameter =
+                        parameters[parameterIndex];
+                    if (string.Equals(
+                            parameter.name,
+                            required.name,
+                            System.StringComparison.Ordinal) &&
+                        parameter.type == required.type)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    error =
+                        "Patch 4 Animator is missing required parameter " +
+                        required.name + ".";
+                    return false;
+                }
+            }
+
+            for (int stateIndex = 0;
+                 stateIndex < Patch4RigContract.RequiredClipNames.Count;
+                 stateIndex++)
+            {
+                string statePath =
+                    AnimatorLayerName + "." +
+                    Patch4RigContract.RequiredClipNames[stateIndex];
+                if (!animator.HasState(
+                        0,
+                        Animator.StringToHash(statePath)))
+                {
+                    error =
+                        "Patch 4 Animator is missing required state " +
+                        statePath + ".";
+                    return false;
+                }
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         public void SetWalkSpeed(float normalizedSpeed)

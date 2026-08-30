@@ -1620,6 +1620,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     Patch4RigContract.RequiredClipNames.Count ||
                 animator == null ||
                 animator.runtimeAnimatorController == null ||
+                !Patch4CharacterStateMachine.ValidateAnimatorContract(
+                    animator,
+                    out _) ||
                 patch4VisualRoot == null ||
                 patch35RollbackRoot == null ||
                 legacySpriteRigController == null ||

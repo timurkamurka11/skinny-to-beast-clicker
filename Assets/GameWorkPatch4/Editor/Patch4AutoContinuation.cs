@@ -13,9 +13,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
     public static class Patch4AutoContinuation
     {
         private const string RunId =
-            "single-owner-sync-neutral-bind-v38";
+            "runtime-readiness-binding-v39";
         private const string SessionKeyPrefix =
-            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v38.gameplay.";
+            "SkinnyToBeast.GameWorkPatch4.AutoContinuation.v39.gameplay.";
 
         private static int idleFrames;
 
@@ -57,15 +57,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             try
             {
                 Debug.Log(
-                    "Patch 4 V38 single-owner rig repair started. Stage 4 " +
-                    "selection now latches one actionable readiness failure " +
-                    "instead of reapplying the same skin every refresh. The " +
-                    "Animator exclusively owns all six Walk leg rotations; " +
-                    "secondary motion no longer competes for SpineUpper. The " +
-                    "actual-room review pauses legacy signals, resets the " +
-                    "Animator to neutral, rebinds the hybrid mesh from that " +
-                    "pose, and moves the authoritative gameplay root along a " +
-                    "shallow perspective-controlled route with exact restore. " +
+                    "Patch 4 V39 runtime-readiness repair started. Unity will " +
+                    "regenerate the prefab with an enabled root Animator and " +
+                    "validated controller binding. The runtime installer now " +
+                    "re-finalizes delayed skin, presentation and signal " +
+                    "dependencies deterministically, activates only after the " +
+                    "existing art/rig/Animator gates pass, and suppresses " +
+                    "Patch 3.5 pixels without deactivating its logical Stage 4 " +
+                    "hierarchy. V38 single-owner animation fixes remain intact. " +
                     "Unity will rebuild all local layers and runtime assets, " +
                     "run strict safety plus EditMode/PlayMode tests, then " +
                     "capture a fresh actual-room review. No validator is " +
@@ -94,7 +93,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             catch (Exception exception)
             {
                 Debug.LogError(
-                    "Patch 4 automatic V38 continuation failed: " + exception);
+                    "Patch 4 automatic V39 continuation failed: " + exception);
             }
         }
     }

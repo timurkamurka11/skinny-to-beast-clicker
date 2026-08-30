@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SkinnyToBeast.Gameplay;
 using UnityEngine;
 
 namespace SkinnyToBeast.Gameplay.Patch4
@@ -31,6 +32,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private readonly Dictionary<string, Transform> bones = new();
         private readonly List<string> missingBones = new();
+        private CharacterSpriteRigController rollbackRenderer;
         private bool rigValid;
 
         public bool IsArtApproved =>
@@ -41,6 +43,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
             patch4Enabled && rigValid && IsArtApproved;
 
         public bool IsRigValid => rigValid;
+        public bool HasRollbackBinding =>
+            patch35RollbackRoot != null && rollbackRenderer != null;
+        public bool IsRuntimeReady =>
+            TryGetRuntimeReadinessError(out _);
+        public string RuntimeReadinessError
+        {
+            get
+            {
+                TryGetRuntimeReadinessError(out string error);
+                return error;
+            }
+        }
         public IReadOnlyList<string> MissingBones => missingBones;
         public Transform RigRoot => rigRoot;
         public Patch4ArtReadinessAsset ArtReadiness => artReadiness;
@@ -53,7 +67,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 RebuildBoneMap();
             }
 
-            ApplyVisualState();
+            SynchronizeVisualState();
         }
 
         private void OnEnable()
@@ -63,7 +77,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 RebuildBoneMap();
             }
 
-            ApplyVisualState();
+            SynchronizeVisualState();
         }
 
         public bool RebuildBoneMap()
@@ -118,10 +132,19 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         public void BindRollbackRoot(GameObject rollbackRoot)
         {
+            bool bindingChanged = patch35RollbackRoot != rollbackRoot;
             patch35RollbackRoot = rollbackRoot;
-            patch4Enabled = false;
+            rollbackRenderer = rollbackRoot != null
+                ? rollbackRoot.GetComponentInParent<
+                    CharacterSpriteRigController>(true)
+                : null;
+            if (bindingChanged)
+            {
+                patch4Enabled = false;
+            }
+
             RebuildBoneMap();
-            ApplyVisualState();
+            SynchronizeVisualState();
         }
 
         public bool SetPatch4Enabled(bool enabled)
@@ -131,14 +154,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 if (!RebuildBoneMap())
                 {
                     patch4Enabled = false;
-                    ApplyVisualState();
+                    SynchronizeVisualState();
                     return false;
                 }
 
                 if (!IsArtApproved)
                 {
                     patch4Enabled = false;
-                    ApplyVisualState();
+                    SynchronizeVisualState();
                     LogFailure(
                         "Patch 4 activation rejected: production art is not " +
                         "approved for the expected master SHA-256. Draft mask " +
@@ -148,25 +171,139 @@ namespace SkinnyToBeast.Gameplay.Patch4
             }
 
             patch4Enabled = enabled;
-            ApplyVisualState();
+            SynchronizeVisualState();
             return Patch4Enabled == enabled;
         }
 
-        private void ApplyVisualState()
+        public bool SynchronizeVisualState()
         {
             bool showPatch4 = Patch4Enabled;
+            bool repaired = false;
 
             if (patch4VisualRoot != null &&
                 patch4VisualRoot.activeSelf != showPatch4)
             {
                 patch4VisualRoot.SetActive(showPatch4);
+                repaired = true;
             }
 
-            if (patch35RollbackRoot != null &&
-                patch35RollbackRoot.activeSelf == showPatch4)
+            if (rollbackRenderer != null)
             {
-                patch35RollbackRoot.SetActive(!showPatch4);
+                if (patch35RollbackRoot != null &&
+                    !patch35RollbackRoot.activeSelf)
+                {
+                    patch35RollbackRoot.SetActive(true);
+                    repaired = true;
+                }
+
+                if (rollbackRenderer.PixelsSuppressedByReplacement !=
+                    showPatch4)
+                {
+                    rollbackRenderer.SetReplacementPixelsSuppressed(
+                        showPatch4);
+                    repaired = true;
+                }
             }
+            else if (patch35RollbackRoot != null &&
+                     patch35RollbackRoot.activeSelf == showPatch4)
+            {
+                // A generated or legacy rig without a renderer owner is never
+                // runtime-ready, but keep the old root-toggle fallback so a
+                // broken candidate still restores Patch 3.5 safely.
+                patch35RollbackRoot.SetActive(!showPatch4);
+                repaired = true;
+            }
+
+            return repaired;
+        }
+
+        public bool TryGetRuntimeReadinessError(out string error)
+        {
+            if (patch4VisualRoot == null)
+            {
+                error = "Patch4VisualRoot is not assigned.";
+                return false;
+            }
+
+            if (!RebuildBoneMap())
+            {
+                error =
+                    "the required Patch 4 rig hierarchy is incomplete.";
+                return false;
+            }
+
+            if (!IsArtApproved)
+            {
+                error =
+                    "production art is not approved for the expected master " +
+                    "SHA-256. Draft mask layers cannot approve this gate.";
+                return false;
+            }
+
+            Patch4CharacterStateMachine stateMachine =
+                GetComponent<Patch4CharacterStateMachine>();
+            if (stateMachine == null || !stateMachine.IsConfigured)
+            {
+                error = stateMachine != null
+                    ? stateMachine.AnimatorReadinessError
+                    : "Patch4CharacterStateMachine is missing.";
+                return false;
+            }
+
+            Patch4CanvasPresentation canvasPresentation =
+                GetComponent<Patch4CanvasPresentation>();
+            if (canvasPresentation == null ||
+                !canvasPresentation.IsCanvasReady)
+            {
+                error =
+                    "the Canvas skin/presentation is not configured for the " +
+                    "LivingGameplayScene room.";
+                return false;
+            }
+
+            Patch4V23FullFramePresentation fullFramePresentation =
+                GetComponent<Patch4V23FullFramePresentation>();
+            if (fullFramePresentation == null ||
+                !fullFramePresentation.IsReady)
+            {
+                error =
+                    "the continuous full-frame presentation is not ready.";
+                return false;
+            }
+
+            Patch4LegacySignalBridge signalBridge =
+                GetComponent<Patch4LegacySignalBridge>();
+            if (signalBridge == null || !signalBridge.IsBound)
+            {
+                error =
+                    "the authoritative legacy gameplay/skin signal bridge " +
+                    "is not configured.";
+                return false;
+            }
+
+            if (!HasRollbackBinding)
+            {
+                error =
+                    "the Patch 3.5 renderer-owned rollback binding is missing.";
+                return false;
+            }
+
+            if (GetComponent<Patch4CharacterVisibilityGuard>() == null)
+            {
+                error = "Patch4CharacterVisibilityGuard is missing.";
+                return false;
+            }
+
+            if (GetComponent<Patch4V21FootPlantController>() != null)
+            {
+                error =
+                    "the obsolete V21 foot solver is still attached and would " +
+                    "compete with Animator-owned leg channels.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         private void CacheHierarchy(Transform node)

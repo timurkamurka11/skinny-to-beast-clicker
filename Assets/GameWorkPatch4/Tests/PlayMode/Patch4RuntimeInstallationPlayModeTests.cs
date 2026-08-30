@@ -269,10 +269,366 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     (int)GetPrivateField(
                         stageController,
                         "currentCharacterArt"));
+
+                configureSkin.Invoke(
+                    skin,
+                    new object[]
+                    {
+                        legacyRig,
+                        characterRoot.GetComponent<CanvasGroup>(),
+                        4
+                    });
+                MethodInfo applySkin = skinType.GetMethod(
+                    "ApplySkin",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(applySkin);
+                applySkin.Invoke(skin, new object[] { 3, false });
+                sync.Invoke(
+                    stageController,
+                    new object[] { 4, null, false });
+                Assert.IsTrue(
+                    GetBoolProperty(skin, "IsConfigured"),
+                    "The negative-path skin fault was not restored.");
+                Assert.IsTrue(
+                    GetBoolProperty(skin, "IsVisualReady"),
+                    "Stage 4 did not recover after its real skin dependency " +
+                    "was rebound.");
             }
             finally
             {
                 Application.logMessageReceived -= captureFailure;
+                UnityEngine.Object.DestroyImmediate(room);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Stage4Installer_ActivatesOnlyAfterRuntimeReadiness()
+        {
+            GameObject room = new(
+                "LivingGameplayScene",
+                typeof(RectTransform),
+                typeof(Canvas));
+            ScriptableObject approvedReadiness = null;
+
+            try
+            {
+                Canvas roomCanvas = room.GetComponent<Canvas>();
+                roomCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+                Type stageControllerType = RequireType(
+                    "SkinnyToBeast.Gameplay.GameplayVisualStageController");
+                Component stageController =
+                    room.AddComponent(stageControllerType);
+                MethodInfo build = stageControllerType.GetMethod(
+                    "Build",
+                    BindingFlags.Instance | BindingFlags.Public);
+                MethodInfo sync = stageControllerType.GetMethod(
+                    "Sync",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(build);
+                Assert.NotNull(sync);
+
+                build.Invoke(stageController, null);
+                sync.Invoke(
+                    stageController,
+                    new object[] { 4, null, false });
+                yield return null;
+                yield return null;
+
+                Transform characterRoot = room.transform.Find(
+                    "CharacterActors/CharacterRoot");
+                Assert.NotNull(characterRoot);
+
+                Type legacyRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterRigController");
+                Type skinType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterSkinController");
+                Type spriteRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.CharacterSpriteRigController");
+                Component legacyRig = characterRoot.GetComponent(
+                    legacyRigType);
+                Component skin = characterRoot.GetComponent(skinType);
+                Component spriteRig = characterRoot.GetComponent(
+                    spriteRigType);
+                Assert.NotNull(legacyRig);
+                Assert.NotNull(skin);
+                Assert.NotNull(spriteRig);
+                Assert.IsTrue(GetBoolProperty(skin, "IsConfigured"));
+                Assert.IsTrue(GetBoolProperty(skin, "IsVisualReady"));
+                Assert.AreEqual(3, GetIntProperty(skin, "CurrentArtIndex"));
+
+                Type installerType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4RuntimeInstaller");
+                MethodInfo install = installerType.GetMethod(
+                    "InstallAvailableGameplayRigs",
+                    BindingFlags.Static | BindingFlags.Public);
+                Assert.NotNull(install);
+                install.Invoke(null, null);
+                yield return null;
+
+                Transform patchInstance = characterRoot.Find(
+                    Patch4InstanceName);
+                Assert.NotNull(patchInstance);
+                Type patchRigType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterRigController");
+                Component patchRig = patchInstance.GetComponent(
+                    patchRigType);
+                Assert.NotNull(patchRig);
+
+                Animator animator = patchInstance.GetComponent<Animator>();
+                AssertRuntimeAnimatorContract(animator);
+                Type stateMachineType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterStateMachine");
+                Component stateMachine = patchInstance.GetComponent(
+                    stateMachineType);
+                Assert.NotNull(stateMachine);
+                Type bridgeType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4LegacySignalBridge");
+                Component bridge = patchInstance.GetComponent(bridgeType);
+                Assert.NotNull(bridge);
+                Transform patchVisual = patchInstance.Find(
+                    "Patch4VisualRoot");
+                Assert.NotNull(patchVisual);
+                Type visibilityType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterVisibilityGuard");
+                Behaviour visibility = patchInstance.GetComponent(
+                    visibilityType) as Behaviour;
+                Assert.NotNull(visibility);
+                MethodInfo setReviewActive = stateMachineType.GetMethod(
+                    "SetLockedReviewActive",
+                    BindingFlags.Instance | BindingFlags.Public);
+                MethodInfo suppressReplacementPixels =
+                    spriteRigType.GetMethod(
+                        "SetReplacementPixelsSuppressed",
+                        BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(setReviewActive);
+                Assert.NotNull(suppressReplacementPixels);
+
+                visibility.enabled = false;
+                setReviewActive.Invoke(
+                    stateMachine,
+                    new object[] { true });
+                suppressReplacementPixels.Invoke(
+                    spriteRig,
+                    new object[] { true });
+                patchVisual.gameObject.SetActive(true);
+                install.Invoke(null, null);
+                yield return null;
+                Assert.IsTrue(
+                    patchVisual.gameObject.activeSelf,
+                    "RuntimeInstaller clobbered the editor-only locked " +
+                    "gameplay review visual override.");
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"),
+                    "RuntimeInstaller restored Patch 3.5 pixels during the " +
+                    "locked gameplay review.");
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "The locked review must not approve production Patch 4.");
+                setReviewActive.Invoke(
+                    stateMachine,
+                    new object[] { false });
+                patchVisual.gameObject.SetActive(false);
+                suppressReplacementPixels.Invoke(
+                    spriteRig,
+                    new object[] { false });
+                visibility.enabled = true;
+
+                SetPrivateField(stateMachine, "animator", null);
+                SetPrivateField(bridge, "stateMachine", null);
+
+                Type readinessType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4ArtReadinessAsset");
+                approvedReadiness =
+                    ScriptableObject.CreateInstance(readinessType);
+                SetPrivateField(
+                    approvedReadiness,
+                    "productionArtApproved",
+                    true);
+                SetPrivateField(
+                    approvedReadiness,
+                    "approvedSourceSha256",
+                    GetObjectProperty(patchRig, "ExpectedSourceSha256"));
+                SetPrivateField(
+                    approvedReadiness,
+                    "approvedBy",
+                    "Patch4RuntimeInstallationPlayModeTests");
+                SetPrivateField(
+                    patchRig,
+                    "artReadiness",
+                    approvedReadiness);
+
+                install.Invoke(null, null);
+
+                Assert.AreSame(
+                    animator,
+                    GetPrivateField(stateMachine, "animator"),
+                    "RuntimeInstaller did not bind the authoritative root " +
+                    "Animator after resolving the prefab.");
+                Assert.IsTrue(
+                    GetBoolProperty(stateMachine, "IsConfigured"));
+                Assert.AreSame(
+                    stateMachine,
+                    GetPrivateField(bridge, "stateMachine"),
+                    "RuntimeInstaller did not restore the Patch 4 signal " +
+                    "bridge dependency.");
+                Assert.IsTrue(GetBoolProperty(bridge, "IsBound"));
+
+                Assert.IsTrue(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "A fully configured, approved Stage 4 rig did not " +
+                    "activate.");
+                Assert.IsTrue(patchVisual.gameObject.activeSelf);
+                Assert.IsTrue(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"),
+                    "Patch 3.5 pixels were not suppressed by their renderer " +
+                    "owner.");
+
+                Transform legacyVisual =
+                    GetObjectProperty(legacyRig, "VisualRoot") as Transform;
+                Assert.NotNull(legacyVisual);
+                Assert.IsTrue(
+                    legacyVisual.gameObject.activeInHierarchy,
+                    "Patch 4 activation must keep the logical Stage 4 " +
+                    "hierarchy alive.");
+                Assert.IsTrue(
+                    GetBoolProperty(skin, "IsVisualReady"),
+                    "The authoritative Patch 4 replacement made Stage 4 " +
+                    "readiness reject its configured legacy signal owner.");
+                List<string> activationFailureLogs = new();
+                Application.LogCallback captureActivationFailure =
+                    (condition, _, type) =>
+                    {
+                        if (type == LogType.Error &&
+                            condition.Contains(
+                                "Character stage 4",
+                                StringComparison.Ordinal))
+                        {
+                            activationFailureLogs.Add(condition);
+                        }
+                    };
+                Application.logMessageReceived += captureActivationFailure;
+                try
+                {
+                    for (int refresh = 0; refresh < 5; refresh++)
+                    {
+                        sync.Invoke(
+                            stageController,
+                            new object[] { 4, null, false });
+                        install.Invoke(null, null);
+                    }
+                }
+                finally
+                {
+                    Application.logMessageReceived -=
+                        captureActivationFailure;
+                }
+
+                Assert.Zero(
+                    activationFailureLogs.Count,
+                    "A valid active Patch 4 replacement emitted Stage 4 " +
+                    "readiness errors or retry spam.");
+                Assert.AreEqual(
+                    1,
+                    characterRoot.GetComponentsInChildren(
+                        patchRigType,
+                        true).Length,
+                    "Stage 4 produced duplicate Patch 4 rigs.");
+
+                animator.enabled = false;
+                install.Invoke(null, null);
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "A broken Animator must restore rollback instead of " +
+                    "forcing Patch 4 visible.");
+                Assert.IsFalse(patchVisual.gameObject.activeSelf);
+                Assert.IsFalse(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"));
+                Assert.IsTrue(legacyVisual.gameObject.activeInHierarchy);
+                Assert.IsTrue(GetBoolProperty(skin, "IsVisualReady"));
+
+                animator.enabled = true;
+                install.Invoke(null, null);
+                Assert.IsTrue(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "Stage 4 did not recover after the Animator contract " +
+                    "became valid again.");
+                Assert.IsTrue(patchVisual.gameObject.activeSelf);
+
+                MethodInfo configureSkin = skinType.GetMethod(
+                    "Configure",
+                    BindingFlags.Instance | BindingFlags.Public);
+                MethodInfo applySkin = skinType.GetMethod(
+                    "ApplySkin",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(configureSkin);
+                Assert.NotNull(applySkin);
+                configureSkin.Invoke(
+                    skin,
+                    new object[]
+                    {
+                        null,
+                        characterRoot.GetComponent<CanvasGroup>(),
+                        4
+                    });
+                install.Invoke(null, null);
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "An unconfigured gameplay skin dependency must restore " +
+                    "Patch 3.5 rollback.");
+                Assert.IsFalse(patchVisual.gameObject.activeSelf);
+                Assert.IsFalse(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"));
+
+                configureSkin.Invoke(
+                    skin,
+                    new object[]
+                    {
+                        legacyRig,
+                        characterRoot.GetComponent<CanvasGroup>(),
+                        4
+                    });
+                applySkin.Invoke(skin, new object[] { 3, false });
+                install.Invoke(null, null);
+                Assert.IsTrue(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "Stage 4 did not recover after its authoritative skin " +
+                    "controller was configured again.");
+                Assert.IsTrue(GetBoolProperty(skin, "IsVisualReady"));
+
+                sync.Invoke(
+                    stageController,
+                    new object[] { 0, null, false });
+                install.Invoke(null, null);
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "Patch 4 remained visible after leaving Stage 4.");
+                Assert.IsFalse(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"));
+                Assert.IsTrue(GetBoolProperty(skin, "IsVisualReady"));
+            }
+            finally
+            {
+                if (approvedReadiness != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(approvedReadiness);
+                }
+
                 UnityEngine.Object.DestroyImmediate(room);
             }
         }
@@ -381,6 +737,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Component patchRig =
                     patchInstance.GetComponent(patchRigType);
                 Assert.NotNull(patchRig);
+                AssertRuntimeAnimatorContract(
+                    patchInstance.GetComponent<Animator>());
                 Assert.IsFalse(
                     GetBoolProperty(patchRig, "Patch4Enabled"),
                     "A runtime installation must stay locked.");
@@ -736,6 +1094,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.AreSame(
                     legacyRig,
                     GetPrivateField(bridge, "legacyRig"));
+                Assert.NotNull(
+                    GetPrivateField(bridge, "legacySkin"),
+                    "The installer did not bind the authoritative gameplay " +
+                    "skin controller.");
 
                 Type visibilityType = RequireType(
                     "SkinnyToBeast.Gameplay.Patch4." +
@@ -948,6 +1310,66 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             }
         }
 
+        private static void AssertRuntimeAnimatorContract(Animator animator)
+        {
+            Assert.NotNull(
+                animator,
+                "The generated Patch 4 prefab has no root Animator.");
+            Assert.AreEqual(
+                1,
+                animator.GetComponentsInChildren<Animator>(true).Length,
+                "The generated Patch 4 prefab has duplicate Animator owners.");
+            Assert.IsTrue(
+                animator.enabled,
+                "The generated Patch 4 Animator is disabled.");
+            Assert.NotNull(
+                animator.runtimeAnimatorController,
+                "The generated Patch 4 Animator has no runtime controller.");
+            Assert.AreEqual(
+                1,
+                animator.layerCount,
+                "Patch 4 must have one authoritative Animator layer.");
+            Assert.AreEqual("Base Layer", animator.GetLayerName(0));
+
+            string[] states =
+            {
+                "FatMan_Idle_Breathe",
+                "FatMan_Idle_ShiftWeight",
+                "FatMan_Blink_Random",
+                "FatMan_LookAround",
+                "FatMan_TapReact_01",
+                "FatMan_TapReact_02",
+                "FatMan_Walk_InRoom",
+                "FatMan_Turn",
+                "FatMan_SitOrLean",
+                "FatMan_UpgradeReact"
+            };
+            for (int i = 0; i < states.Length; i++)
+            {
+                string path = "Base Layer." + states[i];
+                Assert.IsTrue(
+                    animator.HasState(0, Animator.StringToHash(path)),
+                    "The runtime Animator is missing " + path + ".");
+            }
+
+            string[] parameters =
+            {
+                "Speed",
+                "Look",
+                "Shift",
+                "Turn",
+                "Sit",
+                "TapVariant",
+                "Tap",
+                "Blink",
+                "Upgrade"
+            };
+            CollectionAssert.IsSubsetOf(
+                parameters,
+                animator.parameters.Select(parameter => parameter.name),
+                "The runtime Animator is missing gameplay parameters.");
+        }
+
         private static Component BuildLegacyRig(GameObject root)
         {
             Type rigType = RequireType(
@@ -1030,6 +1452,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(field, name);
             return field.GetValue(target);
+        }
+
+        private static void SetPrivateField(
+            object target,
+            string name,
+            object value)
+        {
+            FieldInfo field = target.GetType().GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field, name);
+            field.SetValue(target, value);
         }
 
         private static Type RequireType(string fullName)

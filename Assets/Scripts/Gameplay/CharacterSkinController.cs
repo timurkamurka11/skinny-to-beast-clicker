@@ -21,6 +21,7 @@ namespace SkinnyToBeast.Gameplay
         public int TargetArtIndex =>
             transitionRoutine != null ? pendingArtIndex : currentArtIndex;
         public bool IsTransitioning => transitionRoutine != null;
+        public bool IsConfigured => configured;
         public int DefinitionCount =>
             definitions != null ? definitions.Length : 0;
         public int ActiveBaseSkinCount =>

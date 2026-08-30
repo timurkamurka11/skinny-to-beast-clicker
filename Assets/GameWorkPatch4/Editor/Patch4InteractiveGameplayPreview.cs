@@ -337,8 +337,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 presentation == null ||
                 !presentation.IsReady ||
                 animator == null ||
+                !Patch4CharacterStateMachine.ValidateAnimatorContract(
+                    animator,
+                    out _) ||
+                !stateMachine.IsConfigured ||
                 signalBridge == null ||
-                !signalBridge.enabled)
+                !signalBridge.enabled ||
+                !signalBridge.IsBound)
             {
                 FailAndExitPlayMode(
                     "The locked interactive Patch 4 room binding is incomplete.");

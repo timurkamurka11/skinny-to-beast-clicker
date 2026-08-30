@@ -34,6 +34,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private bool upgradeManagerSubscribed;
         private bool initialized;
 
+        public bool IsBound =>
+            legacyRig != null &&
+            legacySkin != null &&
+            legacySkin.IsConfigured &&
+            stateMachine != null &&
+            faceController != null;
+
         private void Reset()
         {
             stateMachine = GetComponent<Patch4CharacterStateMachine>();
@@ -55,6 +62,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
             CharacterRigController rig,
             CharacterSkinController skin)
         {
+            if (stateMachine == null)
+            {
+                stateMachine = GetComponent<Patch4CharacterStateMachine>();
+            }
+
+            if (faceController == null)
+            {
+                faceController = GetComponent<Patch4FaceController>();
+            }
+
+            if (legacyRig == rig &&
+                legacySkin == skin &&
+                initialized)
+            {
+                return;
+            }
+
             legacyRig = rig;
             legacySkin = skin;
             initialized = false;

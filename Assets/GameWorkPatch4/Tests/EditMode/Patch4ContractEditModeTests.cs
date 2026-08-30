@@ -393,6 +393,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Animator animator = prefab.GetComponent<Animator>();
             Assert.NotNull(secondaryMotion);
             Assert.NotNull(animator);
+            Assert.IsTrue(
+                animator.enabled,
+                "The generated Patch 4 root Animator is disabled.");
             Assert.NotNull(animator.runtimeAnimatorController);
 
             SerializedObject serialized = new(secondaryMotion);

@@ -55,9 +55,7 @@ namespace SkinnyToBeast.Gameplay
         private float blinkUntil;
         private bool buildAttemptLogged;
         private bool ready;
-#if UNITY_EDITOR
-        private bool editorPreviewSuppressed;
-#endif
+        private bool pixelsSuppressedByReplacement;
 
         public bool IsReady =>
             ready &&
@@ -75,8 +73,24 @@ namespace SkinnyToBeast.Gameplay
                 ? 3
                 : 0;
         public Texture2D RuntimeTexture => runtimeTexture;
+        public bool PixelsSuppressedByReplacement =>
+            pixelsSuppressedByReplacement;
+
+        /// <summary>
+        /// Keeps the selected gameplay skin, Animator, routine and hierarchy
+        /// logically alive while an authoritative replacement owns the visible
+        /// pixels. Patch 4 uses this instead of deactivating VisualRoot, which
+        /// would make the Stage 4 readiness gate reject its own replacement.
+        /// </summary>
+        public void SetReplacementPixelsSuppressed(bool suppressed)
+        {
+            pixelsSuppressedByReplacement = suppressed;
+            ApplyReplacementVisibility();
+        }
+
 #if UNITY_EDITOR
-        public bool EditorPreviewSuppressed => editorPreviewSuppressed;
+        public bool EditorPreviewSuppressed =>
+            PixelsSuppressedByReplacement;
 
         /// <summary>
         /// Hides the renderer-owned Patch 3.5 pixels without deactivating the
@@ -86,8 +100,7 @@ namespace SkinnyToBeast.Gameplay
         /// </summary>
         public void SetEditorPreviewSuppressed(bool suppressed)
         {
-            editorPreviewSuppressed = suppressed;
-            ApplyEditorPreviewVisibility();
+            SetReplacementPixelsSuppressed(suppressed);
         }
 #endif
 
@@ -117,13 +130,11 @@ namespace SkinnyToBeast.Gameplay
             HideLegacyGeometry();
             SyncFacing();
             SyncStage();
-#if UNITY_EDITOR
-            if (editorPreviewSuppressed)
+            if (pixelsSuppressedByReplacement)
             {
                 HideFaceOverlays();
                 return;
             }
-#endif
             UpdateFaceOverlay();
         }
 
@@ -581,13 +592,9 @@ namespace SkinnyToBeast.Gameplay
 
             if (bodyImage != null)
             {
-                float bodyAlpha = 1f;
-#if UNITY_EDITOR
-                if (editorPreviewSuppressed)
-                {
-                    bodyAlpha = 0f;
-                }
-#endif
+                float bodyAlpha = pixelsSuppressedByReplacement
+                    ? 0f
+                    : 1f;
                 bodyImage.canvasRenderer.SetAlpha(bodyAlpha);
             }
         }
@@ -610,8 +617,7 @@ namespace SkinnyToBeast.Gameplay
             }
         }
 
-#if UNITY_EDITOR
-        private void ApplyEditorPreviewVisibility()
+        private void ApplyReplacementVisibility()
         {
             if (!ready)
             {
@@ -619,7 +625,7 @@ namespace SkinnyToBeast.Gameplay
             }
 
             HideLegacyGeometry();
-            if (editorPreviewSuppressed)
+            if (pixelsSuppressedByReplacement)
             {
                 HideFaceOverlays();
             }
@@ -628,7 +634,6 @@ namespace SkinnyToBeast.Gameplay
                 UpdateFaceOverlay();
             }
         }
-#endif
 
         private Color SampleFaceColor()
         {

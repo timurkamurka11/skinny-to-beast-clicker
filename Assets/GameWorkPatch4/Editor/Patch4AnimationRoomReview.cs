@@ -424,6 +424,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 patchRig.GetComponent<Patch4SecondaryMotionController>();
             Patch4V23FullFramePresentation v23Presentation =
                 patchRig.GetComponent<Patch4V23FullFramePresentation>();
+            Patch4CharacterStateMachine stateMachine =
+                patchRig.GetComponent<Patch4CharacterStateMachine>();
             Animator animator = patchRig.GetComponent<Animator>();
 
             if (legacyRig == null ||
@@ -435,7 +437,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 motion == null ||
                 v23Presentation == null ||
                 !v23Presentation.IsReady ||
-                animator == null)
+                stateMachine == null ||
+                !stateMachine.IsConfigured ||
+                animator == null ||
+                !Patch4CharacterStateMachine.ValidateAnimatorContract(
+                    animator,
+                    out _))
             {
                 FailAndExit(
                     "The real-room Patch 4 review binding is incomplete.");

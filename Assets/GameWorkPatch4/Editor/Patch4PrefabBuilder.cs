@@ -41,6 +41,34 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
         }
 
+        private readonly struct AnimatorParameterSpec
+        {
+            public readonly string name;
+            public readonly AnimatorControllerParameterType type;
+
+            public AnimatorParameterSpec(
+                string name,
+                AnimatorControllerParameterType type)
+            {
+                this.name = name;
+                this.type = type;
+            }
+        }
+
+        private static readonly AnimatorParameterSpec[]
+            RequiredAnimatorParameters =
+            {
+                new("Speed", AnimatorControllerParameterType.Float),
+                new("Look", AnimatorControllerParameterType.Bool),
+                new("Shift", AnimatorControllerParameterType.Bool),
+                new("Turn", AnimatorControllerParameterType.Bool),
+                new("Sit", AnimatorControllerParameterType.Bool),
+                new("TapVariant", AnimatorControllerParameterType.Int),
+                new("Tap", AnimatorControllerParameterType.Trigger),
+                new("Blink", AnimatorControllerParameterType.Trigger),
+                new("Upgrade", AnimatorControllerParameterType.Trigger)
+            };
+
         [MenuItem("Tools/GameWork/Patch 4.0/Build/Rebuild Character Prefab")]
         public static void RebuildPrefab()
         {
@@ -51,10 +79,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             GameObject root = new("FatMan_Patch4");
             try
             {
-                Animator animator = root.AddComponent<Animator>();
-                animator.runtimeAnimatorController =
+                AnimatorController controller =
                     AssetDatabase.LoadAssetAtPath<AnimatorController>(
                         Patch4AnimationLibraryBuilder.ControllerPath);
+                if (controller == null)
+                {
+                    throw new InvalidOperationException(
+                        "Patch 4 Animator Controller could not be loaded " +
+                        "after rebuilding the animation library.");
+                }
+
+                ValidateAnimatorControllerOrThrow(controller);
+                Animator animator = root.AddComponent<Animator>();
+                animator.enabled = true;
+                animator.runtimeAnimatorController = controller;
                 animator.applyRootMotion = false;
                 animator.updateMode = AnimatorUpdateMode.UnscaledTime;
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -116,6 +154,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 AssetDatabase.Refresh();
 
                 GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+                ValidateSavedPrefabOrThrow(prefab, controller);
                 Selection.activeObject = prefab;
                 Debug.Log(
                     "Patch 4 prefab rebuilt. It remains disabled until all " +
@@ -125,6 +164,151 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             finally
             {
                 UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        private static void ValidateAnimatorControllerOrThrow(
+            AnimatorController controller)
+        {
+            if (controller == null || controller.layers.Length != 1)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 Animator Controller must contain exactly one " +
+                    "authoritative layer.");
+            }
+
+            AnimatorControllerLayer layer = controller.layers[0];
+            AnimatorStateMachine machine = layer.stateMachine;
+            if (!string.Equals(
+                    layer.name,
+                    Patch4CharacterStateMachine.AnimatorLayerName,
+                    StringComparison.Ordinal) ||
+                machine == null ||
+                !string.Equals(
+                    machine.name,
+                    layer.name,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 Animator Controller has a non-canonical root " +
+                    "layer/state-machine path.");
+            }
+
+            for (int requiredIndex = 0;
+                 requiredIndex < RequiredAnimatorParameters.Length;
+                 requiredIndex++)
+            {
+                AnimatorParameterSpec required =
+                    RequiredAnimatorParameters[requiredIndex];
+                bool found = false;
+                AnimatorControllerParameter[] parameters =
+                    controller.parameters;
+                for (int parameterIndex = 0;
+                     parameterIndex < parameters.Length;
+                     parameterIndex++)
+                {
+                    AnimatorControllerParameter parameter =
+                        parameters[parameterIndex];
+                    if (string.Equals(
+                            parameter.name,
+                            required.name,
+                            StringComparison.Ordinal) &&
+                        parameter.type == required.type)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    throw new InvalidOperationException(
+                        "Patch 4 Animator Controller is missing parameter " +
+                        required.name + ".");
+                }
+            }
+
+            for (int clipIndex = 0;
+                 clipIndex < Patch4RigContract.RequiredClipNames.Count;
+                 clipIndex++)
+            {
+                string requiredState =
+                    Patch4RigContract.RequiredClipNames[clipIndex];
+                bool found = false;
+                ChildAnimatorState[] states = machine.states;
+                for (int stateIndex = 0;
+                     stateIndex < states.Length;
+                     stateIndex++)
+                {
+                    AnimatorState state = states[stateIndex].state;
+                    if (state != null &&
+                        state.motion != null &&
+                        string.Equals(
+                            state.name,
+                            requiredState,
+                            StringComparison.Ordinal))
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    throw new InvalidOperationException(
+                        "Patch 4 Animator Controller is missing root state " +
+                        requiredState + ".");
+                }
+            }
+        }
+
+        private static void ValidateSavedPrefabOrThrow(
+            GameObject prefab,
+            AnimatorController controller)
+        {
+            if (prefab == null)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab could not be reloaded.");
+            }
+
+            Animator animator = prefab.GetComponent<Animator>();
+            if (animator == null ||
+                !animator.enabled ||
+                prefab.GetComponentsInChildren<Animator>(true).Length != 1 ||
+                animator.runtimeAnimatorController == null ||
+                animator.runtimeAnimatorController != controller)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab did not retain its enabled " +
+                    "root Animator and RuntimeAnimatorController binding.");
+            }
+
+            if (prefab.GetComponent<Patch4CharacterRigController>() == null ||
+                prefab.GetComponent<Patch4CharacterStateMachine>() == null ||
+                prefab.GetComponent<Patch4CanvasPresentation>() == null ||
+                prefab.GetComponent<Patch4V23FullFramePresentation>() == null ||
+                prefab.GetComponent<Patch4LegacySignalBridge>() == null ||
+                prefab.GetComponent<Patch4CharacterVisibilityGuard>() == null ||
+                prefab.GetComponent<Patch4V21FootPlantController>() != null)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab is missing a required runtime " +
+                    "dependency or still contains the obsolete foot solver.");
+            }
+
+            Patch4CharacterStateMachine stateMachine =
+                prefab.GetComponent<Patch4CharacterStateMachine>();
+            SerializedObject serializedStateMachine = new(stateMachine);
+            if (serializedStateMachine.FindProperty("animator")
+                    ?.objectReferenceValue != animator ||
+                serializedStateMachine.FindProperty("rigController")
+                    ?.objectReferenceValue !=
+                    prefab.GetComponent<Patch4CharacterRigController>())
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab did not retain the state " +
+                    "machine's authoritative root Animator/rig bindings.");
             }
         }
 
