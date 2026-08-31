@@ -38,6 +38,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private Patch4SecondaryMotionController secondaryMotion;
         private Patch4CharacterVisibilityGuard visibilityGuard;
         private Patch4V23FullFramePresentation fullFramePresentation;
+        private Patch4LegacySignalBridge signalBridge;
         private Animator animator;
         private GameObject patch4VisualRoot;
         private GameObject patch35RollbackRoot;
@@ -51,9 +52,27 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private float animatorSpeed;
         private bool routineWasEnabled;
         private bool safeRoomConfigured;
+        private bool editorPresentationOwned;
+        private bool manualControls;
+        private bool signalBridgeWasEnabled;
+        private Vector3 manualHomePosition;
+        private Vector3 manualTargetPosition;
+        private bool manualWalking;
+        private int manualFacingSign = 1;
+        private string currentDevelopmentClip = "FatMan_Idle_Breathe";
+        private string lastError = string.Empty;
         private readonly List<RoomAnchorSnapshot> roomAnchorSnapshots = new();
 
         public bool IsActive => previewActive;
+        public bool AnimatorReady => animator != null &&
+            Patch4CharacterStateMachine.ValidateAnimatorContract(animator, out _);
+        public bool LegacyReady => legacyRigController != null &&
+            legacyRigController.AnimatorReady &&
+            legacyRigController.GetComponent<CharacterSkinController>()?.IsVisualReady == true;
+        public int VisiblePresentationCount =>
+            rigController != null ? rigController.VisiblePresentationCount : 0;
+        public string CurrentDevelopmentClip => currentDevelopmentClip;
+        public string LastError => lastError;
 
         public bool Begin(
             Patch4CharacterRigController patchRig,
@@ -65,7 +84,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4V23FullFramePresentation presentation,
             Animator patchAnimator,
             GameObject patchVisual,
-            GameObject rollbackVisual)
+            GameObject rollbackVisual,
+            bool useManualControls = false)
         {
             if (previewActive)
             {
@@ -103,6 +123,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             secondaryMotion = patchSecondaryMotion;
             visibilityGuard = patchVisibilityGuard;
             fullFramePresentation = presentation;
+            signalBridge = patchRig.GetComponent<Patch4LegacySignalBridge>();
             animator = patchAnimator;
             patch4VisualRoot = patchVisual;
             patch35RollbackRoot = rollbackVisual;
@@ -115,13 +136,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             animatorUpdateMode = animator.updateMode;
             animatorCullingMode = animator.cullingMode;
             animatorSpeed = animator.speed;
+            signalBridgeWasEnabled = signalBridge != null && signalBridge.enabled;
+            manualControls = useManualControls;
 
             if (legacyCharacterRoot == null ||
                 legacySpriteRigController == null ||
                 routineController == null ||
                 legacyFaceController == null ||
+                !legacyRigController.AnimatorReady ||
+                legacyRigController.GetComponent<CharacterSkinController>()?.IsVisualReady != true ||
                 !ConfigureSafeRoomRoute())
             {
+                lastError = legacyRigController != null
+                    ? legacyRigController.AnimatorReadinessError
+                    : "Legacy gameplay rig is missing.";
                 EndPreview();
                 return false;
             }
@@ -132,14 +160,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             stateMachine.SetLockedReviewActive(true);
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
-            visibilityGuard.enabled = false;
-            // Keep the complete legacy visual hierarchy active so the real
-            // GameplayVisualStageController can continue validating Stage 4.
-            // The renderer owner suppresses only its pixels, including the
-            // bounded Patch 3.5 puppet and face overlays, without producing a
-            // second body or triggering an endless stage-repair retry.
-            legacySpriteRigController.SetEditorPreviewSuppressed(true);
-            patch4VisualRoot.SetActive(true);
 
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -152,7 +172,33 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 return false;
             }
 
+            if (!rigController.TryBeginEditorPresentationOverride(
+                    this, false, out lastError))
+            {
+                EndPreview();
+                return false;
+            }
+            editorPresentationOwned = true;
             previewActive = true;
+
+            manualHomePosition = legacyCharacterRoot.localPosition;
+            manualTargetPosition = manualHomePosition;
+            if (manualControls)
+            {
+                routineController.enabled = false;
+                if (signalBridge != null) signalBridge.enabled = false;
+                stateMachine.SetWalkSpeed(0f);
+                PlayDevelopmentClip("FatMan_Idle_Breathe");
+            }
+            else if (signalBridge == null ||
+                     !signalBridge.SynchronizeCurrentGameplayState())
+            {
+                lastError = "The gameplay signals could not be synchronized " +
+                    "before the Editor presentation handoff.";
+                EndPreview();
+                return false;
+            }
+
             KeepFrontFacingRig();
             Canvas.ForceUpdateCanvases();
             return true;
@@ -162,7 +208,72 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             if (previewActive)
             {
+                UpdateManualWalk();
                 KeepFrontFacingRig();
+            }
+        }
+
+        public bool PlayDevelopmentClip(string clipName)
+        {
+            if (!previewActive || animator == null || string.IsNullOrEmpty(clipName))
+            {
+                return false;
+            }
+            int hash = Animator.StringToHash(
+                Patch4CharacterStateMachine.AnimatorLayerName + "." + clipName);
+            if (!animator.HasState(0, hash)) return false;
+            manualWalking = false;
+            manualFacingSign = 1;
+            stateMachine.SetWalkSpeed(0f);
+            animator.Play(hash, 0, 0f);
+            animator.Update(0f);
+            currentDevelopmentClip = clipName;
+            return true;
+        }
+
+        public void WalkLeft() => BeginManualWalk(-1f);
+        public void WalkRight() => BeginManualWalk(1f);
+
+        public void ResetDevelopmentDemo()
+        {
+            if (!previewActive || legacyCharacterRoot == null) return;
+            manualWalking = false;
+            legacyCharacterRoot.localPosition = manualHomePosition;
+            manualTargetPosition = manualHomePosition;
+            stateMachine.SetWalkSpeed(0f);
+            PlayDevelopmentClip("FatMan_Idle_Breathe");
+        }
+
+        private void BeginManualWalk(float direction)
+        {
+            if (!previewActive || !manualControls || legacyCharacterRoot == null) return;
+            RectTransform parent = legacyCharacterRoot.parent as RectTransform;
+            float span = parent != null ? Mathf.Max(80f, parent.rect.width * 0.16f) : 180f;
+            manualTargetPosition = manualHomePosition + Vector3.right * span * Mathf.Sign(direction);
+            manualTargetPosition.y = manualHomePosition.y;
+            manualWalking = true;
+            manualFacingSign = direction < 0f ? -1 : 1;
+            currentDevelopmentClip = "FatMan_Walk_InRoom";
+            fullFramePresentation.SetEditorWalkFacingSign(manualFacingSign);
+            stateMachine.SetWalkSpeed(1f);
+        }
+
+        private void UpdateManualWalk()
+        {
+            if (!manualControls || !manualWalking || legacyCharacterRoot == null) return;
+            legacyCharacterRoot.localPosition = Vector3.MoveTowards(
+                legacyCharacterRoot.localPosition,
+                manualTargetPosition,
+                Mathf.Max(1f, 220f * Time.unscaledDeltaTime));
+            legacyCharacterRoot.localPosition = new Vector3(
+                legacyCharacterRoot.localPosition.x,
+                manualHomePosition.y,
+                manualHomePosition.z);
+            if ((legacyCharacterRoot.localPosition - manualTargetPosition).sqrMagnitude <= 0.25f)
+            {
+                manualWalking = false;
+                stateMachine.SetWalkSpeed(0f);
+                currentDevelopmentClip = "FatMan_Idle_Breathe";
             }
         }
 
@@ -181,6 +292,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             if (fullFramePresentation != null)
             {
                 fullFramePresentation.SetEditorGameplayPreviewActive(false);
+            }
+
+            if (manualControls && legacyCharacterRoot != null)
+            {
+                legacyCharacterRoot.localPosition = manualHomePosition;
             }
 
             RestoreRoomRoute();
@@ -208,20 +324,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 rigController.SetPatch4Enabled(false);
             }
 
-            if (patch4VisualRoot != null)
+            if (rigController != null && editorPresentationOwned)
             {
-                patch4VisualRoot.SetActive(false);
-            }
-
-            if (legacySpriteRigController != null)
-            {
-                legacySpriteRigController.SetEditorPreviewSuppressed(
-                    legacyPixelsWereSuppressed);
-            }
-
-            if (patch35RollbackRoot != null)
-            {
-                patch35RollbackRoot.SetActive(rollbackRootWasActive);
+                rigController.EndEditorPresentationOverride(this);
+                editorPresentationOwned = false;
             }
 
             if (visibilityGuard != null)
@@ -235,6 +341,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 animator.cullingMode = animatorCullingMode;
                 animator.speed = animatorSpeed;
             }
+            if (signalBridge != null) signalBridge.enabled = signalBridgeWasEnabled;
 
             rigController = null;
             legacyRigController = null;
@@ -247,6 +354,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             secondaryMotion = null;
             visibilityGuard = null;
             fullFramePresentation = null;
+            signalBridge = null;
             animator = null;
             patch4VisualRoot = null;
             patch35RollbackRoot = null;
@@ -385,6 +493,12 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             if (fullFramePresentation == null)
             {
+                return;
+            }
+
+            if (manualControls)
+            {
+                fullFramePresentation.SetEditorWalkFacingSign(manualFacingSign);
                 return;
             }
 

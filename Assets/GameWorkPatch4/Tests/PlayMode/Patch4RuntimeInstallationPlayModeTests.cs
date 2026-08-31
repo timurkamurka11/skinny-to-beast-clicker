@@ -180,20 +180,22 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Behaviour visibility = patchInstance.GetComponent(
                     visibilityType) as Behaviour;
                 Assert.NotNull(visibility);
-                MethodInfo suppressReplacementPixels =
-                    spriteRigType.GetMethod(
-                        "SetReplacementPixelsSuppressed",
-                        BindingFlags.Instance | BindingFlags.Public);
-                Assert.NotNull(suppressReplacementPixels);
+                MethodInfo beginOverride = patchRigType.GetMethod(
+                    "TryBeginEditorPresentationOverride",
+                    BindingFlags.Instance | BindingFlags.Public);
+                MethodInfo endOverride = patchRigType.GetMethod(
+                    "EndEditorPresentationOverride",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(beginOverride);
+                Assert.NotNull(endOverride);
 
                 setReviewActive.Invoke(
                     stateMachine,
                     new object[] { true });
-                visibility.enabled = false;
-                suppressReplacementPixels.Invoke(
-                    spriteRig,
-                    new object[] { true });
-                patchVisual.gameObject.SetActive(true);
+                object[] beginArguments = { room, false, string.Empty };
+                Assert.IsTrue(
+                    (bool)beginOverride.Invoke(patchRig, beginArguments),
+                    beginArguments[2] as string);
                 Transform legacyVisual =
                     GetObjectProperty(legacyRig, "VisualRoot") as Transform;
                 Assert.NotNull(legacyVisual);
@@ -206,6 +208,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.IsTrue(
                     patchVisual.gameObject.activeSelf,
                     "The locked review has no authoritative Patch 4 pixels.");
+                Assert.AreEqual(
+                    1,
+                    GetIntProperty(patchRig, "VisiblePresentationCount"),
+                    "The central owner did not produce exactly one presentation.");
                 Assert.IsTrue(
                     legacyVisual.gameObject.activeInHierarchy,
                     "Renderer suppression deactivated the logical Stage 4 rig.");
@@ -228,8 +234,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     LogType.Error,
                     "Character stage 4 was selected but did not produce a " +
                     "ready visible rig. Stage selection remains stable while " +
-                    "dependencies recover. The character Animator is disabled, " +
-                    "missing its controller, or missing required layers.");
+                    "dependencies recover. Character Animator is disabled.");
                 for (int attempt = 0; attempt < 5; attempt++)
                 {
                     sync.Invoke(
@@ -276,11 +281,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 setReviewActive.Invoke(
                     stateMachine,
                     new object[] { false });
-                patchVisual.gameObject.SetActive(false);
-                suppressReplacementPixels.Invoke(
-                    spriteRig,
-                    new object[] { false });
-                visibility.enabled = true;
+                Assert.IsTrue((bool)endOverride.Invoke(patchRig, new object[] { room }));
                 yield return null;
                 Assert.IsFalse(
                     GetBoolProperty(
@@ -463,20 +464,23 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     "SetLockedReviewActive",
                     BindingFlags.Instance | BindingFlags.Public);
                 MethodInfo suppressReplacementPixels =
-                    spriteRigType.GetMethod(
-                        "SetReplacementPixelsSuppressed",
+                    patchRigType.GetMethod(
+                        "TryBeginEditorPresentationOverride",
                         BindingFlags.Instance | BindingFlags.Public);
+                MethodInfo endPreviewOverride = patchRigType.GetMethod(
+                    "EndEditorPresentationOverride",
+                    BindingFlags.Instance | BindingFlags.Public);
                 Assert.NotNull(setReviewActive);
                 Assert.NotNull(suppressReplacementPixels);
+                Assert.NotNull(endPreviewOverride);
 
-                visibility.enabled = false;
                 setReviewActive.Invoke(
                     stateMachine,
                     new object[] { true });
-                suppressReplacementPixels.Invoke(
-                    spriteRig,
-                    new object[] { true });
-                patchVisual.gameObject.SetActive(true);
+                object[] previewArguments = { room, false, string.Empty };
+                Assert.IsTrue(
+                    (bool)suppressReplacementPixels.Invoke(patchRig, previewArguments),
+                    previewArguments[2] as string);
                 install.Invoke(null, null);
                 yield return null;
                 Assert.IsTrue(
@@ -495,11 +499,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 setReviewActive.Invoke(
                     stateMachine,
                     new object[] { false });
-                patchVisual.gameObject.SetActive(false);
-                suppressReplacementPixels.Invoke(
-                    spriteRig,
-                    new object[] { false });
-                visibility.enabled = true;
+                Assert.IsTrue(
+                    (bool)endPreviewOverride.Invoke(patchRig, new object[] { room }));
 
                 SetPrivateField(stateMachine, "animator", null);
                 SetPrivateField(bridge, "stateMachine", null);
@@ -546,6 +547,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     GetBoolProperty(patchRig, "Patch4Enabled"),
                     "A fully configured, approved Stage 4 rig did not " +
                     "activate.");
+                Assert.AreEqual(
+                    1,
+                    GetIntProperty(patchRig, "VisiblePresentationCount"),
+                    "Production handoff did not leave exactly one presentation.");
                 Assert.IsTrue(patchVisual.gameObject.activeSelf);
                 Assert.IsTrue(
                     GetBoolProperty(
@@ -626,6 +631,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     "Stage 4 did not recover after the Animator contract " +
                     "became valid again.");
                 Assert.IsTrue(patchVisual.gameObject.activeSelf);
+
+                Behaviour bridgeBehaviour = bridge as Behaviour;
+                Assert.NotNull(bridgeBehaviour);
+                bridgeBehaviour.enabled = false;
+                install.Invoke(null, null);
+                Assert.IsFalse(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "A disabled gameplay signal bridge must restore rollback.");
+                Assert.IsFalse(patchVisual.gameObject.activeSelf);
+                Assert.IsFalse(
+                    GetBoolProperty(
+                        spriteRig,
+                        "PixelsSuppressedByReplacement"));
+
+                bridgeBehaviour.enabled = true;
+                install.Invoke(null, null);
+                Assert.IsTrue(
+                    GetBoolProperty(patchRig, "Patch4Enabled"),
+                    "Stage 4 did not recover after its gameplay signal bridge " +
+                    "was re-enabled.");
 
                 MethodInfo configureSkin = skinType.GetMethod(
                     "Configure",
@@ -845,6 +870,26 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Assert.AreEqual(
                     40,
                     GetIntProperty(canvasPresentation, "ImageCount"));
+                Component hybridPresentation = patchInstance.GetComponent(
+                    RequireType(
+                        "SkinnyToBeast.Gameplay.Patch4." +
+                        "Patch4V21HybridPuppetController"));
+                Component facePresentation = patchInstance.GetComponent(
+                    RequireType(
+                        "SkinnyToBeast.Gameplay.Patch4." +
+                        "Patch4V21FaceSwapBridge"));
+                Assert.NotNull(hybridPresentation);
+                Assert.NotNull(facePresentation);
+                Assert.IsTrue(
+                    GetBoolProperty(hybridPresentation, "IsPresentationReady"),
+                    "V21 body/limb deformation was not prepared while hidden.");
+                Assert.IsTrue(
+                    GetBoolProperty(facePresentation, "IsPresentationReady"),
+                    "V21 face replacement was not prepared while hidden.");
+                Assert.IsTrue(
+                    GetBoolProperty(patchRig, "IsTechnicalRuntimeReady"),
+                    "The hidden candidate did not satisfy technical readiness: " +
+                    GetObjectProperty(patchRig, "RuntimeReadinessError"));
                 Assert.AreSame(
                     roomCanvas,
                     GetObjectProperty(canvasPresentation, "HostCanvas"));
@@ -1095,31 +1140,31 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Body.TorsoBase",
-                    true);
+                    false);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Head.HeadBase",
-                    false);
+                    true);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.ArmL.Upper",
-                    false);
+                    true);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.ArmR.Upper",
-                    false);
+                    true);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.LegL.Thigh",
-                    false);
+                    true);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.LegR.Thigh",
-                    false);
+                    true);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Clothes.ShirtBase",
-                    false);
+                    true);
                 AssertLayerActive(
                     patchVisual,
                     "Layer.Head.EarL",
@@ -1195,10 +1240,136 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 AssertWalkAnimatorStateProducesArticulation(
                     patchInstance,
                     patchVisual);
+                yield return AssertGameplayRootTravel(
+                    patchInstance,
+                    legacyRig);
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(room);
+            }
+        }
+
+        private static IEnumerator AssertGameplayRootTravel(
+            Transform patchInstance,
+            Component legacyRig)
+        {
+            Type routineType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterRoutineController");
+            Type faceType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterFaceController");
+            Type anchorType = RequireType(
+                "SkinnyToBeast.Gameplay.RoomAnchor");
+            Type anchorKindType = RequireType(
+                "SkinnyToBeast.Gameplay.RoomAnchorKind");
+            Type facingType = RequireType(
+                "SkinnyToBeast.Gameplay.CharacterFacing");
+            Component routine = legacyRig.GetComponent(routineType);
+            Component face = legacyRig.GetComponent(faceType);
+            RectTransform characterRoot = legacyRig.transform as RectTransform;
+            Assert.NotNull(routine);
+            Assert.NotNull(face);
+            Assert.NotNull(characterRoot);
+
+            Component patchRig = patchInstance.GetComponent(
+                RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4CharacterRigController"));
+            Component stateMachine = patchInstance.GetComponent(
+                RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4CharacterStateMachine"));
+            MethodInfo setReview = stateMachine.GetType().GetMethod(
+                "SetLockedReviewActive",
+                BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo beginOverride = patchRig.GetType().GetMethod(
+                "TryBeginEditorPresentationOverride",
+                BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo endOverride = patchRig.GetType().GetMethod(
+                "EndEditorPresentationOverride",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(setReview);
+            Assert.NotNull(beginOverride);
+            Assert.NotNull(endOverride);
+
+            GameObject anchorObject = new("Patch4ControlledWalkTarget", typeof(RectTransform));
+            Vector2 start = characterRoot.anchoredPosition;
+            Vector3 originalScale = characterRoot.localScale;
+            Vector2 target = start + new Vector2(120f, 0f);
+            Vector3 patchLocalStart = patchInstance.localPosition;
+            bool routineWasEnabled = ((Behaviour)routine).enabled;
+            try
+            {
+                Component anchor = anchorObject.AddComponent(anchorType);
+                MethodInfo configureAnchor = anchorType.GetMethod(
+                    "Configure",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(configureAnchor);
+                configureAnchor.Invoke(anchor, new[]
+                {
+                    Enum.Parse(anchorKindType, "Training"),
+                    (object)target,
+                    originalScale.x,
+                    Enum.Parse(facingType, "Front"),
+                    1f,
+                    1f
+                });
+
+                ((Behaviour)routine).enabled = false;
+                Array anchors = Array.CreateInstance(anchorType, 1);
+                anchors.SetValue(anchor, 0);
+                MethodInfo configureRoutine = routineType.GetMethod(
+                    "Configure",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(configureRoutine);
+                configureRoutine.Invoke(routine, new object[]
+                {
+                    characterRoot,
+                    legacyRig,
+                    face,
+                    anchors
+                });
+                characterRoot.anchoredPosition = start;
+                characterRoot.localScale = originalScale;
+
+                setReview.Invoke(stateMachine, new object[] { true });
+                object[] ownerArguments =
+                    { patchInstance.gameObject, false, string.Empty };
+                Assert.IsTrue(
+                    (bool)beginOverride.Invoke(patchRig, ownerArguments),
+                    ownerArguments[2] as string);
+
+                MethodInfo walkTo = routineType.GetMethod(
+                    "WalkTo",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(walkTo);
+                IEnumerator walk = (IEnumerator)walkTo.Invoke(
+                    routine,
+                    new object[] { anchor, 0.22f });
+                int frames = 0;
+                while (walk.MoveNext())
+                {
+                    frames++;
+                    Assert.Less(frames, 180, "Controlled gameplay walk did not finish.");
+                    Assert.AreEqual(1, GetIntProperty(patchRig, "VisiblePresentationCount"));
+                    Assert.AreEqual(patchLocalStart, patchInstance.localPosition,
+                        "Patch 4 detached from the authoritative gameplay root.");
+                    yield return walk.Current;
+                }
+
+                Assert.Greater(Vector2.Distance(start, characterRoot.anchoredPosition), 100f);
+                Assert.AreEqual(target.y, characterRoot.anchoredPosition.y, 0.01f,
+                    "Controlled walk left the room ground line.");
+                Assert.AreEqual(target.x, characterRoot.anchoredPosition.x, 0.5f);
+                Assert.AreEqual(originalScale, characterRoot.localScale,
+                    "A level walk changed the character scale.");
+            }
+            finally
+            {
+                endOverride.Invoke(patchRig, new object[] { patchInstance.gameObject });
+                setReview.Invoke(stateMachine, new object[] { false });
+                characterRoot.anchoredPosition = start;
+                characterRoot.localScale = originalScale;
+                ((Behaviour)routine).enabled = routineWasEnabled;
+                UnityEngine.Object.DestroyImmediate(anchorObject);
             }
         }
 
@@ -1211,7 +1382,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 animator,
                 "The generated Patch 4 prefab has no Animator.");
 
-            bool visualWasActive = patchVisual.gameObject.activeSelf;
             float previousAnimatorSpeed = animator.speed;
             string layerName = animator.GetLayerName(0);
             string statePath = layerName + ".FatMan_Walk_InRoom";
@@ -1234,20 +1404,40 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 BindingFlags.Instance | BindingFlags.Public);
             Assert.NotNull(setReviewActive);
             Assert.NotNull(setWalkSpeed);
+            Component patchRig = patchInstance.GetComponent(
+                RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." +
+                    "Patch4CharacterRigController"));
+            MethodInfo beginOverride = patchRig.GetType().GetMethod(
+                "TryBeginEditorPresentationOverride",
+                BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo endOverride = patchRig.GetType().GetMethod(
+                "EndEditorPresentationOverride",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(beginOverride);
+            Assert.NotNull(endOverride);
 
             try
             {
-                patchVisual.gameObject.SetActive(true);
+                setReviewActive.Invoke(stateMachine, new object[] { true });
+                object[] beginArguments =
+                    { patchInstance.gameObject, false, string.Empty };
+                Assert.IsTrue(
+                    (bool)beginOverride.Invoke(patchRig, beginArguments),
+                    beginArguments[2] as string);
+                Assert.AreEqual(
+                    1,
+                    GetIntProperty(patchRig, "VisiblePresentationCount"));
                 animator.Rebind();
                 animator.Update(0f);
                 Assert.IsTrue(
                     animator.HasState(0, stateHash),
                     "The runtime controller does not expose " + statePath + ".");
+                AssertPublicAnimationSignals(stateMachine, animator, idleStateHash);
 
                 // Exercise the same public gameplay-action route used by the
                 // actual-room review. Direct Animator.Play alone cannot catch
                 // a broken Idle -> Walk transition or a disabled review API.
-                setReviewActive.Invoke(stateMachine, new object[] { true });
                 animator.SetBool("Look", false);
                 animator.SetBool("Shift", false);
                 animator.SetBool("Turn", false);
@@ -1331,10 +1521,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     GetBoolProperty(v23Presentation, "IsDisplaying"),
                     "A full-body atlas frame must never cover the live walk.");
 
-                Component patchRig = patchInstance.GetComponent(
-                    RequireType(
-                        "SkinnyToBeast.Gameplay.Patch4." +
-                        "Patch4CharacterRigController"));
                 MethodInfo getBone = patchRig.GetType().GetMethod(
                     "GetBone",
                     BindingFlags.Instance | BindingFlags.Public);
@@ -1360,6 +1546,20 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 Vector3 handRStart = handR.position;
                 Vector3 footLStart = footL.position;
                 Vector3 footRStart = footR.position;
+                Type limbType = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4.Patch4HybridLimbDeformer");
+                Component[] limbDeformers =
+                    patchVisual.GetComponentsInChildren(limbType, true);
+                Assert.AreEqual(4, limbDeformers.Length,
+                    "V21 must expose exactly four continuous limb meshes.");
+                MethodInfo sampleMesh = limbType.GetMethod(
+                    "TryGetDeformedSample",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Assert.NotNull(sampleMesh);
+                object[] firstSampleArguments = { 0.5f, 0.7f, Vector2.zero };
+                Assert.IsTrue((bool)sampleMesh.Invoke(
+                    limbDeformers[0], firstSampleArguments));
+                Vector2 firstMeshSample = (Vector2)firstSampleArguments[2];
                 animator.Play(stateHash, 0, 0.25f);
                 animator.Update(0f);
                 Assert.Greater(
@@ -1375,6 +1575,13 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                     Vector3.Distance(footRStart, footR.position),
                     0.01f,
                     "The feet do not articulate during the walk cycle.");
+                object[] secondSampleArguments = { 0.5f, 0.7f, Vector2.zero };
+                Assert.IsTrue((bool)sampleMesh.Invoke(
+                    limbDeformers[0], secondSampleArguments));
+                Assert.Greater(
+                    Vector2.Distance(firstMeshSample, (Vector2)secondSampleArguments[2]),
+                    0.01f,
+                    "Animator bone motion did not deform the continuous V21 limb mesh.");
             }
             finally
             {
@@ -1389,8 +1596,62 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
                 }
 
                 animator.speed = previousAnimatorSpeed;
-                patchVisual.gameObject.SetActive(visualWasActive);
+                endOverride.Invoke(
+                    patchRig,
+                    new object[] { patchInstance.gameObject });
             }
+        }
+
+        private static void AssertPublicAnimationSignals(
+            Component stateMachine,
+            Animator animator,
+            int idleStateHash)
+        {
+            Type type = stateMachine.GetType();
+            MethodInfo playBlink = type.GetMethod("PlayBlink");
+            MethodInfo setLooking = type.GetMethod("SetLooking");
+            MethodInfo playTap = type.GetMethod("PlayTapReaction");
+            Assert.NotNull(playBlink);
+            Assert.NotNull(setLooking);
+            Assert.NotNull(playTap);
+
+            AssertSignalRoutes(
+                animator,
+                idleStateHash,
+                Animator.StringToHash("Base Layer.FatMan_Blink_Random"),
+                () => playBlink.Invoke(stateMachine, null),
+                "Blink");
+            AssertSignalRoutes(
+                animator,
+                idleStateHash,
+                Animator.StringToHash("Base Layer.FatMan_LookAround"),
+                () => setLooking.Invoke(stateMachine, new object[] { true }),
+                "LookAround");
+            setLooking.Invoke(stateMachine, new object[] { false });
+            AssertSignalRoutes(
+                animator,
+                idleStateHash,
+                Animator.StringToHash("Base Layer.FatMan_TapReact_01"),
+                () => playTap.Invoke(stateMachine, new object[] { 1 }),
+                "TapReact_01");
+        }
+
+        private static void AssertSignalRoutes(
+            Animator animator,
+            int idleStateHash,
+            int expectedStateHash,
+            Action signal,
+            string label)
+        {
+            animator.Play(idleStateHash, 0, 0f);
+            animator.Update(0f);
+            signal();
+            animator.Update(0.08f);
+            int actual = animator.IsInTransition(0)
+                ? animator.GetNextAnimatorStateInfo(0).fullPathHash
+                : animator.GetCurrentAnimatorStateInfo(0).fullPathHash;
+            Assert.AreEqual(expectedStateHash, actual,
+                label + " did not route through the public gameplay API.");
         }
 
         private static void AssertRuntimeAnimatorContract(Animator animator)
@@ -1405,6 +1666,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             Assert.IsTrue(
                 animator.enabled,
                 "The generated Patch 4 Animator is disabled.");
+            Assert.IsFalse(
+                animator.applyRootMotion,
+                "Patch 4 Animator must not translate the gameplay root.");
+            Assert.AreEqual(AnimatorUpdateMode.UnscaledTime, animator.updateMode);
+            Assert.AreEqual(AnimatorCullingMode.AlwaysAnimate, animator.cullingMode);
             Assert.NotNull(
                 animator.runtimeAnimatorController,
                 "The generated Patch 4 Animator has no runtime controller.");
@@ -1461,6 +1727,11 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.PlayMode
             Assert.IsTrue(
                 animator.enabled,
                 "The rollback gameplay Animator is disabled.");
+            Assert.IsFalse(
+                animator.applyRootMotion,
+                "The rollback Animator must leave travel on the gameplay root.");
+            Assert.AreEqual(AnimatorUpdateMode.UnscaledTime, animator.updateMode);
+            Assert.AreEqual(AnimatorCullingMode.AlwaysAnimate, animator.cullingMode);
             Assert.NotNull(
                 animator.runtimeAnimatorController,
                 "The rollback gameplay Animator has no runtime controller.");

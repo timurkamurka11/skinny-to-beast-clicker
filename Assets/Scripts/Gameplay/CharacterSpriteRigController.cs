@@ -37,6 +37,7 @@ namespace SkinnyToBeast.Gameplay
 
         private CharacterRigController rigController;
         private CharacterSkinController skinController;
+        private CharacterLayeredRigController layeredRigController;
         private FatManSpriteSet catalog;
         private Texture2D runtimeTexture;
         private RectTransform visualRoot;
@@ -86,6 +87,8 @@ namespace SkinnyToBeast.Gameplay
         {
             pixelsSuppressedByReplacement = suppressed;
             ApplyReplacementVisibility();
+            layeredRigController ??= GetComponent<CharacterLayeredRigController>();
+            layeredRigController?.ApplyReplacementSuppression(suppressed);
         }
 
 #if UNITY_EDITOR
@@ -108,6 +111,7 @@ namespace SkinnyToBeast.Gameplay
         {
             rigController = GetComponent<CharacterRigController>();
             skinController = GetComponent<CharacterSkinController>();
+            layeredRigController = GetComponent<CharacterLayeredRigController>();
         }
 
         private void Update()

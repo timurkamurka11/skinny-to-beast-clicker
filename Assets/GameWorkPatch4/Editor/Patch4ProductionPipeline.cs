@@ -31,11 +31,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         [MenuItem("Tools/GameWork/Patch 4.0/Pipeline/4. Rebuild Runtime Assets")]
         public static void RebuildRuntimeAssets()
         {
-            Patch4LayerCatalogBuilder.RebuildCatalog();
-            Patch4AnimationLibraryBuilder.RebuildLibrary();
-            Patch4AnimatorControllerSanitizer.RepairController();
+            Patch4V21HybridArtworkBuilder.Build();
+            Patch4V21NeutralReconstructionGate.ValidateOrThrow();
             Patch4PrefabBuilder.RebuildPrefab();
+            Patch4AnimatorControllerSanitizer.RepairController();
             Patch4PrefabReadinessBinder.BindReadinessGate();
+            Patch4V21AnimationFinalizer.Apply();
+            Patch4WalkV18Finalizer.Apply();
+            Patch4V21PoseResetFinalizer.Apply();
+            Patch4V21HybridRigInstaller.Apply();
+            Patch4V21HybridValidator.ValidateOrThrow();
+            Patch4GeneratedPrefabAudit.ValidateOrThrow();
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 Patch4PrefabBuilder.PrefabPath);
@@ -54,6 +60,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             Patch4NeutralPoseValidator.ValidateAndWriteReport();
             Patch4RigContractValidator.VerifyProtectedPaths();
             Patch4CompilationMonitor.WriteCompilationSnapshot();
+            Patch4GeneratedPrefabAudit.ValidateOrThrow();
 
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 Patch4PrefabBuilder.PrefabPath);

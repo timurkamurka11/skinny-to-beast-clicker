@@ -14,9 +14,42 @@ namespace SkinnyToBeast.Gameplay
         public const string ControllerResourcePath =
             "UI/Gameplay/Living/Animations/LivingCharacter";
 
+        private const string ExpectedControllerName = "LivingCharacter";
+
+        private static readonly string[] RequiredLayerNames =
+        {
+            "Base",
+            "UpperBody",
+            "Face",
+            "FullBodyAction"
+        };
+
+        private static readonly (string layer, string state)[] RequiredStates =
+        {
+            ("Base", "Idle_Breathe"),
+            ("Base", "Walk_Front"),
+            ("Base", "Walk_Side"),
+            ("Base", "Walk_Back"),
+            ("UpperBody", "Idle_LookAround"),
+            ("Face", "Face_Blink"),
+            ("FullBodyAction", "TapLift_A"),
+            ("FullBodyAction", "TapLift_B"),
+            ("FullBodyAction", "TapLift_C")
+        };
+
+        private static readonly (string name, AnimatorControllerParameterType type)[]
+            RequiredParameters =
+            {
+                ("Speed", AnimatorControllerParameterType.Float),
+                ("Facing", AnimatorControllerParameterType.Int),
+                ("Sitting", AnimatorControllerParameterType.Bool)
+            };
+
         private readonly HashSet<string> observedIdleActions = new();
         private readonly Dictionary<string, int> layerByName = new();
         private readonly HashSet<string> parameterNames = new();
+        private readonly Dictionary<string, AnimatorControllerParameterType>
+            parameterTypes = new();
 
         private Animator animator;
         private CharacterFacing facing = CharacterFacing.Front;
@@ -33,16 +66,80 @@ namespace SkinnyToBeast.Gameplay
         private float movementSpeed;
         private bool configured;
         private bool missingControllerLogged;
+        private RuntimeAnimatorController cachedController;
 
-        public bool IsReady =>
-            configured &&
-            animator != null &&
-            animator.enabled &&
-            animator.runtimeAnimatorController != null &&
-            layerByName.ContainsKey("Base") &&
-            layerByName.ContainsKey("UpperBody") &&
-            layerByName.ContainsKey("Face") &&
-            layerByName.ContainsKey("FullBodyAction");
+        public bool IsReady => string.IsNullOrEmpty(ReadinessError);
+        public string ReadinessError
+        {
+            get
+            {
+                if (!configured) return "Character animation driver is not configured.";
+                if (animator == null) return "Character Animator is missing.";
+                if (animator.gameObject != gameObject)
+                {
+                    return "Character Animator is bound to the wrong gameplay object.";
+                }
+                Animator[] owners = gameObject.GetComponents<Animator>();
+                if (owners.Length != 1 || owners[0] != animator)
+                {
+                    return "Character gameplay owner must have exactly one Animator.";
+                }
+                if (!animator.enabled) return "Character Animator is disabled.";
+                if (animator.applyRootMotion)
+                {
+                    return "Character Animator must not own gameplay-root travel.";
+                }
+                if (animator.updateMode != AnimatorUpdateMode.UnscaledTime ||
+                    animator.cullingMode != AnimatorCullingMode.AlwaysAnimate)
+                {
+                    return "Character Animator has the wrong update or culling mode.";
+                }
+                if (!animator.gameObject.activeInHierarchy)
+                {
+                    return "Character Animator hierarchy is inactive.";
+                }
+                if (!animator.isInitialized) return "Character Animator is not initialized.";
+                RuntimeAnimatorController controller = animator.runtimeAnimatorController;
+                if (controller == null) return "Character Animator controller is missing.";
+                if (!string.Equals(controller.name, ExpectedControllerName,
+                        System.StringComparison.Ordinal))
+                {
+                    return "Character Animator uses the wrong controller: " +
+                        controller.name + ".";
+                }
+                for (int i = 0; i < RequiredLayerNames.Length; i++)
+                {
+                    if (!layerByName.ContainsKey(RequiredLayerNames[i]))
+                    {
+                        return "Character Animator is missing required layer " +
+                            RequiredLayerNames[i] + ".";
+                    }
+                }
+                for (int i = 0; i < RequiredParameters.Length; i++)
+                {
+                    var required = RequiredParameters[i];
+                    if (!parameterTypes.TryGetValue(required.name, out var actual) ||
+                        actual != required.type)
+                    {
+                        return "Character Animator is missing required parameter " +
+                            required.name + " (" + required.type + ").";
+                    }
+                }
+                for (int i = 0; i < RequiredStates.Length; i++)
+                {
+                    var required = RequiredStates[i];
+                    int layer = layerByName[required.layer];
+                    int hash = Animator.StringToHash(required.layer + "." + required.state);
+                    if (!animator.HasState(layer, hash) &&
+                        !animator.HasState(layer, Animator.StringToHash(required.state)))
+                    {
+                        return "Character Animator is missing required state " +
+                            required.layer + "." + required.state + ".";
+                    }
+                }
+                return string.Empty;
+            }
+        }
         public int AcceptedTapCount => acceptedTapCount;
         public int ObservedIdleActionCount => observedIdleActions.Count;
         public Animator Animator => animator;
@@ -73,18 +170,21 @@ namespace SkinnyToBeast.Gameplay
 
         private void TryLoadController()
         {
-            if (animator == null ||
-                animator.runtimeAnimatorController != null)
+            if (animator == null)
             {
                 return;
             }
 
-            RuntimeAnimatorController controller =
-                Resources.Load<RuntimeAnimatorController>(
-                    ControllerResourcePath);
-            animator.runtimeAnimatorController = controller;
+            RuntimeAnimatorController controller = animator.runtimeAnimatorController;
+            if (controller == null)
+            {
+                controller = Resources.Load<RuntimeAnimatorController>(ControllerResourcePath);
+                animator.runtimeAnimatorController = controller;
+            }
             layerByName.Clear();
             parameterNames.Clear();
+            parameterTypes.Clear();
+            cachedController = controller;
             if (controller != null)
             {
                 missingControllerLogged = false;
@@ -98,6 +198,7 @@ namespace SkinnyToBeast.Gameplay
                 for (int i = 0; i < parameters.Length; i++)
                 {
                     parameterNames.Add(parameters[i].name);
+                    parameterTypes[parameters[i].name] = parameters[i].type;
                 }
 
                 animator.Rebind();
@@ -151,6 +252,11 @@ namespace SkinnyToBeast.Gameplay
 
         public void Tick()
         {
+            if (animator != null &&
+                animator.runtimeAnimatorController != cachedController)
+            {
+                TryLoadController();
+            }
             if (!IsReady)
             {
                 if (animator != null &&

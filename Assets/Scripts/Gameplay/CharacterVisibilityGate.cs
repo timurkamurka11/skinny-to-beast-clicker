@@ -24,6 +24,7 @@ namespace SkinnyToBeast.Gameplay
         private CharacterSkinController skinController;
         private CharacterRigValidator validator;
         private CharacterSpriteRigController spriteRigController;
+        private CharacterLayeredRigController layeredRigController;
         private float minimumHeightFraction = 0.34f;
         private float maximumHeightFraction = 0.50f;
         private int stableFrames;
@@ -52,6 +53,10 @@ namespace SkinnyToBeast.Gameplay
             spriteRigController =
                 root != null
                     ? root.GetComponent<CharacterSpriteRigController>()
+                    : null;
+            layeredRigController =
+                root != null
+                    ? root.GetComponent<CharacterLayeredRigController>()
                     : null;
             minimumHeightFraction =
                 Mathf.Clamp(minimumScreenHeight, 0.05f, 0.9f);
@@ -112,6 +117,14 @@ namespace SkinnyToBeast.Gameplay
                 if (!spriteRigController.IsReady)
                 {
                     error = "Waiting for the intact real fat-man sprite.";
+                    return false;
+                }
+
+                layeredRigController ??=
+                    characterRoot.GetComponent<CharacterLayeredRigController>();
+                if (layeredRigController != null && !layeredRigController.IsReady)
+                {
+                    error = "Waiting for the final bounded legacy puppet.";
                     return false;
                 }
 

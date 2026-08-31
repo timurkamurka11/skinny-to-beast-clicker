@@ -59,6 +59,8 @@ REQUIRED_FILES = (
     "Assets/GameWorkPatch4/Editor/Patch4PreviewSceneCamera.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationRoomReviewWindow.cs",
     "Assets/GameWorkPatch4/Editor/Patch4InteractiveGameplayPreview.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4GameplayAnimationDemoWindow.cs",
+    "Assets/GameWorkPatch4/Editor/Patch4GeneratedPrefabAudit.cs",
     "Assets/GameWorkPatch4/Runtime/Patch4InteractiveGameplayPreviewDriver.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimationLibraryBuilder.cs",
     "Assets/GameWorkPatch4/Editor/Patch4AnimatorControllerSanitizer.cs",
@@ -291,7 +293,7 @@ def validate_repository_restore_pipeline(root: Path, errors: list[str]) -> None:
     )
     if automatic:
         ordered_steps = (
-            '"runtime-readiness-binding-v39"',
+            '"single-presentation-pipeline-v41"',
             "RestoreRepositorySources()",
             "BakeDraftLayers()",
             "RebuildRuntimeAssets()",
@@ -399,6 +401,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "patchRig.IsRuntimeReady",
             "patchRig.SetPatch4Enabled(false)",
             "patchRig.SetPatch4Enabled(true)",
+            "animator.Rebind()",
+            "hybridPresentation.PrepareHiddenPresentation()",
+            "facePresentation.PrepareHiddenPresentation()",
         )
         for snippet in required_snippets:
             if snippet not in installer:
@@ -792,10 +797,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "ScreenCapture.CaptureScreenshotAsTexture",
             "humanReviewRequired = true",
             "activationAllowed = false",
-            "legacySpriteRigController.SetEditorPreviewSuppressed(true)",
+            "rigController.TryBeginEditorPresentationOverride(",
+            "rigController.SetEditorPresentationPixelsVisible(this, false)",
+            "rigController.SetEditorPresentationPixelsVisible(this, true)",
             "legacyRigController.gameObject.activeInHierarchy",
             "legacyRendererSuppressionRestored",
-            "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
+            "rigController.EndEditorPresentationOverride(this)",
             "CaptureReviewBackground()",
             "AnalyzeRoomSilhouette(",
             "AnalyzeVisibleMotion(",
@@ -882,6 +889,7 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "stateMachine.SetLockedReviewActive(true)",
             "PrepareNeutralAnimatorPose()",
             "hybridPuppet.RebindAtCurrentPose()",
+            "faceSwapBridge.PrepareHiddenPresentation()",
         ):
             if snippet not in review_driver:
                 fail(errors, f"Locked animation-room driver is missing: {snippet}")
@@ -893,6 +901,16 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             )
         if "SetPatch4Enabled(true)" in review_driver:
             fail(errors, "Locked room review must never pass the production gate")
+        for forbidden in (
+            "patch4VisualRoot.SetActive(",
+            "SetEditorPreviewSuppressed(",
+        ):
+            if forbidden in review_driver:
+                fail(
+                    errors,
+                    "Locked room review bypasses the V41 presentation owner: "
+                    + forbidden,
+                )
         if "animator.Play(clip.name" in review_driver:
             fail(
                 errors,
@@ -1217,11 +1235,14 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     if interactive_preview:
         for snippet in (
             "StartAfterFreshReview()",
+            "StartDevelopmentDemo()",
             "PrepareForAutomatedTests()",
             "GameplayWindowController.Show()",
             "Patch4PreviewSceneCamera.EnsureActiveCamera()",
             "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
             "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
+            "Patch4GeneratedPrefabAudit.ValidateGeneratedPrefab(",
+            "GameplayWindowController.SetEditorCharacterRevealBlocked(true)",
             "running-interactive-preview",
             "Play Mode will remain on until you stop it",
             "Patch4AnimationRoomReviewWindow.Open()",
@@ -1240,11 +1261,13 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             "faceController.SetEditorReviewActive(false)",
             "secondaryMotion.SetEditorReviewActive(true)",
             "secondaryMotion.SetEditorReviewActive(false)",
-            "visibilityGuard.enabled = false",
-            "legacySpriteRigController.SetEditorPreviewSuppressed(true)",
-            "legacySpriteRigController.SetEditorPreviewSuppressed(",
-            "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
+            "rigController.TryBeginEditorPresentationOverride(",
+            "rigController.EndEditorPresentationOverride(this)",
             "SetEditorGameplayPreviewActive(true)",
+            "PlayDevelopmentClip(",
+            "WalkLeft()",
+            "WalkRight()",
+            "ResetDevelopmentDemo()",
             "ConfigureSafeRoomRoute()",
             "RoomAnchorKind.Center",
             "snapshot.anchor.ConfigureNormalized(",
@@ -1272,6 +1295,16 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                 "Interactive preview must keep VisualRoot active while its "
                 "renderer owner suppresses Patch 3.5 pixels",
             )
+        for forbidden in (
+            "patch4VisualRoot.SetActive(",
+            "SetEditorPreviewSuppressed(",
+        ):
+            if forbidden in interactive_driver:
+                fail(
+                    errors,
+                    "Interactive preview bypasses the V41 presentation owner: "
+                    + forbidden,
+                )
 
     legacy_sprite = read_text(
         root,
@@ -1300,8 +1333,9 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
     if legacy_layered:
         for snippet in (
             "!spriteController.PixelsSuppressedByReplacement",
-            "puppetGraphic.enabled = showOwnedPixels",
-            "faceOverlayRoot.gameObject.SetActive(showOwnedPixels)",
+            "ApplyReplacementSuppression(bool suppressed)",
+            "puppetGraphic.enabled = !suppressed",
+            "faceOverlayRoot.gameObject.SetActive(!suppressed)",
         ):
             if snippet not in legacy_layered:
                 fail(
@@ -1436,6 +1470,12 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             'GetBoolProperty(legacyRig, "HasVisibleSkin")',
             'GetMethod(\n                        "SetEditorPreviewSuppressed"',
             "legacyVisual.gameObject.activeSelf",
+            'GetIntProperty(patchRig, "VisiblePresentationCount")',
+            "TryBeginEditorPresentationOverride",
+            "EndEditorPresentationOverride",
+            "TryGetDeformedSample",
+            "AssertPublicAnimationSignals(",
+            "AssertGameplayRootTravel(",
         ):
             if snippet not in playmode_tests:
                 fail(
@@ -1452,7 +1492,8 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
             )
         for snippet in (
             "SetLockedReviewActive",
-            "visibility.enabled = false",
+            "TryBeginEditorPresentationOverride",
+            "EndEditorPresentationOverride",
             "A correctly owned locked review required a visibility",
         ):
             if snippet not in playmode_tests:
@@ -1496,6 +1537,225 @@ def validate_runtime_installation(root: Path, errors: list[str]) -> None:
                     "PlayMode does not require the feathered face replacement: "
                     + field_name,
                 )
+
+
+def validate_v41_character_pipeline(root: Path, errors: list[str]) -> None:
+    owner = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4CharacterRigController.cs",
+        errors,
+    )
+    for snippet in (
+        "enum PresentationState",
+        "IsTechnicalRuntimeReady",
+        "TryGetTechnicalReadinessError(",
+        "TryBeginEditorPresentationOverride(",
+        "SetEditorPresentationPixelsVisible(",
+        "EndEditorPresentationOverride(",
+        "VisiblePresentationCount",
+        "HasExclusiveVisiblePresentation",
+        "Character skin controller is not configured.",
+        "rollbackRig.AnimatorReadinessError",
+        "rollbackRenderer.IsReady",
+        "rollbackLayered.IsReady",
+        "Patch4V21FootPlantController",
+    ):
+        if snippet not in owner:
+            fail(errors, "V41 presentation owner is missing: " + snippet)
+
+    apply_start = owner.find("private bool ApplyPresentationState()")
+    apply_end = owner.find("public bool TryGetRuntimeReadinessError", apply_start)
+    apply_source = owner[apply_start:apply_end]
+    suppress = apply_source.find("SetReplacementPixelsSuppressed(true)")
+    show = apply_source.find("patch4VisualRoot.SetActive(true)")
+    hide = apply_source.find("patch4VisualRoot.SetActive(false)")
+    restore = apply_source.find("SetReplacementPixelsSuppressed(false)")
+    if suppress < 0 or show < 0 or suppress > show:
+        fail(errors, "V41 forward handoff does not suppress legacy before Patch 4.")
+    if hide < 0 or restore < 0 or hide > restore:
+        fail(errors, "V41 rollback does not hide Patch 4 before restoring legacy.")
+
+    for relative in (
+        "Assets/GameWorkPatch4/Runtime/Patch4AnimationRoomReviewDriver.cs",
+        "Assets/GameWorkPatch4/Runtime/Patch4InteractiveGameplayPreviewDriver.cs",
+        "Assets/GameWorkPatch4/Runtime/Patch4CharacterVisibilityGuard.cs",
+    ):
+        source = read_text(root, relative, errors)
+        for forbidden in (
+            "patch4VisualRoot.SetActive(",
+            "SetEditorPreviewSuppressed(",
+            "SetReplacementPixelsSuppressed(",
+        ):
+            if forbidden in source:
+                fail(errors, f"V41 has a visibility writer outside the owner: {relative}: {forbidden}")
+
+    animation_driver = read_text(
+        root,
+        "Assets/Scripts/Gameplay/CharacterAnimationDriver.cs",
+        errors,
+    )
+    for snippet in (
+        "public string ReadinessError",
+        "Character Animator is disabled.",
+        "Character Animator controller is missing.",
+        "Character gameplay owner must have exactly one Animator.",
+        "gameObject.GetComponents<Animator>()",
+        "animator.runtimeAnimatorController != cachedController",
+        "parameterTypes[parameters[i].name] = parameters[i].type",
+        "animator.HasState(",
+    ):
+        if snippet not in animation_driver:
+            fail(errors, "V41 legacy Animator readiness is missing: " + snippet)
+    stale_early_return = re.search(
+        r"if\s*\(animator\s*==\s*null\s*\|\|\s*"
+        r"animator\.runtimeAnimatorController\s*!=\s*null\)\s*\{\s*return;",
+        animation_driver,
+        re.DOTALL,
+    )
+    if stale_early_return:
+        fail(errors, "A preassigned legacy controller still skips layer/parameter caching.")
+
+    installer = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4RuntimeInstaller.cs",
+        errors,
+    )
+    ordered = (
+        "canvasPresentation.ConfigureForGameplayRoom(",
+        "fullFramePresentation.RebuildPresentation()",
+        "animator.Rebind()",
+        "stateMachine.BindRuntimeDependencies(patchRig, animator)",
+        "hybridPresentation.PrepareHiddenPresentation()",
+        "facePresentation.PrepareHiddenPresentation()",
+        "bridge.BindLegacy(legacyRig, legacySkin)",
+        "TryActivateIfReady(",
+    )
+    previous = -1
+    for snippet in ordered:
+        index = installer.find(snippet)
+        if index < 0:
+            fail(errors, "V41 hidden initialization is missing: " + snippet)
+        elif index <= previous:
+            fail(errors, "V41 hidden initialization is out of order at: " + snippet)
+        previous = max(previous, index)
+    if "if (animator.enabled && !animator.isInitialized)" not in installer:
+        fail(errors, "V41 installer must initialize the root Animator only when needed.")
+    if "animator.enabled = true" in installer:
+        fail(errors, "V41 installer must not conceal a disabled-Animator rollback fault.")
+    if "bridge.SynchronizeCurrentGameplayState()" not in installer:
+        fail(errors, "V41 handoff does not synchronize the current gameplay state.")
+
+    hybrid = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4V21HybridPuppetController.cs",
+        errors,
+    )
+    face = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4V21FaceSwapBridge.cs",
+        errors,
+    )
+    for snippet in (
+        "IsPresentationReady",
+        "PrepareHiddenPresentation()",
+        "canvasPresentation.GeneratedRoot",
+        "Patch4HybridLimbDeformer",
+    ):
+        if snippet not in hybrid:
+            fail(errors, "V41 hidden V21 body binding is missing: " + snippet)
+    for snippet in (
+        "IsPresentationReady",
+        "PrepareHiddenPresentation()",
+        "canvasPresentation.GeneratedRoot",
+    ):
+        if snippet not in face:
+            fail(errors, "V41 hidden V21 face binding is missing: " + snippet)
+
+    pipeline = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4ProductionPipeline.cs",
+        errors,
+    )
+    rebuild_start = pipeline.find("public static void RebuildRuntimeAssets()")
+    rebuild_end = pipeline.find("[MenuItem", rebuild_start + 1)
+    rebuild = pipeline[rebuild_start:rebuild_end]
+    previous = -1
+    for snippet in (
+        "Patch4PrefabBuilder.RebuildPrefab()",
+        "Patch4V21AnimationFinalizer.Apply()",
+        "Patch4WalkV18Finalizer.Apply()",
+        "Patch4V21PoseResetFinalizer.Apply()",
+        "Patch4V21HybridRigInstaller.Apply()",
+        "Patch4V21HybridValidator.ValidateOrThrow()",
+        "Patch4GeneratedPrefabAudit.ValidateOrThrow()",
+    ):
+        index = rebuild.find(snippet)
+        if index < 0:
+            fail(errors, "V41 full prefab rebuild is missing: " + snippet)
+        elif index <= previous:
+            fail(errors, "V41 full prefab rebuild is out of order at: " + snippet)
+        previous = max(previous, index)
+
+    audit = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4GeneratedPrefabAudit.cs",
+        errors,
+    )
+    for snippet in (
+        "ValidateGeneratedPrefab(out string error)",
+        "exactly one authoritative root Animator",
+        "RequiredClipNames",
+        "RequiredBoneNames",
+        "TryGetRequiredParent",
+        "GetCurveBindings",
+        "BindingResolves",
+        "images.Length != Patch4RigContract.RequiredLayerPaths.Count",
+        "Patch4V21FootPlantController",
+        "references.Length != 1 || references[0].enabled",
+    ):
+        if snippet not in audit:
+            fail(errors, "V41 generated-prefab audit is missing: " + snippet)
+
+    demo = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4GameplayAnimationDemoWindow.cs",
+        errors,
+    )
+    for snippet in (
+        'MenuItem("Tools/GameWork/Patch 4.0/Gameplay Animation Demo")',
+        "StartDevelopmentDemo()",
+        "RequiredClipNames",
+        "PlayDevelopmentClip(clip)",
+        "WalkLeft()",
+        "WalkRight()",
+        "ResetDevelopmentDemo()",
+        "VisiblePresentationCount",
+    ):
+        if snippet not in demo:
+            fail(errors, "V41 gameplay animation demo is missing: " + snippet)
+    if "SetPatch4Enabled(true)" in demo:
+        fail(errors, "V41 development demo must not unlock production art.")
+
+    tests = read_text(
+        root,
+        "Assets/GameWorkPatch4/Tests/PlayMode/Patch4RuntimeInstallationPlayModeTests.cs",
+        errors,
+    )
+    for snippet in (
+        "BuildReadyLegacyGameplayOwner(",
+        'GetBoolProperty(legacyRig, "AnimatorReady")',
+        'GetBoolProperty(legacySkin, "IsVisualReady")',
+        'GetIntProperty(patchRig, "VisiblePresentationCount")',
+        "TryBeginEditorPresentationOverride",
+        "AssertPublicAnimationSignals(",
+        "TryGetDeformedSample",
+        "AssertGameplayRootTravel(",
+        "animator.enabled = false",
+        "Character Animator is disabled.",
+        "Character skin controller is not ",
+    ):
+        if snippet not in tests:
+            fail(errors, "V41 PlayMode regression coverage is missing: " + snippet)
 
 
 def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
@@ -2205,6 +2465,7 @@ def main() -> int:
     validate_repository_restore_pipeline(root, errors)
     validate_readiness_gate(root, errors)
     validate_runtime_installation(root, errors)
+    validate_v41_character_pipeline(root, errors)
     validate_neutral_pose_qa(root, errors)
     validate_v23_full_frame_sheets(root, errors)
     validate_protected_paths(root, args.base_ref, errors)

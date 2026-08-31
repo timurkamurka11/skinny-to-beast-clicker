@@ -50,6 +50,42 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 "GroundShadow"
             });
 
+        private static readonly IReadOnlyDictionary<string, string>
+            RequiredBoneParents = new Dictionary<string, string>(
+                StringComparer.Ordinal)
+            {
+                ["CharacterRoot"] = "Root",
+                ["Pelvis"] = "CharacterRoot",
+                ["SpineLower"] = "Pelvis",
+                ["BellyBase"] = "SpineLower",
+                ["BellyTip"] = "BellyBase",
+                ["SpineUpper"] = "SpineLower",
+                ["ChestSoftL"] = "SpineUpper",
+                ["ChestSoftR"] = "SpineUpper",
+                ["Neck"] = "SpineUpper",
+                ["Head"] = "Neck",
+                ["Jaw"] = "Head",
+                ["BrowL"] = "Head",
+                ["BrowR"] = "Head",
+                ["EyeL"] = "Head",
+                ["EyeR"] = "Head",
+                ["ClavicleL"] = "SpineUpper",
+                ["UpperArmL"] = "ClavicleL",
+                ["ForearmL"] = "UpperArmL",
+                ["HandL"] = "ForearmL",
+                ["ClavicleR"] = "SpineUpper",
+                ["UpperArmR"] = "ClavicleR",
+                ["ForearmR"] = "UpperArmR",
+                ["HandR"] = "ForearmR",
+                ["ThighL"] = "Pelvis",
+                ["ShinL"] = "ThighL",
+                ["FootL"] = "ShinL",
+                ["ThighR"] = "Pelvis",
+                ["ShinR"] = "ThighR",
+                ["FootR"] = "ShinR",
+                ["GroundShadow"] = "Root"
+            };
+
         public static IReadOnlyList<string> RequiredLayerPaths { get; } =
             Array.AsReadOnly(new[]
             {
@@ -180,6 +216,15 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 contractPath,
                 RuntimeContinuousBodyLayerPath,
                 StringComparison.Ordinal);
+        }
+
+        public static bool TryGetRequiredParent(
+            string boneName,
+            out string parentName)
+        {
+            return RequiredBoneParents.TryGetValue(
+                boneName ?? string.Empty,
+                out parentName);
         }
 
         private static bool Contains(

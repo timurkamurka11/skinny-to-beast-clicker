@@ -51,6 +51,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         };
 
         [SerializeField] private Patch4CharacterRigController rigController;
+        [SerializeField] private Patch4CanvasPresentation canvasPresentation;
         [SerializeField] private Sprite torsoSprite;
         [SerializeField] private Sprite armLSprite;
         [SerializeField] private Sprite armRSprite;
@@ -62,10 +63,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private int appliedGeneratedRootId;
         private float facingSign = 1f;
         private Vector3 visualRootBindScale = Vector3.one;
+        private bool presentationReady;
 
         public bool IsApplied =>
             generatedRoot != null &&
             appliedGeneratedRootId == generatedRoot.GetInstanceID();
+        public bool IsPresentationReady =>
+            presentationReady && IsApplied;
 
         /// <summary>
         /// Rebuilds all visible hybrid bindings from the pose currently held
@@ -77,8 +81,21 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             ResolveReferences();
             appliedGeneratedRootId = 0;
-            TryApplyWhenVisible();
-            return IsApplied;
+            presentationReady = false;
+            TryApplyPresentation();
+            return IsPresentationReady;
+        }
+
+        public bool PrepareHiddenPresentation()
+        {
+            ResolveReferences();
+            if (IsApplied)
+            {
+                presentationReady = ValidatePresentationBindings();
+            }
+            if (!presentationReady) appliedGeneratedRootId = 0;
+            TryApplyPresentation();
+            return IsPresentationReady;
         }
 
         public void SetFacingSign(int sign)
@@ -90,23 +107,24 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private void Reset()
         {
             rigController = GetComponent<Patch4CharacterRigController>();
+            canvasPresentation = GetComponent<Patch4CanvasPresentation>();
         }
 
         private void Awake()
         {
             ResolveReferences();
-            TryApplyWhenVisible();
+            TryApplyPresentation();
         }
 
         private void OnEnable()
         {
             ResolveReferences();
-            TryApplyWhenVisible();
+            TryApplyPresentation();
         }
 
         private void Update()
         {
-            TryApplyWhenVisible();
+            if (!IsPresentationReady) TryApplyPresentation();
             ApplyFacing();
         }
 
@@ -117,18 +135,24 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 rigController = GetComponent<Patch4CharacterRigController>();
             }
 
+            if (canvasPresentation == null)
+            {
+                canvasPresentation = GetComponent<Patch4CanvasPresentation>();
+            }
+
             if (visualRoot == null)
             {
                 visualRoot = transform.Find(VisualRootName);
             }
 
-            Transform candidate = visualRoot != null
-                ? visualRoot.Find(GeneratedRootName)
+            Transform candidate = canvasPresentation != null
+                ? canvasPresentation.GeneratedRoot
                 : null;
             if (candidate != generatedRoot)
             {
                 generatedRoot = candidate;
                 appliedGeneratedRootId = 0;
+                presentationReady = false;
                 visualRootBindScale = visualRoot != null
                     ? visualRoot.localScale
                     : Vector3.one;
@@ -148,13 +172,12 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 visualRootBindScale.z);
         }
 
-        private void TryApplyWhenVisible()
+        private void TryApplyPresentation()
         {
             ResolveReferences();
             if (rigController == null ||
                 visualRoot == null ||
                 generatedRoot == null ||
-                !visualRoot.gameObject.activeInHierarchy ||
                 torsoSprite == null ||
                 armLSprite == null ||
                 armRSprite == null ||
@@ -222,12 +245,36 @@ namespace SkinnyToBeast.Gameplay.Patch4
             SetActiveIfPresent(images, "FX/Shadow", true);
 
             appliedGeneratedRootId = rootId;
+            presentationReady = ValidatePresentationBindings();
             Debug.Log(
                 "Patch 4 v21 hybrid puppet applied: four continuous limbs use " +
                 "localized three-bone deformation; the torso uses only its own " +
                 "Spine/Pelvis/Belly mesh instead of whole-body weights; v20 rigid " +
                 "internal segment cuts are not rendered.",
                 this);
+        }
+
+        private bool ValidatePresentationBindings()
+        {
+            if (generatedRoot == null) return false;
+            Dictionary<string, Image> images = BuildImageMap();
+            if (!images.TryGetValue("Clothes/ShirtBase", out Image torso) ||
+                torso == null)
+            {
+                return false;
+            }
+            Patch4CanvasSkinDeformer torsoSkin =
+                torso.GetComponent<Patch4CanvasSkinDeformer>();
+            if (torsoSkin == null || !torsoSkin.IsBound) return false;
+
+            Patch4HybridLimbDeformer[] limbs =
+                generatedRoot.GetComponentsInChildren<Patch4HybridLimbDeformer>(true);
+            if (limbs.Length != 4) return false;
+            for (int i = 0; i < limbs.Length; i++)
+            {
+                if (limbs[i] == null || !limbs[i].IsBound) return false;
+            }
+            return true;
         }
 
         private void ConfigureTorsoLayer(Image image, Sprite sprite)

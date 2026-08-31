@@ -59,26 +59,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private bool ApplyExpectedState()
         {
-            if (rigController != null)
-            {
-                return rigController.SynchronizeVisualState();
-            }
-
-            bool repaired = false;
-            if (patch4VisualRoot != null && patch4VisualRoot.activeSelf)
-            {
-                patch4VisualRoot.SetActive(false);
-                repaired = true;
-            }
-
-            if (patch35RollbackRoot != null &&
-                !patch35RollbackRoot.activeSelf)
-            {
-                patch35RollbackRoot.SetActive(true);
-                repaired = true;
-            }
-
-            return repaired;
+            return rigController != null &&
+                rigController.SynchronizeVisualState();
         }
     }
 }

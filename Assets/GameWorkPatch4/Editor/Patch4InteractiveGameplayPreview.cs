@@ -21,6 +21,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             "SkinnyToBeast.GameWorkPatch4.InteractivePreview.Stage";
         private const string BoundKey =
             "SkinnyToBeast.GameWorkPatch4.InteractivePreview.Bound";
+        private const string ManualControlsKey =
+            "SkinnyToBeast.GameWorkPatch4.InteractivePreview.ManualControls";
         private const string LegacyAnimatorResumePlayKey =
             "SkinnyToBeast.LivingAnimatorBuilt.Patch3.ResumePlayV4";
 
@@ -35,6 +37,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         public static bool IsInProgress =>
             SessionState.GetBool(InProgressKey, false);
+        public static Patch4InteractiveGameplayPreviewDriver ActiveDriver =>
+            UnityEngine.Object.FindFirstObjectByType<
+                Patch4InteractiveGameplayPreviewDriver>();
 
         static Patch4InteractiveGameplayPreview()
         {
@@ -72,6 +77,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         public static bool StartAfterFreshReview()
         {
+            return StartPreview(false);
+        }
+
+        public static bool StartDevelopmentDemo()
+        {
+            return StartPreview(true);
+        }
+
+        private static bool StartPreview(bool manualControls)
+        {
             if (Application.isBatchMode ||
                 Patch4AutomatedTestRunner.IsRunInProgress ||
                 IsInProgress ||
@@ -82,6 +97,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             SessionState.SetBool(InProgressKey, true);
             SessionState.SetBool(BoundKey, false);
+            SessionState.SetBool(ManualControlsKey, manualControls);
             SessionState.SetString(StageKey, WaitingStage);
             BeginEditorQuiescence();
             return true;
@@ -179,6 +195,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 SessionState.SetBool(LegacyAnimatorResumePlayKey, false);
                 LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets();
                 SessionState.SetBool(LegacyAnimatorResumePlayKey, false);
+                if (!Patch4GeneratedPrefabAudit.ValidateGeneratedPrefab(
+                        out string prefabError))
+                {
+                    Patch4ProductionPipeline.RebuildRuntimeAssets();
+                    if (!Patch4GeneratedPrefabAudit.ValidateGeneratedPrefab(
+                            out prefabError))
+                    {
+                        throw new InvalidOperationException(prefabError);
+                    }
+                }
             }
             catch (Exception exception)
             {
@@ -226,6 +252,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             bool wasBound = SessionState.GetBool(BoundKey, false);
+            bool manualControls =
+                SessionState.GetBool(ManualControlsKey, false);
             ClearOwnership();
             if (wasBound)
             {
@@ -240,7 +268,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "gameplay character was bound.");
             }
 
-            EditorApplication.delayCall += OpenDeferredReviewArtifacts;
+            if (!manualControls)
+            {
+                EditorApplication.delayCall += OpenDeferredReviewArtifacts;
+            }
         }
 
         private static void ScheduleRoomBinding()
@@ -281,6 +312,7 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             {
                 gameplayWindowRequested = true;
                 Patch4PreviewSceneCamera.EnsureActiveCamera();
+                GameplayWindowController.SetEditorCharacterRevealBlocked(true);
                 if (!GameplayWindowController.Show())
                 {
                     FailAndExitPlayMode(
@@ -290,10 +322,6 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             Patch4RuntimeInstaller.InstallAvailableGameplayRigs();
-            if (!GameplayWindowController.IsCharacterReady)
-            {
-                return;
-            }
 
             Patch4CharacterRigController patchRig = FindInstalledPatchRig();
             if (patchRig == null)
@@ -341,12 +369,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     animator,
                     out _) ||
                 !stateMachine.IsConfigured ||
+                !patchRig.IsTechnicalRuntimeReady ||
                 signalBridge == null ||
                 !signalBridge.enabled ||
                 !signalBridge.IsBound)
             {
-                FailAndExitPlayMode(
-                    "The locked interactive Patch 4 room binding is incomplete.");
+                // Awake/OnEnable/Start and the first Canvas layout pass may
+                // complete across adjacent editor updates. Keep the candidate
+                // hidden and retry this same deterministic readiness graph;
+                // the existing deadline remains the only failure boundary.
                 return;
             }
 
@@ -375,13 +406,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     presentation,
                     animator,
                     patchVisual,
-                    rollbackVisual))
+                    rollbackVisual,
+                    SessionState.GetBool(ManualControlsKey, false)))
             {
                 UnityEngine.Object.Destroy(host);
-                FailAndExitPlayMode(
-                    "The locked interactive Patch 4 visual override failed.");
+                // The central owner rejected a dependency that has not become
+                // ready yet. Do not expose either presentation or abandon the
+                // existing candidate; the next binding update re-finalizes it.
                 return;
             }
+
+            GameplayWindowController.SetEditorCharacterRevealBlocked(false);
 
             SessionState.SetBool(BoundKey, true);
             EditorApplication.update -= TryBindRealRoom;
@@ -420,13 +455,19 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static void FailBeforePlay(string message)
         {
             Debug.LogError("Patch 4 locked gameplay preview: " + message);
+            bool manualControls =
+                SessionState.GetBool(ManualControlsKey, false);
             ClearOwnership();
-            EditorApplication.delayCall += OpenDeferredReviewArtifacts;
+            if (!manualControls)
+            {
+                EditorApplication.delayCall += OpenDeferredReviewArtifacts;
+            }
         }
 
         private static void FailAndExitPlayMode(string message)
         {
             EditorApplication.update -= TryBindRealRoom;
+            GameplayWindowController.SetEditorCharacterRevealBlocked(false);
             Debug.LogError("Patch 4 locked gameplay preview: " + message);
             if (EditorApplication.isPlayingOrWillChangePlaymode)
             {
@@ -452,11 +493,16 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
             SessionState.SetBool(InProgressKey, false);
             SessionState.SetBool(BoundKey, false);
+            SessionState.SetBool(ManualControlsKey, false);
             SessionState.SetString(StageKey, string.Empty);
             gameplayWindowRequested = false;
             quiescentUpdateCount = 0;
             quiescenceStartedAt = 0d;
             bindingDeadline = 0d;
+            if (EditorApplication.isPlaying)
+            {
+                GameplayWindowController.SetEditorCharacterRevealBlocked(false);
+            }
         }
     }
 }

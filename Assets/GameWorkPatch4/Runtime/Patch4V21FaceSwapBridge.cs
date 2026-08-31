@@ -19,12 +19,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private const string LayerPrefix = "Layer.";
 
         [SerializeField] private Patch4FaceController faceController;
+        [SerializeField] private Patch4CanvasPresentation canvasPresentation;
         private Transform generatedRoot;
         private int boundRootId;
+
+        public bool IsPresentationReady =>
+            generatedRoot != null && boundRootId == generatedRoot.GetInstanceID();
+
+        public bool PrepareHiddenPresentation()
+        {
+            TryBind();
+            return IsPresentationReady;
+        }
 
         private void Reset()
         {
             faceController = GetComponent<Patch4FaceController>();
+            canvasPresentation = GetComponent<Patch4CanvasPresentation>();
         }
 
         private void OnEnable()
@@ -34,7 +45,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
         private void Update()
         {
-            TryBind();
+            if (!IsPresentationReady) TryBind();
         }
 
         private void TryBind()
@@ -43,18 +54,18 @@ namespace SkinnyToBeast.Gameplay.Patch4
             {
                 faceController = GetComponent<Patch4FaceController>();
             }
+            if (canvasPresentation == null)
+            {
+                canvasPresentation = GetComponent<Patch4CanvasPresentation>();
+            }
             if (faceController == null)
             {
                 return;
             }
 
-            Transform visual = transform.Find(VisualRootName);
-            if (visual == null || !visual.gameObject.activeInHierarchy)
-            {
-                return;
-            }
-
-            Transform candidate = visual.Find(GeneratedRootName);
+            Transform candidate = canvasPresentation != null
+                ? canvasPresentation.GeneratedRoot
+                : null;
             if (candidate == null)
             {
                 return;

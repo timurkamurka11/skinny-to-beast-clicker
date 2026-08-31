@@ -55,6 +55,29 @@ namespace SkinnyToBeast.Gameplay.Patch4
         public bool IsBound => bound;
         public LimbProfile Profile => profile;
 
+        public bool TryGetDeformedSample(
+            float normalizedX,
+            float normalizedY,
+            out Vector2 sample)
+        {
+            sample = default;
+            ResolveReferences();
+            if (!bound && !CaptureBindPose()) return false;
+            if (imageTransform == null) return false;
+
+            float u = Mathf.Clamp01(normalizedX);
+            float v = Mathf.Clamp01(normalizedY);
+            Rect rect = imageTransform.rect;
+            Vector2 original = new(
+                Mathf.Lerp(rect.xMin, rect.xMax, u),
+                Mathf.Lerp(rect.yMin, rect.yMax, v));
+            Vector3 weights = ResolveWeights(1f - v);
+            sample = TransformByBone(0, original) * weights.x +
+                TransformByBone(1, original) * weights.y +
+                TransformByBone(2, original) * weights.z;
+            return IsFinite(sample.x) && IsFinite(sample.y);
+        }
+
         public void Configure(
             Patch4CharacterRigController rig,
             LimbProfile limbProfile,
@@ -334,6 +357,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             value = Mathf.Clamp01(value);
             return value * value * (3f - 2f * value);
         }
+
+        private static bool IsFinite(float value) =>
+            !float.IsNaN(value) && !float.IsInfinity(value);
 
         private void MarkDirty()
         {

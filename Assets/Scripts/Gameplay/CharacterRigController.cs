@@ -104,6 +104,10 @@ namespace SkinnyToBeast.Gameplay
         public bool HasAppliedSkin => currentDefinition != null;
         public bool AnimatorReady =>
             animationDriver != null && animationDriver.IsReady;
+        public string AnimatorReadinessError =>
+            animationDriver != null
+                ? animationDriver.ReadinessError
+                : "Character animation driver is missing.";
         public int AcceptedTapCount =>
             animationDriver != null
                 ? animationDriver.AcceptedTapCount

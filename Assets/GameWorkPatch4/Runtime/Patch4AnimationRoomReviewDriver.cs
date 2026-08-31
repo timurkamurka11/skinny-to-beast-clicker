@@ -182,6 +182,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private Patch4CharacterStateMachine stateMachine;
         private Patch4SecondaryMotionController secondaryMotion;
         private Patch4V21HybridPuppetController hybridPuppet;
+        private Patch4V21FaceSwapBridge faceSwapBridge;
         private Patch4V23FullFramePresentation v23FullFramePresentation;
         private Animator animator;
         private GameObject patch4VisualRoot;
@@ -203,6 +204,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         private bool legacyRoutineWasEnabled;
         private bool legacySignalBridgeWasEnabled;
         private bool cleanupCompleted;
+        private bool editorPresentationOwned;
         private ReviewReport report;
         private Color32[] clipStartPixels = Array.Empty<Color32>();
         private Rect neutralExpectedScreenRect;
@@ -263,6 +265,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
             secondaryMotion = motion;
             hybridPuppet = rig != null
                 ? rig.GetComponent<Patch4V21HybridPuppetController>()
+                : null;
+            faceSwapBridge = rig != null
+                ? rig.GetComponent<Patch4V21FaceSwapBridge>()
                 : null;
             v23FullFramePresentation = fullFramePresentation;
             animator = targetAnimator;
@@ -399,7 +404,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             yield return null;
             yield return new WaitForEndOfFrame();
-            patch4VisualRoot.SetActive(false);
+            if (!rigController.SetEditorPresentationPixelsVisible(this, false))
+            {
+                Finish(
+                    false,
+                    "The central presentation owner could not enter the " +
+                    "background-capture blackout state.");
+                yield break;
+            }
             yield return null;
             yield return new WaitForEndOfFrame();
             if (!CaptureReviewBackground())
@@ -410,7 +422,14 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 yield break;
             }
 
-            patch4VisualRoot.SetActive(true);
+            if (!rigController.SetEditorPresentationPixelsVisible(this, true))
+            {
+                Finish(
+                    false,
+                    "The central presentation owner could not restore the " +
+                    "single Patch 4 review presentation.");
+                yield break;
+            }
             Canvas.ForceUpdateCanvases();
             yield return null;
             yield return new WaitForEndOfFrame();
@@ -1715,27 +1734,28 @@ namespace SkinnyToBeast.Gameplay.Patch4
             rigController.SetPatch4Enabled(false);
             stateMachine.SetLockedReviewActive(true);
             visibilityGuardWasEnabled = visibilityGuard.enabled;
-            visibilityGuard.enabled = false;
             PauseLegacyMotionAndFootsteps();
-            // Keep the full legacy hierarchy active so its stage controller,
-            // skin validation, room routine and action signals remain valid.
-            // Suppress the pixels at their renderer owner instead of disabling
-            // VisualRoot; disabling that root makes every subsequent Stage 4
-            // Sync fail and retry forever.
-            legacySpriteRigController.SetEditorPreviewSuppressed(true);
             report.legacyRigStayedLogicallyActive =
                 legacyRigController != null &&
                 legacyRigController.gameObject.activeInHierarchy;
             secondaryMotion.SetEditorReviewActive(false);
             neutralBindReady = PrepareNeutralAnimatorPose();
-            patch4VisualRoot.SetActive(true);
-            // Arm the persistent layered character before the visual root
-            // returns so no full-frame fallback can flash for one render.
             neutralBindReady &=
                 v23FullFramePresentation.SetReviewPose(
                     "FatMan_Idle_Breathe",
                     0f);
             neutralBindReady &= hybridPuppet.RebindAtCurrentPose();
+            neutralBindReady &= faceSwapBridge != null &&
+                faceSwapBridge.PrepareHiddenPresentation();
+            if (neutralBindReady)
+            {
+                editorPresentationOwned =
+                    rigController.TryBeginEditorPresentationOverride(
+                        this,
+                        true,
+                        out _);
+                neutralBindReady &= editorPresentationOwned;
+            }
             faceController.SetEditorReviewActive(true);
             secondaryMotion.SetEditorReviewActive(true);
             animator.updateMode = AnimatorUpdateMode.UnscaledTime;
@@ -3263,20 +3283,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 rigController.SetPatch4Enabled(false);
             }
 
-            if (patch4VisualRoot != null)
+            if (rigController != null && editorPresentationOwned)
             {
-                patch4VisualRoot.SetActive(false);
-            }
-
-            if (legacySpriteRigController != null)
-            {
-                legacySpriteRigController.SetEditorPreviewSuppressed(
-                    legacyPixelsWereSuppressed);
-            }
-
-            if (patch35RollbackRoot != null)
-            {
-                patch35RollbackRoot.SetActive(rollbackRootWasActive);
+                rigController.EndEditorPresentationOverride(this);
+                editorPresentationOwned = false;
             }
 
             if (visibilityGuard != null)

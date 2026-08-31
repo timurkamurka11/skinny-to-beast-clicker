@@ -9,6 +9,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
 {
@@ -160,6 +161,55 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             AssertAnimatorControllerRoutesGameplayActions();
             AssertAutomatedTestRunnerOwnsPlayMode();
             AssertLockedInteractiveGameplayPreview();
+        }
+
+        [Test]
+        public void GeneratedPrefab_HasSingleHiddenV41PresentationPipeline()
+        {
+            const string prefabPath =
+                "Assets/GameWorkPatch4/Resources/FatMan_Patch4.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            Assert.NotNull(prefab, "The generated Patch 4 prefab is missing.");
+
+            Animator[] animators = prefab.GetComponentsInChildren<Animator>(true);
+            Assert.AreEqual(1, animators.Length);
+            Assert.AreSame(prefab, animators[0].gameObject);
+            Assert.IsTrue(animators[0].enabled);
+            Assert.NotNull(animators[0].runtimeAnimatorController);
+
+            Transform visual = prefab.transform.Find("Patch4VisualRoot");
+            Assert.NotNull(visual);
+            Assert.IsFalse(visual.gameObject.activeSelf,
+                "The generated candidate must initialize hidden.");
+            Assert.AreEqual(40, visual.GetComponentsInChildren<Image>(true).Length);
+            RawImage[] references = visual.GetComponentsInChildren<RawImage>(true);
+            Assert.AreEqual(1, references.Length);
+            Assert.IsFalse(references[0].enabled,
+                "The V23 complete-frame surface is QA reference only.");
+
+            foreach (string typeName in new[]
+            {
+                "Patch4CharacterRigController",
+                "Patch4FaceController",
+                "Patch4CanvasPresentation",
+                "Patch4V21HybridPuppetController",
+                "Patch4V21FaceSwapBridge",
+                "Patch4LegacySignalBridge"
+            })
+            {
+                Type type = RequireType(
+                    "SkinnyToBeast.Gameplay.Patch4." + typeName);
+                Assert.AreEqual(1, prefab.GetComponentsInChildren(type, true).Length, typeName);
+            }
+
+            Type audit = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor.Patch4GeneratedPrefabAudit");
+            MethodInfo validate = audit.GetMethod(
+                "ValidateGeneratedPrefab",
+                BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(validate);
+            object[] arguments = { string.Empty };
+            Assert.IsTrue((bool)validate.Invoke(null, arguments), arguments[0] as string);
         }
 
         [Test]
@@ -361,19 +411,29 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             int neutral = prepare.IndexOf(
                 "PrepareNeutralAnimatorPose()",
                 StringComparison.Ordinal);
-            int show = prepare.IndexOf(
-                "patch4VisualRoot.SetActive(true)",
+            int hiddenPresentation = prepare.IndexOf(
+                "v23FullFramePresentation.SetReviewPose(",
                 StringComparison.Ordinal);
             int rebind = prepare.IndexOf(
                 "hybridPuppet.RebindAtCurrentPose()",
                 StringComparison.Ordinal);
+            int faceBind = prepare.IndexOf(
+                "faceSwapBridge.PrepareHiddenPresentation()",
+                StringComparison.Ordinal);
+            int handoff = prepare.IndexOf(
+                "TryBeginEditorPresentationOverride(",
+                StringComparison.Ordinal);
             Assert.GreaterOrEqual(pause, 0);
             Assert.Greater(neutral, pause,
                 "The live signal bridge must be paused before neutral reset.");
-            Assert.Greater(show, neutral,
-                "The hidden hybrid cannot activate before neutral reset.");
-            Assert.Greater(rebind, show,
-                "The hybrid mesh must bind only after its neutral visual is active.");
+            Assert.Greater(hiddenPresentation, neutral,
+                "The hidden presentation cannot bind before neutral reset.");
+            Assert.Greater(rebind, hiddenPresentation,
+                "The hybrid mesh must bind while the candidate is hidden.");
+            Assert.Greater(faceBind, rebind,
+                "The face replacement must bind before the handoff.");
+            Assert.Greater(handoff, faceBind,
+                "Patch 4 became visible before all hidden dependencies were ready.");
         }
 
         [Test]
@@ -1116,11 +1176,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                     BindingFlags.Static | BindingFlags.Public));
             Assert.NotNull(
                 preview.GetMethod(
+                    "StartDevelopmentDemo",
+                    BindingFlags.Static | BindingFlags.Public));
+            Assert.NotNull(
+                preview.GetMethod(
                     "PrepareForAutomatedTests",
                     BindingFlags.Static | BindingFlags.Public));
             RequireType(
                 "SkinnyToBeast.Gameplay.Patch4.Editor." +
                 "Patch4InteractiveGameplayPreviewDriver");
+            RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Editor." +
+                "Patch4GameplayAnimationDemoWindow");
 
             Type presentation = RequireType(
                 "SkinnyToBeast.Gameplay.Patch4." +
@@ -1153,6 +1220,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "GameplayWindowController.Show()",
                 "Patch4RuntimeInstaller.InstallAvailableGameplayRigs()",
                 "LivingGameplayAnimatorAssetBuilder.EnsureCurrentAssets()",
+                "Patch4GeneratedPrefabAudit.ValidateGeneratedPrefab(",
+                "GameplayWindowController.SetEditorCharacterRevealBlocked(true)",
                 "Play Mode will remain on until you stop it",
                 "Patch4AnimationRoomReviewWindow.Open()"
             })
@@ -1175,12 +1244,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 "faceController.SetEditorReviewActive(false)",
                 "secondaryMotion.SetEditorReviewActive(true)",
                 "secondaryMotion.SetEditorReviewActive(false)",
-                "visibilityGuard.enabled = false",
-                "legacySpriteRigController." +
-                    "SetEditorPreviewSuppressed(true)",
-                "legacySpriteRigController." +
-                    "SetEditorPreviewSuppressed(",
-                "patch35RollbackRoot.SetActive(rollbackRootWasActive)",
+                "TryBeginEditorPresentationOverride(",
+                "EndEditorPresentationOverride(this)",
                 "SetEditorGameplayPreviewActive(true)",
                 "ConfigureSafeRoomRoute()",
                 "RoomAnchorKind.Center",
@@ -1208,6 +1273,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 driverSource,
                 "Disabling VisualRoot makes GameplayVisualStageController " +
                 "reject Stage 4 and retry Sync forever.");
+            StringAssert.DoesNotContain(
+                "patch4VisualRoot.SetActive(",
+                driverSource,
+                "Preview must not bypass the authoritative presentation owner.");
+            StringAssert.DoesNotContain(
+                "SetEditorPreviewSuppressed(",
+                driverSource,
+                "Preview must not write legacy visibility outside the owner.");
 
             StringAssert.StartsWith(
                 "#if UNITY_EDITOR",

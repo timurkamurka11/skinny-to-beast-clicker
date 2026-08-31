@@ -41,6 +41,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
                 SerializedObject serialized = new(controller);
                 serialized.FindProperty("rigController").objectReferenceValue = rig;
+                serialized.FindProperty("canvasPresentation").objectReferenceValue =
+                    root.GetComponent<Patch4CanvasPresentation>();
                 serialized.FindProperty("torsoSprite").objectReferenceValue = torso;
                 serialized.FindProperty("armLSprite").objectReferenceValue = armL;
                 serialized.FindProperty("armRSprite").objectReferenceValue = armR;
@@ -57,6 +59,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 SerializedObject faceSerialized = new(faceBridge);
                 faceSerialized.FindProperty("faceController").objectReferenceValue =
                     root.GetComponent<Patch4FaceController>();
+                faceSerialized.FindProperty("canvasPresentation").objectReferenceValue =
+                    root.GetComponent<Patch4CanvasPresentation>();
                 faceSerialized.ApplyModifiedPropertiesWithoutUndo();
 
                 EditorUtility.SetDirty(controller);

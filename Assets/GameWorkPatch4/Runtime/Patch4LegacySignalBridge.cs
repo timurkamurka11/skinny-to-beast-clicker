@@ -86,6 +86,28 @@ namespace SkinnyToBeast.Gameplay.Patch4
             InitializeObservation();
         }
 
+        /// <summary>
+        /// Applies the current movement/routine state synchronously during the
+        /// presentation handoff. Patch4RuntimeInstaller runs after this
+        /// component's normal Update, so waiting for the next frame would show
+        /// a neutral pose while the shared gameplay root was already moving.
+        /// </summary>
+        public bool SynchronizeCurrentGameplayState()
+        {
+            if (!IsBound || !enabled || stateMachine == null || !stateMachine.IsReady)
+            {
+                return false;
+            }
+
+            if (!initialized)
+            {
+                InitializeObservation();
+            }
+
+            MirrorMovementAndRoutine();
+            return true;
+        }
+
         private void Update()
         {
             if (legacyRig == null || stateMachine == null)

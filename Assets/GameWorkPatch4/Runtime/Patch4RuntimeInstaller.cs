@@ -149,6 +149,10 @@ namespace SkinnyToBeast.Gameplay.Patch4
                     Patch4V23FullFramePresentation>();
             Patch4CharacterStateMachine stateMachine =
                 patchInstance.GetComponent<Patch4CharacterStateMachine>();
+            Patch4V21HybridPuppetController hybridPresentation =
+                patchInstance.GetComponent<Patch4V21HybridPuppetController>();
+            Patch4V21FaceSwapBridge facePresentation =
+                patchInstance.GetComponent<Patch4V21FaceSwapBridge>();
             Animator animator = patchInstance.GetComponent<Animator>();
 
             if (patchRig == null ||
@@ -157,6 +161,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 canvasPresentation == null ||
                 fullFramePresentation == null ||
                 stateMachine == null ||
+                hybridPresentation == null ||
+                facePresentation == null ||
                 animator == null ||
                 animator.runtimeAnimatorController == null)
             {
@@ -173,9 +179,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
 
             // The editor-only room/animation review deliberately owns the
             // visual override while leaving the production art gate closed.
-            // Its driver has already bound the real dependencies and disabled
-            // the visibility guard; a background installer pass must not
-            // rewrite that explicitly scoped technical-review state.
+            // Its driver has already bound the real dependencies and acquired
+            // the central presentation owner; a background installer pass
+            // must not rewrite that explicitly scoped technical-review state.
             if (stateMachine.IsLockedReviewActive)
             {
                 return true;
@@ -185,10 +191,11 @@ namespace SkinnyToBeast.Gameplay.Patch4
             CharacterSkinController legacySkin =
                 legacyRig.GetComponent<CharacterSkinController>();
 
-            stateMachine.BindRuntimeDependencies(patchRig, animator);
+            // Prepare the candidate completely while its presentation remains
+            // hidden. The only visible-state mutation happens later through
+            // Patch4CharacterRigController's atomic handoff.
             patchRig.BindRollbackRoot(rollbackRoot);
             visibility.BindRollbackRoot(rollbackRoot);
-            bridge.BindLegacy(legacyRig, legacySkin);
 
             if (!canvasPresentation.IsCanvasReady)
             {
@@ -197,6 +204,23 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 canvasPresentation.ConfigureForGameplayRoom(
                     legacyCharacterRoot);
             }
+            fullFramePresentation.RebuildPresentation();
+
+            animator.applyRootMotion = false;
+            // A valid generated prefab arrives with an enabled root Animator.
+            // Initialize that Animator once if Unity has not done so yet, but
+            // never turn a disabled/broken dependency back on here. Rebinding
+            // every 0.2-second installer scan would restart live reactions and
+            // would also defeat the rollback contract for an Animator failure.
+            if (animator.enabled && !animator.isInitialized)
+            {
+                animator.Rebind();
+                animator.Update(0f);
+            }
+            stateMachine.BindRuntimeDependencies(patchRig, animator);
+            hybridPresentation.PrepareHiddenPresentation();
+            facePresentation.PrepareHiddenPresentation();
+            bridge.BindLegacy(legacyRig, legacySkin);
 
             bool activated = TryActivateIfReady(
                 legacyRig,
@@ -269,6 +293,13 @@ namespace SkinnyToBeast.Gameplay.Patch4
             if (!patchRig.SetPatch4Enabled(true))
             {
                 ActivatedRigIds.Remove(patchRig.GetInstanceID());
+                return false;
+            }
+
+            if (!bridge.SynchronizeCurrentGameplayState())
+            {
+                ActivatedRigIds.Remove(patchRig.GetInstanceID());
+                patchRig.SetPatch4Enabled(false);
                 return false;
             }
 

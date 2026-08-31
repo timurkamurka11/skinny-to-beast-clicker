@@ -34,6 +34,9 @@ namespace SkinnyToBeast.UI
 
         private static GameplayWindowController instance;
         private static Sprite roundedSprite;
+#if UNITY_EDITOR
+        private static bool editorCharacterRevealBlocked;
+#endif
 
         private readonly Dictionary<string, TMP_Text> upgradeLabels = new();
         private readonly Dictionary<string, Button> upgradeButtons = new();
@@ -73,6 +76,19 @@ namespace SkinnyToBeast.UI
             instance != null &&
             instance.initialized &&
             instance.characterReady;
+#if UNITY_EDITOR
+        public static bool EditorCharacterRevealBlocked =>
+            editorCharacterRevealBlocked;
+
+        public static void SetEditorCharacterRevealBlocked(bool blocked)
+        {
+            editorCharacterRevealBlocked = blocked;
+            if (!blocked && instance != null)
+            {
+                instance.EnsureCharacterReveal();
+            }
+        }
+#endif
         public static string CharacterReadinessError =>
             instance != null &&
             instance.visualStageController != null
@@ -84,6 +100,9 @@ namespace SkinnyToBeast.UI
         {
             instance = null;
             roundedSprite = null;
+#if UNITY_EDITOR
+            editorCharacterRevealBlocked = false;
+#endif
         }
 
         public static bool Show()
@@ -302,15 +321,35 @@ namespace SkinnyToBeast.UI
         private IEnumerator RevealWhenCharacterReady()
         {
             float deadline = Time.unscaledTime + 8f;
-            while (visualStageController != null &&
-                   !visualStageController.HasVisibleCharacter &&
-                   Time.unscaledTime < deadline)
+            while (visualStageController != null)
             {
+#if UNITY_EDITOR
+                if (editorCharacterRevealBlocked)
+                {
+                    // The V41 preview owns a separate deterministic binding
+                    // deadline. Do not consume the gameplay readiness budget
+                    // while that owner intentionally keeps both presentations
+                    // behind the window cover during hidden initialization.
+                    deadline = Time.unscaledTime + 8f;
+                    yield return null;
+                    continue;
+                }
+#endif
+                if (visualStageController.HasVisibleCharacter ||
+                    Time.unscaledTime >= deadline)
+                {
+                    break;
+                }
+
                 yield return null;
             }
 
             if (visualStageController == null ||
-                !visualStageController.HasVisibleCharacter)
+                !visualStageController.HasVisibleCharacter
+#if UNITY_EDITOR
+                || editorCharacterRevealBlocked
+#endif
+                )
             {
                 characterReady = false;
                 Debug.LogError(

@@ -81,9 +81,7 @@ namespace SkinnyToBeast.Gameplay
 
                 if (!rigController.AnimatorReady)
                 {
-                    return
-                        "The character Animator is disabled, missing its " +
-                        "controller, or missing required layers.";
+                    return rigController.AnimatorReadinessError;
                 }
 
                 return string.Empty;

@@ -9,6 +9,8 @@ namespace SkinnyToBeast.Gameplay.Patch4
     [DisallowMultipleComponent]
     public sealed class Patch4CharacterStateMachine : MonoBehaviour
     {
+        public const string ExpectedControllerName =
+            "FatMan_Patch4";
         public const string AnimatorLayerName = "Base Layer";
 
         private readonly struct AnimatorParameterContract
@@ -76,7 +78,7 @@ namespace SkinnyToBeast.Gameplay.Patch4
         }
         public bool IsReady =>
             IsConfigured &&
-            (rigController.Patch4Enabled || IsLockedReviewActive) &&
+            rigController.IsPatch4PresentationActive &&
             animator != null;
 
         public bool IsLockedReviewActive
@@ -141,10 +143,45 @@ namespace SkinnyToBeast.Gameplay.Patch4
                 return false;
             }
 
+            if (animator.applyRootMotion)
+            {
+                error = "Patch 4 root Animator must not own gameplay-root travel.";
+                return false;
+            }
+
+            if (animator.updateMode != AnimatorUpdateMode.UnscaledTime ||
+                animator.cullingMode != AnimatorCullingMode.AlwaysAnimate)
+            {
+                error = "Patch 4 root Animator has the wrong update or culling mode.";
+                return false;
+            }
+
+            if (!animator.gameObject.activeInHierarchy)
+            {
+                error = "Patch 4 root Animator hierarchy is inactive.";
+                return false;
+            }
+
+            if (!animator.isInitialized)
+            {
+                error = "Patch 4 root Animator is not initialized.";
+                return false;
+            }
+
             if (animator.runtimeAnimatorController == null)
             {
                 error =
                     "Patch 4 root Animator has no RuntimeAnimatorController.";
+                return false;
+            }
+
+            if (!string.Equals(
+                    animator.runtimeAnimatorController.name,
+                    ExpectedControllerName,
+                    System.StringComparison.Ordinal))
+            {
+                error = "Patch 4 root Animator uses the wrong controller: " +
+                    animator.runtimeAnimatorController.name + ".";
                 return false;
             }
 

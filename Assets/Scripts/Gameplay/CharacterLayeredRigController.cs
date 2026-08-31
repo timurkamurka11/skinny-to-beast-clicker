@@ -66,6 +66,17 @@ namespace SkinnyToBeast.Gameplay
                 ? puppetGraphic.SafetyClampCount
                 : 0;
 
+        public void ApplyReplacementSuppression(bool suppressed)
+        {
+            if (flatBodyImage != null) flatBodyImage.enabled = false;
+            DisableLegacyFaceImages();
+            if (puppetGraphic != null) puppetGraphic.enabled = !suppressed;
+            if (faceOverlayRoot != null)
+            {
+                faceOverlayRoot.gameObject.SetActive(!suppressed);
+            }
+        }
+
         private void Awake()
         {
             spriteController =
@@ -94,24 +105,10 @@ namespace SkinnyToBeast.Gameplay
             // CharacterSpriteRigController continues to own view selection,
             // stage scale and visibility bounds. Its Image is only a texture data
             // source; the bounded puppet below is the sole visible body.
-            if (flatBodyImage != null)
-            {
-                flatBodyImage.enabled = false;
-            }
-
-            DisableLegacyFaceImages();
             bool showOwnedPixels =
                 spriteController != null &&
                 !spriteController.PixelsSuppressedByReplacement;
-            if (puppetGraphic != null)
-            {
-                puppetGraphic.enabled = showOwnedPixels;
-            }
-
-            if (faceOverlayRoot != null)
-            {
-                faceOverlayRoot.gameObject.SetActive(showOwnedPixels);
-            }
+            ApplyReplacementSuppression(!showOwnedPixels);
 
             if (!showOwnedPixels)
             {
