@@ -629,6 +629,16 @@ namespace SkinnyToBeast.Gameplay.Patch4
         {
             if (!Application.isPlaying)
             {
+                // AddComponent invokes OnValidate before Patch4PrefabBuilder
+                // can serialize either reference. Ignore only that transient,
+                // non-persistent construction state; persisted malformed
+                // prefabs still validate and report the missing binding.
+                if (rigRoot == null && patch4VisualRoot == null &&
+                    !UnityEditor.EditorUtility.IsPersistent(this))
+                {
+                    return;
+                }
+
                 RebuildBoneMap();
                 ApplyPresentationState();
             }

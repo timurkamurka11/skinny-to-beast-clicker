@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import struct
 import subprocess
@@ -1563,6 +1564,16 @@ def validate_v41_character_pipeline(root: Path, errors: list[str]) -> None:
         if snippet not in owner:
             fail(errors, "V41 presentation owner is missing: " + snippet)
 
+    if (
+        "rigRoot == null && patch4VisualRoot == null" not in owner
+        or "UnityEditor.EditorUtility.IsPersistent(this)" not in owner
+    ):
+        fail(
+            errors,
+            "V41 rig validation still reports a transient unconfigured "
+            "builder component before serialized references are assigned",
+        )
+
     apply_start = owner.find("private bool ApplyPresentationState()")
     apply_end = owner.find("public bool TryGetRuntimeReadinessError", apply_start)
     apply_source = owner[apply_start:apply_end]
@@ -1712,9 +1723,78 @@ def validate_v41_character_pipeline(root: Path, errors: list[str]) -> None:
         "images.Length != Patch4RigContract.RequiredLayerPaths.Count",
         "Patch4V21FootPlantController",
         "references.Length != 1 || references[0].enabled",
+        "Patch4RigContract.CanonicalRigRootPath",
+        "IsGameplayRootTransformProperty(",
+        'illegally writes: path=\\\"',
+        'property=\\\"',
+        "bone.gameObject.activeSelf",
     ):
         if snippet not in audit:
             fail(errors, "V41 generated-prefab audit is missing: " + snippet)
+
+    animation_builder = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4AnimationLibraryBuilder.cs",
+        errors,
+    )
+    prepare_start = animation_builder.find(
+        "private static AnimationClip Prepare("
+    )
+    prepare_end = animation_builder.find(
+        "private static void SetScale(",
+        prepare_start,
+    )
+    prepare = animation_builder[prepare_start:prepare_end]
+    if 'Patch4RigContract.CanonicalRigRootPath + "/GroundShadow"' not in animation_builder:
+        fail(
+            errors,
+            "V41 animation duration marker has no canonical skeleton-local path",
+        )
+    for snippet in (
+        "DurationAnchor",
+        '"localEulerAnglesRaw.z"',
+    ):
+        if snippet not in prepare:
+            fail(
+                errors,
+                "V41 animation duration marker is not skeleton-local: " +
+                snippet,
+            )
+    if "string.Empty" in prepare:
+        fail(
+            errors,
+            "V41 animation generator still writes a duration marker to the "
+            "prefab root Transform",
+        )
+
+    rig_contract = read_text(
+        root,
+        "Assets/GameWorkPatch4/Runtime/Patch4RigContract.cs",
+        errors,
+    )
+    for snippet in (
+        'public const string VisualRootName = "Patch4VisualRoot";',
+        "public const string CanonicalRigRootPath =",
+        'VisualRootName + "/Root"',
+    ):
+        if snippet not in rig_contract:
+            fail(errors, "V41 canonical rig-root contract is missing: " + snippet)
+
+    prefab_builder = read_text(
+        root,
+        "Assets/GameWorkPatch4/Editor/Patch4PrefabBuilder.cs",
+        errors,
+    )
+    for snippet in (
+        "ValidateSavedRigOrThrow(",
+        "Patch4RigContract.CanonicalRigRootPath",
+        "rig.RigRoot != canonicalRigRoot",
+        "rig.RigRoot.IsChildOf(prefab.transform)",
+        "ValidateSavedSkeletonOrThrow(",
+        "bone.gameObject.activeSelf",
+    ):
+        if snippet not in prefab_builder:
+            fail(errors, "V41 post-save rig validation is missing: " + snippet)
 
     demo = read_text(
         root,
@@ -1756,6 +1836,20 @@ def validate_v41_character_pipeline(root: Path, errors: list[str]) -> None:
     ):
         if snippet not in tests:
             fail(errors, "V41 PlayMode regression coverage is missing: " + snippet)
+
+    edit_mode_tests = read_text(
+        root,
+        "Assets/GameWorkPatch4/Tests/EditMode/Patch4ContractEditModeTests.cs",
+        errors,
+    )
+    for snippet in (
+        "RequiredAnimationClips_DoNotWriteGameplayPrefabRootTransform",
+        "IsGameplayPrefabRootTransformBinding(binding)",
+        "GeneratedPrefab_HasSerializedCanonicalRigRoot",
+        '"CanonicalRigRootPath"',
+    ):
+        if snippet not in edit_mode_tests:
+            fail(errors, "V41 EditMode regression coverage is missing: " + snippet)
 
 
 def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
@@ -1831,6 +1925,27 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Alternate facial layers still contain opaque backing patches")
         if "CopyMasterPatch(" in baker or "ClearPatch(" in baker:
             fail(errors, "Face swapping still uses a hard rectangular copy or cut")
+        for required in (
+            "EyeReplacementFeatherInnerRadius = .60f",
+            "EyeReplacementFeatherOuterRadius = .80f",
+            "VisibleAlphaThreshold",
+            "result[destinationIndex].a <= VisibleAlphaThreshold",
+        ):
+            if required not in baker:
+                fail(
+                    errors,
+                    "Eye replacement bake does not retain a compact soft-alpha "
+                    "footprint: " + required,
+                )
+        if baker.count("EyeReplacementFeatherInnerRadius") < 3 or baker.count(
+            "EyeReplacementFeatherOuterRadius"
+        ) < 3:
+            fail(
+                errors,
+                "Both EyeWhite replacement bakes must use the compact "
+                "type-specific feather radii",
+            )
+        validate_eye_replacement_feather_footprint(root, errors)
         head_case_start = baker.find('case "Head/HeadBase":')
         head_case_end = baker.find(
             'case "Face/EyeWhiteL":',
@@ -1922,6 +2037,11 @@ def validate_neutral_pose_qa(root: Path, errors: list[str]) -> None:
             fail(errors, "Draft validation does not reject hard face-transition cuts")
         if "ValidateContinuousBodyLayer(" not in draft_validator:
             fail(errors, "Draft validation does not require one intact runtime body")
+        if "maximumVisibleRatio = .48f" not in draft_validator:
+            fail(
+                errors,
+                "The 48% face-replacement coverage gate was weakened",
+            )
 
 
 def validate_v23_full_frame_sheets(root: Path, errors: list[str]) -> None:
@@ -2300,6 +2420,99 @@ def decode_png_rgba(data: bytes, width: int, height: int) -> bytes:
     return bytes(output)
 
 
+def validate_eye_replacement_feather_footprint(
+    root: Path,
+    errors: list[str],
+) -> None:
+    master_path = root / REPOSITORY_MASTER
+    if not master_path.is_file():
+        return
+
+    data = master_path.read_bytes()
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        return
+    width, height = struct.unpack(">II", data[16:24])
+    try:
+        rgba = decode_png_rgba(data, width, height)
+    except (ValueError, zlib.error) as exc:
+        fail(
+            errors,
+            "Eye replacement feather model could not decode the master: " +
+            str(exc),
+        )
+        return
+
+    inner_radius = 0.60
+    outer_radius = 0.80
+    visible_threshold = 8
+    maximum_visible_ratio = 0.48
+    border_width = 3
+    regions = (
+        ("Face/EyeWhiteL", (0.438, 0.164, 0.063, 0.045)),
+        ("Face/EyeWhiteR", (0.499, 0.164, 0.063, 0.045)),
+    )
+    for name, (x, top_y, region_width, region_height) in regions:
+        min_x = max(0, min(width - 1, math.floor(x * width)))
+        max_x = max(
+            0,
+            min(width - 1, math.ceil((x + region_width) * width) - 1),
+        )
+        min_y = max(
+            0,
+            min(
+                height - 1,
+                math.floor(height - (top_y + region_height) * height),
+            ),
+        )
+        max_y = max(
+            0,
+            min(height - 1, math.ceil(height - top_y * height) - 1),
+        )
+        center_x = (x + region_width * 0.5) * width
+        center_y = height - (top_y + region_height * 0.5) * height
+        radius_x = max(1.0, region_width * width * 0.5)
+        radius_y = max(1.0, region_height * height * 0.5)
+        visible = 0
+        border = 0
+        for pixel_y in range(min_y, max_y + 1):
+            source_row = height - 1 - pixel_y
+            for pixel_x in range(min_x, max_x + 1):
+                dx = (pixel_x - center_x) / radius_x
+                dy = (pixel_y - center_y) / radius_y
+                distance = math.sqrt(dx * dx + dy * dy)
+                normalized = max(
+                    0.0,
+                    min(
+                        1.0,
+                        (distance - inner_radius) /
+                        (outer_radius - inner_radius),
+                    ),
+                )
+                smooth = normalized * normalized * (3.0 - 2.0 * normalized)
+                coverage = 1.0 - smooth
+                alpha_index = (source_row * width + pixel_x) * 4 + 3
+                output_alpha = round(rgba[alpha_index] * coverage)
+                if output_alpha <= visible_threshold:
+                    continue
+                visible += 1
+                if (
+                    pixel_x - min_x < border_width
+                    or max_x - pixel_x < border_width
+                    or pixel_y - min_y < border_width
+                    or max_y - pixel_y < border_width
+                ):
+                    border += 1
+
+        region_pixels = (max_x - min_x + 1) * (max_y - min_y + 1)
+        visible_ratio = visible / region_pixels if region_pixels else 1.0
+        if visible_ratio > maximum_visible_ratio or border > 0:
+            fail(
+                errors,
+                f"{name} compact feather model fails the real candidate gate: "
+                f"{visible_ratio:.2%} fill and {border} border pixels",
+            )
+
+
 def paeth(left: int, above: int, upper_left: int) -> int:
     estimate = left + above - upper_left
     left_distance = abs(estimate - left)
@@ -2483,6 +2696,7 @@ def main() -> int:
     print("- automatic readiness approval blocked")
     print("- one intact painted body uses a dense continuous anatomical deformation grid")
     print("- exact neutral face and feathered expression replacements share the Head matrix")
+    print("- EyeWhite replacement feather stays below the 48% candidate coverage gate")
     print("- Test Runner exit must stay quiescent before the separate room review")
     print("- actual-room review blocks weak limbs, collapse, over-stretch and Console errors")
     print("- V33 uses one persistent layered character and never swaps a live whole-body frame")

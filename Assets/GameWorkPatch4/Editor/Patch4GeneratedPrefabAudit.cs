@@ -132,12 +132,34 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         {
             Patch4CharacterRigController rig =
                 prefab.GetComponent<Patch4CharacterRigController>();
+            Transform canonicalRoot = prefab.transform.Find(
+                Patch4RigContract.CanonicalRigRootPath);
+            if (canonicalRoot == null)
+            {
+                failures.Add(
+                    "Canonical RigRoot is missing at " +
+                    Patch4RigContract.CanonicalRigRootPath + ".");
+            }
+
             Transform root = rig != null ? rig.RigRoot : null;
             if (root == null)
             {
                 failures.Add("RigRoot is not serialized.");
                 return;
             }
+            if (canonicalRoot != null && root != canonicalRoot)
+            {
+                failures.Add(
+                    "Serialized RigRoot does not reference the canonical " +
+                    Patch4RigContract.CanonicalRigRootPath + " Transform.");
+            }
+            if (!root.IsChildOf(prefab.transform))
+            {
+                failures.Add(
+                    "Serialized RigRoot points outside the generated prefab.");
+                return;
+            }
+
             Dictionary<string, List<Transform>> byName = new(StringComparer.Ordinal);
             foreach (Transform bone in root.GetComponentsInChildren<Transform>(true))
             {
@@ -156,8 +178,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     continue;
                 }
                 Transform bone = matches[0];
-                if (Patch4RigContract.TryGetRequiredParent(name, out string parent) &&
-                    (bone.parent == null || bone.parent.name != parent))
+                if (!bone.gameObject.activeSelf)
+                {
+                    failures.Add("Required bone is inactive: " + name + ".");
+                }
+                if (Patch4RigContract.TryGetRequiredParent(
+                        name,
+                        out string parent) &&
+                    (!byName.TryGetValue(
+                         parent,
+                         out List<Transform> parentMatches) ||
+                     parentMatches.Count != 1 ||
+                     bone.parent != parentMatches[0]))
                 {
                     failures.Add("Required bone has wrong parent: " + name + ".");
                 }
@@ -177,7 +209,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static void ValidatePresentation(GameObject prefab, List<string> failures)
         {
-            Transform visual = prefab.transform.Find("Patch4VisualRoot");
+            Transform visual = prefab.transform.Find(
+                Patch4RigContract.VisualRootName);
             if (visual == null)
             {
                 failures.Add("Patch4VisualRoot is missing.");
@@ -252,11 +285,14 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     if (!BindingResolves(prefab.transform, binding.path))
                         failures.Add(required + " has an unresolved binding: " + binding.path + ".");
                     if (binding.type == typeof(Transform) &&
-                        string.IsNullOrEmpty(binding.path))
+                        string.IsNullOrEmpty(binding.path) &&
+                        IsGameplayRootTransformProperty(binding.propertyName))
                     {
                         failures.Add(required +
-                            " writes the prefab root Transform instead of leaving " +
-                            "gameplay travel to CharacterRoutineController.");
+                            " illegally writes: path=\"" + binding.path +
+                            "\" property=\"" + binding.propertyName +
+                            "\". Gameplay root travel belongs only to " +
+                            "CharacterRoutineController.");
                     }
                     AnimationCurve curve = AnimationUtility.GetEditorCurve(clip, binding);
                     if (curve == null) continue;
@@ -284,6 +320,33 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private static bool BindingResolves(Transform root, string path) =>
             string.IsNullOrEmpty(path) || root.Find(path) != null;
+
+        private static bool IsGameplayRootTransformProperty(
+            string propertyName)
+        {
+            string property = propertyName ?? string.Empty;
+            return property.StartsWith(
+                       "m_LocalPosition.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "m_LocalRotation.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "localEulerAnglesRaw.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "localEulerAnglesBaked.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "localEulerAngles.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "m_LocalEulerAnglesHint.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "m_LocalScale.",
+                       StringComparison.Ordinal);
+        }
 
         private static void RequireExactlyOne<T>(GameObject prefab, List<string> failures)
             where T : Component

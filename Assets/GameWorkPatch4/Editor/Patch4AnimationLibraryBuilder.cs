@@ -12,7 +12,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         public const string ControllerPath =
             AnimationRoot + "/FatMan_Patch4.controller";
 
-        private const string Visual = "Patch4VisualRoot/Root/CharacterRoot";
+        private const string Visual =
+            Patch4RigContract.CanonicalRigRootPath + "/CharacterRoot";
+        private const string DurationAnchor =
+            Patch4RigContract.CanonicalRigRootPath + "/GroundShadow";
         private const string Pelvis = Visual + "/Pelvis";
         private const string SpineLower = Pelvis + "/SpineLower";
         private const string SpineUpper = SpineLower + "/SpineUpper";
@@ -941,13 +944,18 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             }
 
             SetLoop(clip, loop);
+            // A generated clip needs a terminal key to retain its authored
+            // duration, including face-only states such as Blink. Keep that
+            // neutral marker on a skeleton-local bone: an empty binding path
+            // targets FatMan_Patch4 itself and would make Animator a second
+            // owner of the gameplay root beside CharacterRoutineController.
             AnimationUtility.SetEditorCurve(
                 clip,
                 EditorCurveBinding.FloatCurve(
-                    string.Empty,
+                    DurationAnchor,
                     typeof(Transform),
-                    "m_LocalScale.z"),
-                AnimationCurve.Constant(0f, duration, 1f));
+                    "localEulerAnglesRaw.z"),
+                AnimationCurve.Constant(0f, duration, 0f));
             return clip;
         }
 

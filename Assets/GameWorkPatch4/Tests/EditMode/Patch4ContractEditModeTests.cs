@@ -176,6 +176,10 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.AreSame(prefab, animators[0].gameObject);
             Assert.IsTrue(animators[0].enabled);
             Assert.NotNull(animators[0].runtimeAnimatorController);
+            Assert.IsFalse(
+                animators[0].applyRootMotion,
+                "CharacterRoutineController must remain the only gameplay " +
+                "root-travel owner.");
 
             Transform visual = prefab.transform.Find("Patch4VisualRoot");
             Assert.NotNull(visual);
@@ -210,6 +214,95 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
             Assert.NotNull(validate);
             object[] arguments = { string.Empty };
             Assert.IsTrue((bool)validate.Invoke(null, arguments), arguments[0] as string);
+        }
+
+        [Test]
+        public void RequiredAnimationClips_DoNotWriteGameplayPrefabRootTransform()
+        {
+            Type contract = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Patch4RigContract");
+            IReadOnlyList<string> requiredClips =
+                GetStrings(contract, "RequiredClipNames");
+            const string controllerPath =
+                "Assets/GameWorkPatch4/Animations/FatMan_Patch4.controller";
+            AnimatorController controller =
+                AssetDatabase.LoadAssetAtPath<AnimatorController>(
+                    controllerPath);
+            Assert.NotNull(
+                controller,
+                "The generated Patch 4 Animator Controller is missing.");
+
+            Dictionary<string, AnimationClip> clips = controller.animationClips
+                .Where(clip => clip != null)
+                .GroupBy(clip => clip.name, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First(),
+                    StringComparer.Ordinal);
+            foreach (string required in requiredClips)
+            {
+                Assert.IsTrue(
+                    clips.TryGetValue(required, out AnimationClip clip),
+                    "Animator clip is missing: " + required + ".");
+                foreach (EditorCurveBinding binding in
+                         AnimationUtility.GetCurveBindings(clip))
+                {
+                    Assert.IsFalse(
+                        IsGameplayPrefabRootTransformBinding(binding),
+                        required + " illegally writes: path=\"" +
+                        binding.path + "\" property=\"" +
+                        binding.propertyName + "\". Gameplay travel belongs " +
+                        "only to CharacterRoutineController.");
+                }
+            }
+        }
+
+        [Test]
+        public void GeneratedPrefab_HasSerializedCanonicalRigRoot()
+        {
+            const string prefabPath =
+                "Assets/GameWorkPatch4/Resources/FatMan_Patch4.prefab";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                prefabPath);
+            Assert.NotNull(prefab, "The generated Patch 4 prefab is missing.");
+
+            Type contract = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4.Patch4RigContract");
+            FieldInfo canonicalPathField = contract.GetField(
+                "CanonicalRigRootPath",
+                BindingFlags.Static | BindingFlags.Public);
+            Assert.NotNull(
+                canonicalPathField,
+                "The Patch 4 contract has no canonical rig-root path.");
+            string canonicalPath =
+                (string)canonicalPathField.GetRawConstantValue();
+            Transform canonicalRoot = prefab.transform.Find(canonicalPath);
+            Assert.NotNull(
+                canonicalRoot,
+                "The canonical saved rig root is missing at " +
+                canonicalPath + ".");
+
+            Type rigType = RequireType(
+                "SkinnyToBeast.Gameplay.Patch4." +
+                "Patch4CharacterRigController");
+            Component rig = prefab.GetComponent(rigType);
+            Assert.NotNull(rig, "The generated prefab has no rig controller.");
+            PropertyInfo rigRootProperty = rigType.GetProperty(
+                "RigRoot",
+                BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(rigRootProperty);
+            Transform serializedRoot =
+                rigRootProperty.GetValue(rig) as Transform;
+            Assert.NotNull(
+                serializedRoot,
+                "The saved Patch 4 rigRoot reference is null.");
+            Assert.AreEqual(
+                canonicalRoot,
+                serializedRoot,
+                "The saved rigRoot does not point to the canonical hierarchy.");
+            Assert.IsTrue(
+                serializedRoot.IsChildOf(prefab.transform),
+                "The saved rigRoot points outside FatMan_Patch4.");
         }
 
         [Test]
@@ -933,6 +1026,39 @@ namespace SkinnyToBeast.Gameplay.Patch4.Tests.EditMode
                 0.65f,
                 0.001f,
                 "Tap reactions must retain their authored continuous timing.");
+        }
+
+        private static bool IsGameplayPrefabRootTransformBinding(
+            EditorCurveBinding binding)
+        {
+            if (binding.type != typeof(Transform) ||
+                !string.IsNullOrEmpty(binding.path))
+            {
+                return false;
+            }
+
+            string property = binding.propertyName ?? string.Empty;
+            return property.StartsWith(
+                       "m_LocalPosition.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "m_LocalRotation.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "localEulerAnglesRaw.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "localEulerAnglesBaked.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "localEulerAngles.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "m_LocalEulerAnglesHint.",
+                       StringComparison.Ordinal) ||
+                   property.StartsWith(
+                       "m_LocalScale.",
+                       StringComparison.Ordinal);
         }
 
         private static void AssertCurveSweep(

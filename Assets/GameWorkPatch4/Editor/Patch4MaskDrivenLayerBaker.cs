@@ -25,6 +25,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
 
         private const int Width = 1024;
         private const int Height = 1536;
+        private const byte VisibleAlphaThreshold = 8;
+        private const float EyeReplacementFeatherInnerRadius = .60f;
+        private const float EyeReplacementFeatherOuterRadius = .80f;
 
         private enum Side
         {
@@ -690,7 +693,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     CopyFeatheredMasterPatch(
                         master,
                         result,
-                        LeftEyePatch);
+                        LeftEyePatch,
+                        EyeReplacementFeatherInnerRadius,
+                        EyeReplacementFeatherOuterRadius);
                     PaintSkinUnderlay(master, result, LeftEyePatch);
                     OverlayShiftedMasterFeature(
                         master,
@@ -703,7 +708,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     CopyFeatheredMasterPatch(
                         master,
                         result,
-                        RightEyePatch);
+                        RightEyePatch,
+                        EyeReplacementFeatherInnerRadius,
+                        EyeReplacementFeatherOuterRadius);
                     PaintSkinUnderlay(master, result, RightEyePatch);
                     OverlayShiftedMasterFeature(
                         master,
@@ -897,6 +904,15 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     }
 
                     int destinationIndex = y * Width + destinationX;
+                    // The shifted painted eye must remain inside the already
+                    // feathered skin replacement. Letting feature alpha create
+                    // new pixels outside that ellipse expanded EyeWhiteL/R to
+                    // ~53% of the region and produced a broad skin patch.
+                    if (result[destinationIndex].a <= VisibleAlphaThreshold)
+                    {
+                        continue;
+                    }
+
                     result[destinationIndex] = BlendOver(
                         result[destinationIndex],
                         source);
@@ -1013,7 +1029,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
         private static void CopyFeatheredMasterPatch(
             ImageData master,
             Color32[] result,
-            Rect patch)
+            Rect patch,
+            float innerRadius = .66f,
+            float outerRadius = .86f)
         {
             ClearLayer(result);
             GetPixelBounds(
@@ -1041,8 +1059,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                             0f,
                             1f,
                             Mathf.InverseLerp(
-                                .66f,
-                                .86f,
+                                innerRadius,
+                                outerRadius,
                                 distance));
                     if (coverage <= 0f)
                     {

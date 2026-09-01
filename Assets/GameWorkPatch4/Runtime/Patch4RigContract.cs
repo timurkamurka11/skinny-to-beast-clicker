@@ -10,6 +10,9 @@ namespace SkinnyToBeast.Gameplay.Patch4
     public static class Patch4RigContract
     {
         public const string PatchName = "GameWork Patch 4.0";
+        public const string VisualRootName = "Patch4VisualRoot";
+        public const string CanonicalRigRootPath =
+            VisualRootName + "/Root";
         public const string CharacterRootName = "CharacterRoot";
         public const string RuntimeContinuousBodyLayerPath =
             "Body/TorsoBase";

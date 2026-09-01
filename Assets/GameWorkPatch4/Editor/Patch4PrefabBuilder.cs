@@ -116,7 +116,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                 Patch4CharacterVisibilityGuard visibilityGuard =
                     root.AddComponent<Patch4CharacterVisibilityGuard>();
 
-                Transform visualRoot = CreateChild(root.transform, "Patch4VisualRoot");
+                Transform visualRoot = CreateChild(
+                    root.transform,
+                    Patch4RigContract.VisualRootName);
                 Dictionary<string, Transform> bones = BuildSkeleton(visualRoot);
                 Transform rigRoot = bones["Root"];
 
@@ -284,7 +286,9 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "root Animator and RuntimeAnimatorController binding.");
             }
 
-            if (prefab.GetComponent<Patch4CharacterRigController>() == null ||
+            Patch4CharacterRigController rig =
+                prefab.GetComponent<Patch4CharacterRigController>();
+            if (rig == null ||
                 prefab.GetComponent<Patch4CharacterStateMachine>() == null ||
                 prefab.GetComponent<Patch4CanvasPresentation>() == null ||
                 prefab.GetComponent<Patch4V23FullFramePresentation>() == null ||
@@ -297,6 +301,8 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     "dependency or still contains the obsolete foot solver.");
             }
 
+            ValidateSavedRigOrThrow(prefab, rig);
+
             Patch4CharacterStateMachine stateMachine =
                 prefab.GetComponent<Patch4CharacterStateMachine>();
             SerializedObject serializedStateMachine = new(stateMachine);
@@ -304,11 +310,103 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
                     ?.objectReferenceValue != animator ||
                 serializedStateMachine.FindProperty("rigController")
                     ?.objectReferenceValue !=
-                    prefab.GetComponent<Patch4CharacterRigController>())
+                    rig)
             {
                 throw new InvalidOperationException(
                     "Patch 4 generated prefab did not retain the state " +
                     "machine's authoritative root Animator/rig bindings.");
+            }
+        }
+
+        private static void ValidateSavedRigOrThrow(
+            GameObject prefab,
+            Patch4CharacterRigController rig)
+        {
+            Transform canonicalRigRoot = prefab.transform.Find(
+                Patch4RigContract.CanonicalRigRootPath);
+            if (canonicalRigRoot == null)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab has no canonical rig root at " +
+                    Patch4RigContract.CanonicalRigRootPath + ".");
+            }
+            if (rig.RigRoot == null ||
+                rig.RigRoot != canonicalRigRoot ||
+                !rig.RigRoot.IsChildOf(prefab.transform))
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab did not retain its serialized " +
+                    "canonical rigRoot reference inside the saved prefab.");
+            }
+
+            ValidateSavedSkeletonOrThrow(rig.RigRoot);
+        }
+
+        private static void ValidateSavedSkeletonOrThrow(Transform rigRoot)
+        {
+            Dictionary<string, List<Transform>> byName =
+                new(StringComparer.Ordinal);
+            foreach (Transform bone in
+                     rigRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (!byName.TryGetValue(
+                        bone.name,
+                        out List<Transform> matches))
+                {
+                    matches = new List<Transform>();
+                    byName.Add(bone.name, matches);
+                }
+                matches.Add(bone);
+            }
+
+            List<string> failures = new();
+            foreach (string name in Patch4RigContract.RequiredBoneNames)
+            {
+                if (!byName.TryGetValue(
+                        name,
+                        out List<Transform> matches) ||
+                    matches.Count != 1)
+                {
+                    failures.Add(name + ": missing or duplicated");
+                    continue;
+                }
+
+                Transform bone = matches[0];
+                if (!bone.gameObject.activeSelf)
+                {
+                    failures.Add(name + ": inactive");
+                }
+                if (Patch4RigContract.TryGetRequiredParent(
+                        name,
+                        out string parent) &&
+                    (!byName.TryGetValue(
+                         parent,
+                         out List<Transform> parentMatches) ||
+                     parentMatches.Count != 1 ||
+                     bone.parent != parentMatches[0]))
+                {
+                    failures.Add(name + ": wrong parent");
+                }
+                if (!Finite(bone.localPosition) ||
+                    !Finite(bone.localRotation) ||
+                    !Finite(bone.localScale) ||
+                    Mathf.Abs(bone.localScale.x) < .0001f ||
+                    Mathf.Abs(bone.localScale.y) < .0001f ||
+                    Mathf.Abs(bone.localScale.z) < .0001f ||
+                    Mathf.Abs(bone.localScale.x) > 4f ||
+                    Mathf.Abs(bone.localScale.y) > 4f ||
+                    Mathf.Abs(bone.localScale.z) > 4f)
+                {
+                    failures.Add(name + ": invalid transform");
+                }
+            }
+
+            if (failures.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Patch 4 generated prefab did not retain a complete " +
+                    "active finite skeleton after save: " +
+                    string.Join(", ", failures) + ".");
             }
         }
 
@@ -565,6 +663,17 @@ namespace SkinnyToBeast.Gameplay.Patch4.Editor
             child.transform.localScale = Vector3.one;
             return child.transform;
         }
+
+        private static bool Finite(Vector3 value) =>
+            !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+            !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+            !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+
+        private static bool Finite(Quaternion value) =>
+            !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+            !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+            !float.IsNaN(value.z) && !float.IsInfinity(value.z) &&
+            !float.IsNaN(value.w) && !float.IsInfinity(value.w);
 
         private static void EnsureFolder(string path)
         {
